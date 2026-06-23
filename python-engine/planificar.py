@@ -19,7 +19,8 @@ import requests
 from Crypto.Cipher import AES
 from dotenv import load_dotenv
 
-from plan_template import PLAN, Fila
+from plan_template import Fila
+from generador import obtener_plan
 
 # ---- Antibot InfinityFree (reto __test / aes.js) ----
 _UA = (
@@ -166,15 +167,20 @@ def nota_semana(semana: int) -> str:
     }[semana]
 
 
-def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int) -> list[dict]:
+def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
+                  plan: list[Fila] | None = None) -> list[dict]:
     ultima, record, estancados = ultimas_y_records(df)
     filas: list[dict] = []
     top_del_dia: dict[tuple[int, str], float | None] = {}
 
+    # plan base segun la config del usuario (enfoque/split/prioridades)
+    if plan is None:
+        plan = obtener_plan()
+
     # semana efectiva para la logica de progresion: deload (S5) usa S4 como referencia
     semana_prog = min(semana, 4)
 
-    for f in PLAN:
+    for f in plan:
         # ── Filtrar por semana especifica del ejercicio ──────────────────────
         if f.semanas is not None and semana_prog not in f.semanas:
             continue

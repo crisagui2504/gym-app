@@ -1,5 +1,10 @@
 """Plantilla del plan de entrenamiento (metodologia del informe v3).
 
+NOTA: desde la version con generador dinamico, el plan ACTIVO lo construye
+generador.py a partir de config_usuario.json (enfoque + split + prioridades).
+Este modulo aporta la dataclass `Fila` (que sigue siendo la unidad del plan) y
+conserva `PLAN` como referencia/plantilla fija del enfoque Recomposicion original.
+
 Estructura semanal Upper/Lower, 4 dias de pesas + 2 cardio + 1 descanso.
 Ciclo de 5 semanas: S1 base, S2 rotacion Bloque B, S3 superar S1, S4 pico,
 S5 deload de volumen (gestionado por planificar.py).

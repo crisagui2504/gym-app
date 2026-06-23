@@ -19,7 +19,11 @@ from datetime import date, timedelta
 
 import pandas as pd
 import plotly.graph_objects as go
-from dash import Dash, Input, Output, dash_table, dcc, html, callback
+from dash import Dash, Input, Output, State, dash_table, dcc, html, callback
+
+from config_usuario import cargar_config, guardar_config
+from enfoques import ENFOQUES, SPLITS, MUSCULOS_PRIORIZABLES
+from generador import generar_plan
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Constantes de diseño (paleta oscura que combina con la app Angular)
@@ -467,6 +471,111 @@ _TAB_SELECTED_STYLE = {
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Pestaña de configuración (cambiar enfoque sin tocar código)
+# ─────────────────────────────────────────────────────────────────────────────
+_DD_STYLE = {"backgroundColor": CARD2, "color": "#111", "border": "none"}
+
+
+def _tab_config_children() -> html.Div:
+    cfg = cargar_config()
+    return html.Div([
+        _card([
+            html.Div("Configura tu entrenamiento",
+                     style={"color": TEXT, "fontWeight": "700", "fontSize": "16px",
+                            "marginBottom": "4px"}),
+            html.Div("Elegí el enfoque, el split y tus músculos rezagados. El plan se "
+                     "reconstruye con las reglas de la teoría (patrones, bloques A/B/C, "
+                     "técnicas, descansos, prioridad de orden y rotación).",
+                     style={"color": MUTED, "fontSize": "13px", "marginBottom": "20px"}),
+
+            html.Div([
+                # Enfoque
+                html.Div([
+                    html.Label("Enfoque (objetivo)", style={"color": ACCENT, "fontSize": "12px",
+                               "fontWeight": "600", "textTransform": "uppercase",
+                               "letterSpacing": "1px"}),
+                    dcc.Dropdown(
+                        id="cfg-enfoque", clearable=False, style=_DD_STYLE,
+                        options=[{"label": e.nombre, "value": k} for k, e in ENFOQUES.items()],
+                        value=cfg["enfoque"],
+                    ),
+                ], style={"flex": "1", "minWidth": "240px"}),
+
+                # Split
+                html.Div([
+                    html.Label("Split (distribución de días)", style={"color": ACCENT,
+                               "fontSize": "12px", "fontWeight": "600",
+                               "textTransform": "uppercase", "letterSpacing": "1px"}),
+                    dcc.Dropdown(
+                        id="cfg-split", clearable=False, style=_DD_STYLE,
+                        options=[{"label": s.nombre, "value": k} for k, s in SPLITS.items()],
+                        value=cfg["split"],
+                    ),
+                ], style={"flex": "1", "minWidth": "240px"}),
+
+                # Peso corporal
+                html.Div([
+                    html.Label("Peso corporal (kg)", style={"color": ACCENT, "fontSize": "12px",
+                               "fontWeight": "600", "textTransform": "uppercase",
+                               "letterSpacing": "1px"}),
+                    dcc.Input(id="cfg-peso", type="number", value=cfg.get("peso_corporal", 75),
+                              min=40, max=200, step=1,
+                              style={"width": "100%", "padding": "7px 10px", "borderRadius": "4px",
+                                     "border": "1px solid #2a2d3e", "backgroundColor": CARD2,
+                                     "color": TEXT, "boxSizing": "border-box"}),
+                ], style={"flex": "1", "minWidth": "160px"}),
+            ], style={"display": "flex", "gap": "16px", "flexWrap": "wrap",
+                      "marginBottom": "20px"}),
+
+            html.Label("Músculos prioritarios (rezagados → reciben el estímulo máximo)",
+                       style={"color": ACCENT, "fontSize": "12px", "fontWeight": "600",
+                              "textTransform": "uppercase", "letterSpacing": "1px"}),
+            dcc.Checklist(
+                id="cfg-prioridades",
+                options=[{"label": f" {lbl}", "value": mid} for mid, lbl in MUSCULOS_PRIORIZABLES],
+                value=cfg.get("prioridades", []),
+                inline=True,
+                style={"color": TEXT, "fontSize": "14px", "marginTop": "8px"},
+                inputStyle={"marginRight": "4px", "marginLeft": "14px"},
+            ),
+
+            html.Button("Generar y guardar plan", id="cfg-guardar", n_clicks=0,
+                        style={"marginTop": "24px", "padding": "12px 28px",
+                               "background": ACCENT, "color": "#06231d", "border": "none",
+                               "borderRadius": "8px", "fontWeight": "700", "fontSize": "14px",
+                               "cursor": "pointer"}),
+        ]),
+
+        html.Div(id="cfg-resultado", style={"marginTop": "16px"}),
+    ], style={"padding": "16px 0"})
+
+
+def _resumen_enfoque(cfg: dict) -> html.Div:
+    enf = ENFOQUES[cfg["enfoque"]]
+    split = SPLITS[cfg["split"]]
+    prioridades = ", ".join(
+        lbl for mid, lbl in MUSCULOS_PRIORIZABLES if mid in cfg.get("prioridades", [])
+    ) or "ninguno"
+    return _card([
+        html.Div(f"✓ Plan guardado: {enf.nombre}", style={"color": ACCENT, "fontWeight": "700",
+                 "fontSize": "15px", "marginBottom": "8px"}),
+        html.P(enf.descripcion, style={"color": TEXT, "fontSize": "13px", "marginBottom": "4px"}),
+        html.P(f"Split: {split.nombre}", style={"color": MUTED, "fontSize": "13px", "margin": "2px 0"}),
+        html.P(f"Prioridades: {prioridades}", style={"color": MUTED, "fontSize": "13px", "margin": "2px 0"}),
+        html.Div([
+            html.Span("🥗 Nutrición  ", style={"color": ACCENT, "fontWeight": "600", "fontSize": "12px"}),
+            html.Span(enf.macros, style={"color": TEXT, "fontSize": "12px"}),
+        ], style={"marginTop": "10px", "padding": "10px 12px", "background": CARD2,
+                  "borderRadius": "6px"}),
+        html.P(f"💡 {enf.nota}", style={"color": MUTED, "fontSize": "12px", "marginTop": "10px",
+               "fontStyle": "italic"}),
+        html.P("El nuevo plan ya está activo. Mirá la pestaña «Plan semana» para verlo completo. "
+               "La próxima vez que corras el motor (planificar.py) usará este enfoque.",
+               style={"color": MUTED, "fontSize": "12px", "marginTop": "12px"}),
+    ])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Construcción de la app
 # ─────────────────────────────────────────────────────────────────────────────
 df_global, es_demo = _cargar_df()
@@ -588,7 +697,12 @@ def _build_layout(df: pd.DataFrame, demo: bool) -> html.Div:
             ], style={"padding": "16px 0"}),
         ),
 
-        # ── Tab 6: Plan próxima semana ──────────────────────────────────────
+        # ── Tab: Configuración (cambiar enfoque) ────────────────────────────
+        dcc.Tab(label="⚙ Configuración", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
+            children=_tab_config_children(),
+        ),
+
+        # ── Tab: Plan próxima semana ────────────────────────────────────────
         dcc.Tab(label="Plan semana", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
             children=html.Div([
                 _card([
@@ -655,6 +769,39 @@ app.layout = _build_layout(df_global, es_demo)
 )
 def _update_progresion(ejercicio: str) -> go.Figure:
     return _fig_progresion(df_global, ejercicio)
+
+
+@callback(
+    Output("cfg-resultado", "children"),
+    Input("cfg-guardar", "n_clicks"),
+    State("cfg-enfoque", "value"),
+    State("cfg-split", "value"),
+    State("cfg-prioridades", "value"),
+    State("cfg-peso", "value"),
+    prevent_initial_call=True,
+)
+def _guardar_enfoque(n_clicks, enfoque, split, prioridades, peso):
+    cfg = {
+        "enfoque": enfoque,
+        "split": split,
+        "prioridades": prioridades or [],
+        "peso_corporal": peso or 75,
+    }
+    guardar_config(cfg)
+    # validar que el plan se genera sin errores con la nueva config
+    try:
+        plan = generar_plan(cfg)
+        n_ej = len([f for f in plan if f.tecnica])
+    except Exception as exc:  # noqa: BLE001
+        return _card([html.Div(f"⚠ Error al generar el plan: {exc}",
+                               style={"color": DANGER})])
+    resumen = _resumen_enfoque(cfg)
+    return html.Div([
+        resumen,
+        html.Div(f"Plan generado: {n_ej} ejercicios distribuidos en la semana.",
+                 style={"color": MUTED, "fontSize": "12px", "marginTop": "10px",
+                        "textAlign": "center"}),
+    ])
 
 
 if __name__ == "__main__":

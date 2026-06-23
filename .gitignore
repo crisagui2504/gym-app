@@ -18,6 +18,9 @@ __pycache__/
 # Repomix output
 repomix-output.*
 
+# Config personal del usuario (se genera al usar el dashboard)
+config_usuario.json
+
 # OS / editor
 .DS_Store
 Thumbs.db

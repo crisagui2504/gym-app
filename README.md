@@ -54,10 +54,17 @@ gym/
 ├── angular-app/          → Versión alternativa / experimental de la app Angular
 ├── infinityfree/         → Backend PHP + SQL para alojar en InfinityFree
 │   └── api/              → Endpoints REST
-├── python-engine/        → Motor de planificación + dashboard (corre local)
+├── GymTracker.bat        → ▶ Ejecutable de un clic (abre el dashboard)
+├── GymTracker (sin consola).vbs → Igual pero sin ventana de consola
+├── Crear acceso directo en escritorio.bat → Pone el icono en el escritorio
+├── python-engine/        → Motor + generador + dashboard (corre local)
+│   ├── ejercicios_db.py → Base de datos de ejercicios (por patrón de movimiento)
+│   ├── enfoques.py      → Enfoques (recomp/volumen/etc.) y splits (U-L/PPL/FB)
+│   ├── generador.py     → Genera el plan dinámicamente según tu config
+│   ├── config_usuario.py → Guarda tu enfoque elegido (lo hace permanente)
 │   ├── planificar.py    → Motor de sobrecarga progresiva (mesociclo 5 semanas)
-│   ├── plan_template.py → Plantilla del plan con rotación por semana
-│   └── dashboard.py     → Dashboard Dash/Plotly (análisis de progreso)
+│   ├── plan_template.py → Dataclass Fila + plantilla de referencia
+│   └── dashboard.py     → Dashboard Dash/Plotly + configuración interactiva
 ├── python-scripts/       → Scripts auxiliares (optimización básica)
 ├── docs/                 → Roadmap por sprints
 └── powerbi_guide.md      → Guía alternativa para Power BI
@@ -217,13 +224,13 @@ Semana objetivo 2026-06-30 | Mesociclo: S2/4 | 48 filas
 Plan de la semana 2026-06-30 (S2/4) sincronizado.
 ```
 
-### Plantilla del plan (`plan_template.py`)
+### De dónde sale el plan base
 
-Define la estructura semanal fija: qué ejercicios, en qué días, con qué técnica, cuántas series y el rango de reps. El motor lee esta plantilla y le aplica los pesos calculados del historial. Si es la primera semana (sin historial), usa los `peso_base` definidos en la plantilla.
+El plan que el motor rellena con pesos lo construye **`generador.py`** según tu `config_usuario.json` (ver Módulo 4). El motor toma ese plan, le aplica los pesos calculados del historial y, si es la primera semana, usa los `peso_base` de la base de datos de ejercicios.
 
-Cada fila tiene un campo `semanas` que controla en qué semanas del mesociclo aparece (`None` = todas). Así se implementa la rotación del Bloque B en S2 y los antebrazos por semana, fieles a la metodología del Plan v3.
+Cada fila tiene un campo `semanas` que controla en qué semanas del mesociclo aparece (`None` = todas). Así se implementa la rotación del Bloque B en S2 y los antebrazos por semana, fieles a la metodología del Plan v3. (`plan_template.py` conserva la plantilla fija original como referencia.)
 
-**Estructura semanal (Upper/Lower, 4 días de pesas + 2 cardio + 1 descanso):**
+**Estructura semanal de ejemplo (enfoque Recomposición, split Upper/Lower):**
 
 | Día | Sesión | Prioridad |
 |---|---|---|
@@ -239,21 +246,36 @@ Cada fila tiene un campo `semanas` que controla en qué semanas del mesociclo ap
 
 ---
 
-## Módulo 4 — Dashboard Python (`python-engine/dashboard.py`)
+## Módulo 4 — Dashboard Python + Generador autónomo (`python-engine/dashboard.py`)
 
-Panel de Inteligencia Deportiva local (**reemplaza a Power BI**). Es una app web hecha con **Dash + Plotly** que corre en tu PC y lee el mismo `historial.csv` que genera `exportar_local.py`.
+Panel de Inteligencia Deportiva local (**reemplaza a Power BI**). App web hecha con **Dash + Plotly** que corre en tu PC, lee tu `historial.csv` y te deja **cambiar el enfoque de entrenamiento sin tocar código**.
 
-### Cómo lanzarlo
+### Cómo lanzarlo — un clic, sin terminal
 
-```powershell
-cd python-engine
-.\run_dashboard.ps1
-# → abre automáticamente http://127.0.0.1:8050
-```
+Doble clic en **`GymTracker.bat`** (en la raíz del proyecto). La primera vez crea el entorno e instala dependencias solo; después abre el navegador en `http://127.0.0.1:8050` automáticamente.
 
-El script crea el venv e instala dependencias la primera vez. Si `historial.csv` está vacío, el dashboard carga **datos de demostración** (8 semanas de ejemplo) para que puedas verlo funcionar antes de tener entrenos reales.
+- **`GymTracker (sin consola).vbs`** — igual, pero sin ninguna ventana de consola.
+- **`Crear acceso directo en escritorio.bat`** — corrélo una vez y te deja el icono **"Gym Tracker"** en el escritorio para abrirlo cuando quieras.
 
-### Qué muestra (6 pestañas)
+Si `historial.csv` está vacío, el dashboard carga **datos de demostración** para que lo veas funcionar antes de tener entrenos reales.
+
+### Autonomía: cambiar el enfoque desde el dashboard
+
+En la pestaña **⚙ Configuración** elegís:
+
+- **Enfoque (objetivo):** Recomposición · Volumen (Bulk) · Definición (Cut) · Powerbuilding · Fuerza Pura. Cada uno ajusta rangos de reps, técnicas, volumen de los bloques, cardio y guía de macros según la teoría.
+- **Split:** Upper/Lower (4 días) · Push/Pull/Legs (6 días) · Full Body (3 días).
+- **Músculos prioritarios:** los que marques reciben el estímulo máximo (van **primero en el Bloque A**) y frecuencia extra al final de otros días.
+
+Al presionar **"Generar y guardar plan"**, el `generador.py` reconstruye el plan completo aplicando las reglas del informe (patrones de movimiento, bloques A/B/C, técnicas, descansos, prioridad de orden, rotación del Bloque B y antebrazos por semana). La elección se guarda en `config_usuario.json` (por eso es **permanente**) y el motor `planificar.py` la usa en su próxima corrida.
+
+### El generador (`generador.py` + `ejercicios_db.py` + `enfoques.py`)
+
+- **`ejercicios_db.py`** — base de datos de ejercicios **comunes** etiquetados por patrón de movimiento (empuje/tirón horizontal y vertical, dominante de rodilla/cadera), músculo, equipo y bloque.
+- **`enfoques.py`** — define cada enfoque (reps, técnicas, volumen, macros) y cada split (qué patrón se entrena cada día, respetando frecuencia 2×/semana).
+- **`generador.py`** — combina lo anterior con tus prioridades para producir un plan válido. Nada de ejercicios raros: todo común y replicable en cualquier gimnasio.
+
+### Qué muestra (7 pestañas)
 
 | Pestaña | Contenido |
 |---|---|
@@ -262,11 +284,10 @@ El script crea el venv e instala dependencias la primera vez. Si `historial.csv`
 | **Records (PRs)** | Peso máximo histórico de cada ejercicio |
 | **Estado SNC** | RPE promedio semanal con zona óptima (7.5–9) y zona de deload (≥9) |
 | **Logbook** | Tabla completa, filtrable y ordenable, de todas las series |
-| **Plan semana** | El plan calculado por `planificar.py` para la próxima semana |
+| **⚙ Configuración** | Cambiar enfoque / split / prioridades y regenerar el plan |
+| **Plan semana** | El plan calculado para la próxima semana según tu config |
 
-Arriba muestra KPIs: sesiones totales, tonelaje acumulado, RPE promedio, racha de días y cantidad de ejercicios.
-
-> El módulo `powerbi_guide.md` se mantiene en el repo como alternativa para quien prefiera Power BI, pero el dashboard Python es ahora la herramienta principal de análisis.
+> Power BI (`powerbi_guide.md`) queda como alternativa, pero el dashboard Python es la herramienta principal.
 
 ---
 
@@ -338,3 +359,4 @@ Ver [`docs/SPRINTS.md`](docs/SPRINTS.md) para el detalle. Resumen:
 - **Sprint 3** — Despliegue en dominio propio
 - **Sprint 4** ✅ Motor Python local con mesociclo de 5 semanas (deload + rotación)
 - **Sprint 5** ✅ Dashboard Python (Dash/Plotly) — reemplaza Power BI
+- **Sprint 6** ✅ App autónoma: generador dinámico de planes + enfoque configurable desde el dashboard + ejecutable de un clic
