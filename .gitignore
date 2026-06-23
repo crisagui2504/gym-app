@@ -18,8 +18,10 @@ __pycache__/
 # Repomix output
 repomix-output.*
 
-# Config personal del usuario (se genera al usar el dashboard)
+# Config y datos personales del usuario (se generan al usar la app)
 config_usuario.json
+python-engine/historial.csv
+python-engine/motor.log
 
 # OS / editor
 .DS_Store

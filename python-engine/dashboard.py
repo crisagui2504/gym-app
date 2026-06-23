@@ -28,24 +28,32 @@ from generador import generar_plan
 # ─────────────────────────────────────────────────────────────────────────────
 # Constantes de diseño (paleta oscura que combina con la app Angular)
 # ─────────────────────────────────────────────────────────────────────────────
-ACCENT  = "#00d4aa"
-BG      = "#0f1117"
-CARD    = "#1a1d27"
-CARD2   = "#21253a"
-TEXT    = "#e8eaf0"
-MUTED   = "#6c7293"
-DANGER  = "#ff4d6d"
-WARN    = "#ffbe0b"
+ACCENT  = "#00e0b5"
+ACCENT2 = "#18b3ff"
+BG      = "#0b0d13"
+CARD    = "#161922"
+CARD2   = "#1e2230"
+LINE    = "#2a2f42"
+TEXT    = "#eef0f6"
+MUTED   = "#8b90a8"
+DANGER  = "#ff5d7a"
+WARN    = "#ffc043"
 
 CSV_PATH = pathlib.Path(__file__).resolve().parent / "historial.csv"
 
 PLOTLY_THEME = dict(
     template="plotly_dark",
-    paper_bgcolor=CARD,
-    plot_bgcolor=CARD,
-    font=dict(color=TEXT, family="Inter, Segoe UI, sans-serif"),
-    margin=dict(l=20, r=20, t=50, b=20),
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    font=dict(color=TEXT, family="Inter, Segoe UI, sans-serif", size=13),
+    margin=dict(l=20, r=20, t=64, b=70),
+    colorway=[ACCENT, ACCENT2, "#a78bfa", "#ff9f6e", "#ff5d7a"],
 )
+GRID = "#222740"
+# estilo de titulo (alineado a la izquierda, compacto) para pasar como title=...
+def _titulo(texto: str) -> dict:
+    return dict(text=texto, font=dict(size=15, color=TEXT), x=0.012, xanchor="left",
+                y=0.97, yanchor="top")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Datos de demostración (se usan cuando historial.csv está vacío)
@@ -146,22 +154,29 @@ def _generar_demo() -> pd.DataFrame:
 # ─────────────────────────────────────────────────────────────────────────────
 # Carga de datos
 # ─────────────────────────────────────────────────────────────────────────────
-def _cargar_df() -> tuple[pd.DataFrame, bool]:
-    """(df, es_demo)"""
-    es_demo = False
+def _cargar_df() -> tuple[pd.DataFrame, str]:
+    """Devuelve (df, estado) con estado in {"real", "vacio", "demo"}.
+
+    - "real":  hay datos en historial.csv.
+    - "vacio": no hay datos todavía (se muestra un estado vacío, no demo).
+    - "demo":  solo si se arranca con la variable de entorno GYM_DEMO=1.
+    """
     if CSV_PATH.exists():
         df = pd.read_csv(CSV_PATH)
         for col in ("peso_kg", "reps_hechas", "rpe", "tonelaje_serie"):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
         df["fecha_entreno"] = pd.to_datetime(df["fecha_entreno"], errors="coerce")
-        if not df.dropna(subset=["fecha_entreno", "ejercicio"]).empty:
-            return df, False
+        df = df.dropna(subset=["fecha_entreno", "ejercicio"])
+        if not df.empty:
+            return df, "real"
 
-    es_demo = True
-    df = _generar_demo()
-    df["fecha_entreno"] = pd.to_datetime(df["fecha_entreno"])
-    return df, True
+    if os.getenv("GYM_DEMO"):
+        df = _generar_demo()
+        df["fecha_entreno"] = pd.to_datetime(df["fecha_entreno"])
+        return df, "demo"
+
+    return pd.DataFrame(), "vacio"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -195,7 +210,22 @@ def _kpis(df: pd.DataFrame) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 # Gráficos
 # ─────────────────────────────────────────────────────────────────────────────
+_LEGEND_BOTTOM = dict(orientation="h", yanchor="top", y=-0.18, x=0,
+                      bgcolor="rgba(0,0,0,0)", font=dict(size=12))
+
+
+def _fig_vacia(titulo: str = "Sin datos todavía") -> go.Figure:
+    fig = go.Figure()
+    fig.add_annotation(text=titulo, showarrow=False,
+                       font=dict(size=14, color=MUTED), x=0.5, y=0.5, xref="paper", yref="paper")
+    fig.update_layout(**{k: v for k, v in PLOTLY_THEME.items() if k != "title"},
+                      xaxis=dict(visible=False), yaxis=dict(visible=False))
+    return fig
+
+
 def _fig_progresion(df: pd.DataFrame, ejercicio: str) -> go.Figure:
+    if df.empty or not ejercicio:
+        return _fig_vacia("Elegí un ejercicio para ver su progresión")
     sub = df[df["ejercicio"] == ejercicio].copy()
     sub["semana"] = sub["fecha_entreno"].dt.to_period("W").dt.start_time
     ton  = sub.groupby("semana")["tonelaje_serie"].sum().reset_index()
@@ -204,47 +234,52 @@ def _fig_progresion(df: pd.DataFrame, ejercicio: str) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=ton["semana"], y=ton["tonelaje_serie"],
-        name="Tonelaje semanal (kg)", marker_color="#1e3a5f",
-        yaxis="y2", opacity=0.6,
+        name="Tonelaje semanal", marker_color=ACCENT2,
+        yaxis="y2", opacity=0.35,
     ))
     fig.add_trace(go.Scatter(
         x=pmax["semana"], y=pmax["peso_kg"],
-        name="Peso máximo (kg)",
-        line=dict(color=ACCENT, width=3),
+        name="Peso máximo",
+        line=dict(color=ACCENT, width=3, shape="spline"),
         mode="lines+markers", marker=dict(size=9, color=ACCENT),
     ))
     fig.update_layout(
         **PLOTLY_THEME,
-        title=f"Progresión — {ejercicio}",
-        yaxis=dict(title="Peso máximo (kg)", gridcolor="#252840", zeroline=False),
+        title=_titulo(f"Progresión — {ejercicio}"),
+        yaxis=dict(title="Peso máximo (kg)", gridcolor=GRID, zeroline=False),
         yaxis2=dict(title="Tonelaje (kg)", overlaying="y", side="right",
-                    gridcolor="#252840", zeroline=False),
-        legend=dict(orientation="h", y=1.14, x=0),
+                    gridcolor="rgba(0,0,0,0)", zeroline=False),
+        legend=_LEGEND_BOTTOM,
         hovermode="x unified",
     )
     return fig
 
 
 def _fig_records(df: pd.DataFrame) -> go.Figure:
+    if df.empty:
+        return _fig_vacia()
     prs = df.groupby("ejercicio")["peso_kg"].max().sort_values().tail(14)
-    colors = [ACCENT if v == prs.max() else "#2a7a7a" for v in prs.values]
+    maxv = prs.max() if len(prs) else 0
+    colors = [ACCENT if v == maxv and maxv > 0 else "#2c6f6a" for v in prs.values]
     fig = go.Figure(go.Bar(
         x=prs.values, y=prs.index, orientation="h",
-        marker_color=colors,
+        marker_color=colors, marker_line_width=0,
         text=[f"  {v:.1f} kg" for v in prs.values],
         textposition="outside", textfont=dict(color=TEXT),
     ))
-    theme_records = {**PLOTLY_THEME, "margin": dict(l=20, r=80, t=50, b=20)}
+    theme_records = {**PLOTLY_THEME, "margin": dict(l=20, r=90, t=64, b=30)}
     fig.update_layout(
         **theme_records,
-        title="Records Personales (PR) — peso máximo por ejercicio",
-        xaxis=dict(title="kg", gridcolor="#252840"),
-        yaxis=dict(gridcolor="#252840"),
+        title=_titulo("Records Personales (PR) — peso máximo por ejercicio"),
+        xaxis=dict(title="kg", gridcolor=GRID),
+        yaxis=dict(gridcolor="rgba(0,0,0,0)"),
     )
     return fig
 
 
 def _fig_rpe(df: pd.DataFrame) -> go.Figure:
+    if df.empty:
+        return _fig_vacia()
     df2 = df.copy()
     df2["semana"] = df2["fecha_entreno"].dt.to_period("W").dt.start_time
     sem = df2.groupby("semana")["rpe"].mean().reset_index()
@@ -254,76 +289,85 @@ def _fig_rpe(df: pd.DataFrame) -> go.Figure:
         for r in sem["rpe"]
     ]
     fig = go.Figure()
-    fig.add_hrect(y0=9.0, y1=10.5, fillcolor=f"rgba(255,77,109,0.08)",
+    fig.add_hrect(y0=9.0, y1=10.5, fillcolor="rgba(255,93,122,0.10)",
                   line_width=0, annotation_text="⚠ Zona deload",
                   annotation_position="top left",
-                  annotation_font=dict(color=DANGER))
-    fig.add_hrect(y0=7.5, y1=9.0, fillcolor=f"rgba(0,212,170,0.04)", line_width=0,
+                  annotation_font=dict(color=DANGER, size=11))
+    fig.add_hrect(y0=7.5, y1=9.0, fillcolor="rgba(0,224,181,0.06)", line_width=0,
                   annotation_text="✓ Zona óptima",
                   annotation_position="bottom right",
-                  annotation_font=dict(color=ACCENT))
+                  annotation_font=dict(color=ACCENT, size=11))
     fig.add_trace(go.Scatter(
         x=sem["semana"], y=sem["rpe"],
         mode="lines+markers+text",
-        line=dict(color=ACCENT, width=2.5),
-        marker=dict(size=11, color=marker_colors),
+        line=dict(color=ACCENT, width=2.5, shape="spline"),
+        marker=dict(size=11, color=marker_colors, line=dict(width=0)),
         text=[f"{v:.1f}" for v in sem["rpe"]],
         textposition="top center",
-        textfont=dict(size=11),
+        textfont=dict(size=11, color=TEXT),
     ))
     fig.update_layout(
         **PLOTLY_THEME,
-        title="Estado del SNC — RPE promedio semanal",
-        yaxis=dict(title="RPE", range=[6, 11], dtick=1, gridcolor="#252840"),
-        xaxis=dict(gridcolor="#252840"),
+        title=_titulo("Estado del SNC — RPE promedio semanal"),
+        yaxis=dict(title="RPE", range=[6, 11], dtick=1, gridcolor=GRID),
+        xaxis=dict(gridcolor="rgba(0,0,0,0)"),
+        showlegend=False,
     )
     return fig
 
 
 def _fig_tonelaje_semana(df: pd.DataFrame) -> go.Figure:
+    if df.empty:
+        return _fig_vacia()
     df2 = df.copy()
     df2["semana"] = df2["fecha_entreno"].dt.to_period("W").dt.start_time
     ton = df2.groupby("semana")["tonelaje_serie"].sum().reset_index()
     fig = go.Figure(go.Scatter(
         x=ton["semana"], y=ton["tonelaje_serie"],
         mode="lines+markers", fill="tozeroy",
-        fillcolor="rgba(0,212,170,0.10)",
-        line=dict(color=ACCENT, width=2.5),
+        fillcolor="rgba(0,224,181,0.12)",
+        line=dict(color=ACCENT, width=2.5, shape="spline"),
         marker=dict(size=7, color=ACCENT),
         text=[f"{v:,.0f} kg" for v in ton["tonelaje_serie"]],
-        hovertemplate="%{x}<br>Tonelaje: %{text}<extra></extra>",
+        hovertemplate="%{x|%d %b}<br>Tonelaje: %{text}<extra></extra>",
     ))
     fig.update_layout(
         **PLOTLY_THEME,
-        title="Tonelaje total por semana",
-        yaxis=dict(title="kg", gridcolor="#252840"),
-        xaxis=dict(gridcolor="#252840"),
+        title=_titulo("Tonelaje total por semana"),
+        yaxis=dict(title="kg", gridcolor=GRID),
+        xaxis=dict(gridcolor="rgba(0,0,0,0)"),
+        showlegend=False,
     )
     return fig
 
 
 def _fig_volumen_bloque(df: pd.DataFrame) -> go.Figure:
+    if df.empty:
+        return _fig_vacia()
     vol = (
         df.groupby("bloque")["tonelaje_serie"].sum()
         .sort_values(ascending=False)
     )
-    palette = [ACCENT, "#2a7a7a", "#1e3a5f", "#5e4e8a", "#8a4e4e"]
+    palette = [ACCENT, ACCENT2, "#a78bfa", "#ff9f6e", "#ff5d7a"]
     fig = go.Figure(go.Bar(
         x=vol.index, y=vol.values,
-        marker_color=palette[:len(vol)],
+        marker_color=palette[:len(vol)], marker_line_width=0,
         text=[f"{v:,.0f} kg" for v in vol.values],
-        textposition="outside",
+        textposition="outside", textfont=dict(color=MUTED, size=11),
     ))
     fig.update_layout(
         **PLOTLY_THEME,
-        title="Distribución de volumen por bloque",
-        yaxis=dict(title="Tonelaje (kg)", gridcolor="#252840"),
-        xaxis=dict(gridcolor="#252840", tickangle=-20),
+        title=_titulo("Distribución de volumen por bloque"),
+        yaxis=dict(title="Tonelaje (kg)", gridcolor=GRID),
+        xaxis=dict(gridcolor="rgba(0,0,0,0)", tickangle=-15),
+        showlegend=False,
     )
     return fig
 
 
 def _fig_frecuencia(df: pd.DataFrame) -> go.Figure:
+    if df.empty:
+        return _fig_vacia()
     df2 = df.copy()
     df2["semana"] = df2["fecha_entreno"].dt.to_period("W").dt.start_time
     frec = df2.groupby("semana")["fecha_entreno"].apply(
@@ -332,14 +376,16 @@ def _fig_frecuencia(df: pd.DataFrame) -> go.Figure:
     frec.columns = ["semana", "sesiones"]
     fig = go.Figure(go.Bar(
         x=frec["semana"], y=frec["sesiones"],
-        marker_color=ACCENT, opacity=0.8,
+        marker_color=ACCENT, opacity=0.85, marker_line_width=0,
         text=frec["sesiones"], textposition="outside",
+        textfont=dict(color=MUTED, size=11),
     ))
     fig.update_layout(
         **PLOTLY_THEME,
-        title="Frecuencia de entrenamiento semanal",
-        yaxis=dict(title="Sesiones", dtick=1, gridcolor="#252840"),
-        xaxis=dict(gridcolor="#252840"),
+        title=_titulo("Frecuencia de entrenamiento semanal"),
+        yaxis=dict(title="Sesiones", dtick=1, gridcolor=GRID),
+        xaxis=dict(gridcolor="rgba(0,0,0,0)"),
+        showlegend=False,
     )
     return fig
 
@@ -347,7 +393,10 @@ def _fig_frecuencia(df: pd.DataFrame) -> go.Figure:
 # ─────────────────────────────────────────────────────────────────────────────
 # Tabla de logbook
 # ─────────────────────────────────────────────────────────────────────────────
-def _tabla_logbook(df: pd.DataFrame) -> dash_table.DataTable:
+def _tabla_logbook(df: pd.DataFrame):
+    if df.empty:
+        return html.Div("Sin entrenos registrados todavía.",
+                        style={"color": MUTED, "fontSize": "13px", "padding": "8px 0"})
     cols_show = ["fecha_entreno", "nombre_dia", "bloque", "ejercicio", "tecnica",
                  "numero_serie", "peso_kg", "reps_hechas", "rpe", "tonelaje_serie"]
     cols_show = [c for c in cols_show if c in df.columns]
@@ -434,49 +483,46 @@ def _tabla_plan(df: pd.DataFrame) -> dash_table.DataTable | html.Div:
 # Componentes de layout reutilizables
 # ─────────────────────────────────────────────────────────────────────────────
 def _card(children, style: dict | None = None) -> html.Div:
-    base = {
-        "background": CARD, "borderRadius": "12px",
-        "padding": "20px", "border": "1px solid #2a2d3e",
-    }
+    base = {"padding": "22px"}
     if style:
         base.update(style)
-    return html.Div(children, style=base)
+    return html.Div(children, className="gym-card", style=base)
 
 
 def _kpi_card(titulo: str, valor: str, icono: str = "") -> html.Div:
     return html.Div([
-        html.Div(icono, style={"fontSize": "24px", "marginBottom": "6px"}),
-        html.Div(valor, style={"fontSize": "28px", "fontWeight": "700", "color": ACCENT,
-                                "letterSpacing": "-0.5px"}),
-        html.Div(titulo, style={"fontSize": "11px", "color": MUTED, "marginTop": "4px",
-                                 "textTransform": "uppercase", "letterSpacing": "1px"}),
-    ], style={
-        "background": CARD, "borderRadius": "12px", "padding": "20px 24px",
-        "textAlign": "center", "flex": "1", "minWidth": "140px",
-        "border": f"1px solid #2a2d3e",
+        html.Div(icono, style={"fontSize": "22px", "marginBottom": "8px", "opacity": 0.9}),
+        html.Div(valor, style={"fontSize": "27px", "fontWeight": "800", "color": TEXT,
+                                "letterSpacing": "-0.5px", "lineHeight": "1"}),
+        html.Div(titulo, style={"fontSize": "10.5px", "color": MUTED, "marginTop": "8px",
+                                 "textTransform": "uppercase", "letterSpacing": "1.2px",
+                                 "fontWeight": "600"}),
+    ], className="gym-kpi", style={
+        "padding": "20px 22px", "textAlign": "center", "flex": "1", "minWidth": "140px",
     })
 
 
 _TAB_STYLE = {
-    "backgroundColor": CARD, "color": MUTED,
-    "border": "1px solid #2a2d3e", "borderBottom": "none",
-    "padding": "10px 20px", "fontWeight": "500", "fontSize": "14px",
-    "borderRadius": "8px 8px 0 0",
+    "backgroundColor": "transparent", "color": MUTED,
+    "border": "none", "borderBottom": f"2px solid transparent",
+    "padding": "12px 18px", "fontWeight": "600", "fontSize": "13.5px",
 }
 _TAB_SELECTED_STYLE = {
     **_TAB_STYLE,
-    "color": ACCENT, "borderTop": f"2px solid {ACCENT}",
-    "backgroundColor": CARD2,
+    "color": ACCENT, "borderBottom": f"2px solid {ACCENT}",
+    "backgroundColor": "transparent",
 }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Pestaña de configuración (cambiar enfoque sin tocar código)
 # ─────────────────────────────────────────────────────────────────────────────
-_DD_STYLE = {"backgroundColor": CARD2, "color": "#111", "border": "none"}
+_DD_STYLE = {"marginTop": "6px"}
+_LABEL_STYLE = {"color": ACCENT, "fontSize": "11px", "fontWeight": "700",
+                "textTransform": "uppercase", "letterSpacing": "1px"}
 
 
-def _tab_config_children() -> html.Div:
+def _tab_config_children(estado: str = "real") -> html.Div:
     cfg = cargar_config()
     return html.Div([
         _card([
@@ -491,11 +537,10 @@ def _tab_config_children() -> html.Div:
             html.Div([
                 # Enfoque
                 html.Div([
-                    html.Label("Enfoque (objetivo)", style={"color": ACCENT, "fontSize": "12px",
-                               "fontWeight": "600", "textTransform": "uppercase",
-                               "letterSpacing": "1px"}),
+                    html.Label("Enfoque (objetivo)", style=_LABEL_STYLE),
                     dcc.Dropdown(
-                        id="cfg-enfoque", clearable=False, style=_DD_STYLE,
+                        id="cfg-enfoque", clearable=False, className="dash-dropdown",
+                        style=_DD_STYLE,
                         options=[{"label": e.nombre, "value": k} for k, e in ENFOQUES.items()],
                         value=cfg["enfoque"],
                     ),
@@ -503,11 +548,10 @@ def _tab_config_children() -> html.Div:
 
                 # Split
                 html.Div([
-                    html.Label("Split (distribución de días)", style={"color": ACCENT,
-                               "fontSize": "12px", "fontWeight": "600",
-                               "textTransform": "uppercase", "letterSpacing": "1px"}),
+                    html.Label("Split (distribución de días)", style=_LABEL_STYLE),
                     dcc.Dropdown(
-                        id="cfg-split", clearable=False, style=_DD_STYLE,
+                        id="cfg-split", clearable=False, className="dash-dropdown",
+                        style=_DD_STYLE,
                         options=[{"label": s.nombre, "value": k} for k, s in SPLITS.items()],
                         value=cfg["split"],
                     ),
@@ -515,39 +559,34 @@ def _tab_config_children() -> html.Div:
 
                 # Peso corporal
                 html.Div([
-                    html.Label("Peso corporal (kg)", style={"color": ACCENT, "fontSize": "12px",
-                               "fontWeight": "600", "textTransform": "uppercase",
-                               "letterSpacing": "1px"}),
+                    html.Label("Peso corporal (kg)", style=_LABEL_STYLE),
                     dcc.Input(id="cfg-peso", type="number", value=cfg.get("peso_corporal", 75),
                               min=40, max=200, step=1,
-                              style={"width": "100%", "padding": "7px 10px", "borderRadius": "4px",
-                                     "border": "1px solid #2a2d3e", "backgroundColor": CARD2,
-                                     "color": TEXT, "boxSizing": "border-box"}),
+                              style={"width": "100%", "padding": "9px 12px", "marginTop": "6px",
+                                     "boxSizing": "border-box", "height": "42px"}),
                 ], style={"flex": "1", "minWidth": "160px"}),
             ], style={"display": "flex", "gap": "16px", "flexWrap": "wrap",
-                      "marginBottom": "20px"}),
+                      "marginBottom": "22px"}),
 
             html.Label("Músculos prioritarios (rezagados → reciben el estímulo máximo)",
-                       style={"color": ACCENT, "fontSize": "12px", "fontWeight": "600",
-                              "textTransform": "uppercase", "letterSpacing": "1px"}),
+                       style=_LABEL_STYLE),
             dcc.Checklist(
                 id="cfg-prioridades",
                 options=[{"label": f" {lbl}", "value": mid} for mid, lbl in MUSCULOS_PRIORIZABLES],
                 value=cfg.get("prioridades", []),
                 inline=True,
-                style={"color": TEXT, "fontSize": "14px", "marginTop": "8px"},
-                inputStyle={"marginRight": "4px", "marginLeft": "14px"},
+                style={"color": TEXT, "fontSize": "14px", "marginTop": "10px",
+                       "display": "flex", "flexWrap": "wrap", "gap": "8px 4px"},
+                labelStyle={"marginRight": "16px", "cursor": "pointer", "display": "inline-flex",
+                            "alignItems": "center", "gap": "5px"},
             ),
 
             html.Button("Generar y guardar plan", id="cfg-guardar", n_clicks=0,
-                        style={"marginTop": "24px", "padding": "12px 28px",
-                               "background": ACCENT, "color": "#06231d", "border": "none",
-                               "borderRadius": "8px", "fontWeight": "700", "fontSize": "14px",
-                               "cursor": "pointer"}),
+                        className="gym-btn", style={"marginTop": "26px"}),
         ]),
 
         html.Div(id="cfg-resultado", style={"marginTop": "16px"}),
-    ], style={"padding": "16px 0"})
+    ], style={"padding": "20px 0"})
 
 
 def _resumen_enfoque(cfg: dict) -> html.Div:
@@ -578,27 +617,29 @@ def _resumen_enfoque(cfg: dict) -> html.Div:
 # ─────────────────────────────────────────────────────────────────────────────
 # Construcción de la app
 # ─────────────────────────────────────────────────────────────────────────────
-df_global, es_demo = _cargar_df()
-
-
-def _build_layout(df: pd.DataFrame, demo: bool) -> html.Div:
-    k = _kpis(df)
-    ejercicios_opts = [
-        {"label": e, "value": e}
-        for e in sorted(df["ejercicio"].unique())
-        if df[df["ejercicio"] == e]["tonelaje_serie"].sum() > 0
-    ]
+def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
+    vacio = df.empty
+    k = _kpis(df) if not vacio else dict(sesiones=0, tonelaje="0 kg", rpe_prom="—",
+                                          racha=0, ejercicios=0, mejor_ej="—")
+    ejercicios_opts = [{"label": e, "value": e} for e in sorted(df["ejercicio"].unique())] \
+        if not vacio else []
     default_ej = ejercicios_opts[0]["value"] if ejercicios_opts else ""
 
-    banner = html.Div(
-        "⚠ Modo demostración — datos de ejemplo (historial.csv vacío)",
-        style={
-            "background": "rgba(255,190,11,0.15)", "color": WARN,
-            "padding": "8px 16px", "fontSize": "13px",
-            "borderRadius": "6px", "marginBottom": "16px",
-            "border": "1px solid rgba(255,190,11,0.3)",
-        }
-    ) if demo else html.Div()
+    if estado == "demo":
+        banner = html.Div("⚠ Modo demostración (GYM_DEMO) — datos de ejemplo",
+                          style={"background": "rgba(255,192,67,0.14)", "color": WARN,
+                                 "padding": "10px 16px", "fontSize": "13px", "borderRadius": "10px",
+                                 "marginBottom": "16px", "border": "1px solid rgba(255,192,67,0.3)"})
+    elif vacio:
+        banner = html.Div([
+            html.Span("Sin datos todavía. ", style={"fontWeight": "700", "color": TEXT}),
+            html.Span("Registrá entrenos en la app y pulsá «🔄 Actualizar datos» para traerlos del servidor.",
+                      style={"color": MUTED}),
+        ], style={"background": "rgba(24,179,255,0.10)", "padding": "12px 16px", "fontSize": "13px",
+                  "borderRadius": "10px", "marginBottom": "16px",
+                  "border": "1px solid rgba(24,179,255,0.25)"})
+    else:
+        banner = html.Div()
 
     kpi_row = html.Div([
         _kpi_card("Sesiones",      str(k["sesiones"]),   "🏋️"),
@@ -606,9 +647,9 @@ def _build_layout(df: pd.DataFrame, demo: bool) -> html.Div:
         _kpi_card("RPE Promedio",  k["rpe_prom"],        "💓"),
         _kpi_card("Racha",         f"{k['racha']} días",  "🔥"),
         _kpi_card("Ejercicios",    str(k["ejercicios"]), "📋"),
-    ], style={"display": "flex", "gap": "12px", "flexWrap": "wrap", "marginBottom": "20px"})
+    ], style={"display": "flex", "gap": "14px", "flexWrap": "wrap", "marginBottom": "22px"})
 
-    tabs = dcc.Tabs([
+    tabs = dcc.Tabs(mobile_breakpoint=0, children=[
         # ── Tab 1: Resumen ──────────────────────────────────────────────────
         dcc.Tab(label="Resumen", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
             children=html.Div([
@@ -639,8 +680,8 @@ def _build_layout(df: pd.DataFrame, demo: bool) -> html.Div:
                         options=ejercicios_opts,
                         value=default_ej,
                         clearable=False,
-                        style={"width": "420px", "backgroundColor": CARD2,
-                               "color": TEXT, "border": "none"},
+                        className="dash-dropdown",
+                        style={"width": "420px"},
                     ),
                 ], style={"display": "flex", "alignItems": "center",
                           "marginBottom": "16px", "flexWrap": "wrap", "gap": "8px"}),
@@ -699,7 +740,7 @@ def _build_layout(df: pd.DataFrame, demo: bool) -> html.Div:
 
         # ── Tab: Configuración (cambiar enfoque) ────────────────────────────
         dcc.Tab(label="⚙ Configuración", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
-            children=_tab_config_children(),
+            children=_tab_config_children(estado),
         ),
 
         # ── Tab: Plan próxima semana ────────────────────────────────────────
@@ -719,40 +760,57 @@ def _build_layout(df: pd.DataFrame, demo: bool) -> html.Div:
                 ]),
             ], style={"padding": "16px 0"}),
         ),
-    ], style={"marginBottom": "0"})
+    ], style={"display": "flex", "flexWrap": "wrap", "gap": "2px",
+              "borderBottom": f"1px solid {LINE}", "marginBottom": "4px"})
+
+    estado_chip = {
+        "real": ("● EN VIVO", ACCENT),
+        "demo": ("● DEMO", WARN),
+        "vacio": ("● SIN DATOS", MUTED),
+    }[estado]
 
     return html.Div([
+        dcc.Store(id="reload-trigger"),
+        html.Div(id="reload-dummy", style={"display": "none"}),
+
         # Header
         html.Div([
             html.Div([
-                html.H1("Gym Tracker", style={"color": ACCENT, "margin": "0",
-                                               "fontSize": "24px", "fontWeight": "800",
-                                               "letterSpacing": "-0.5px"}),
-                html.Span("Panel de Inteligencia Deportiva",
-                          style={"color": MUTED, "fontSize": "13px", "marginLeft": "12px"}),
-            ], style={"display": "flex", "alignItems": "baseline", "gap": "0"}),
+                html.Div("🏋️", style={"fontSize": "26px",
+                                       "background": "linear-gradient(135deg,#00e0b5,#18b3ff)",
+                                       "WebkitBackgroundClip": "text", "WebkitTextFillColor": "transparent"}),
+                html.Div([
+                    html.Div("Gym Tracker", style={"color": TEXT, "margin": "0",
+                                                   "fontSize": "21px", "fontWeight": "800",
+                                                   "letterSpacing": "-0.5px", "lineHeight": "1"}),
+                    html.Span("Panel de Inteligencia Deportiva",
+                              style={"color": MUTED, "fontSize": "12px"}),
+                ]),
+            ], style={"display": "flex", "alignItems": "center", "gap": "12px"}),
+
             html.Div([
-                html.Span("● LIVE", style={"color": ACCENT, "fontSize": "11px",
-                                            "fontWeight": "600", "marginRight": "12px"})
-                if not demo else
-                html.Span("● DEMO", style={"color": WARN, "fontSize": "11px",
-                                            "fontWeight": "600", "marginRight": "12px"}),
-            ]),
+                html.Button("🔄 Actualizar datos", id="btn-refresh", n_clicks=0,
+                            className="gym-btn-ghost", style={"marginRight": "14px"}),
+                html.Span(estado_chip[0], style={"color": estado_chip[1], "fontSize": "11px",
+                                                  "fontWeight": "700", "letterSpacing": "0.5px"}),
+            ], style={"display": "flex", "alignItems": "center"}),
         ], style={
             "display": "flex", "justifyContent": "space-between", "alignItems": "center",
-            "marginBottom": "20px", "paddingBottom": "16px",
-            "borderBottom": "1px solid #2a2d3e",
+            "marginBottom": "22px", "paddingBottom": "18px",
+            "borderBottom": f"1px solid {LINE}",
         }),
+
+        html.Div(id="refresh-status"),
 
         banner,
         kpi_row,
         tabs,
-    ], style={"padding": "24px 32px", "minHeight": "100vh",
-               "backgroundColor": BG, "fontFamily": "Inter, Segoe UI, sans-serif"})
+    ], style={"padding": "24px 32px", "maxWidth": "1500px", "margin": "0 auto",
+               "minHeight": "100vh", "fontFamily": "Inter, Segoe UI, sans-serif"})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# App Dash
+# App Dash — layout como función: re-lee los datos en cada carga de página
 # ─────────────────────────────────────────────────────────────────────────────
 app = Dash(
     __name__,
@@ -760,7 +818,14 @@ app = Dash(
     update_title=None,
     suppress_callback_exceptions=True,
 )
-app.layout = _build_layout(df_global, es_demo)
+
+
+def _serve_layout() -> html.Div:
+    df, estado = _cargar_df()
+    return _build_layout(df, estado)
+
+
+app.layout = _serve_layout
 
 
 @callback(
@@ -768,7 +833,44 @@ app.layout = _build_layout(df_global, es_demo)
     Input("dd-ejercicio", "value"),
 )
 def _update_progresion(ejercicio: str) -> go.Figure:
-    return _fig_progresion(df_global, ejercicio)
+    df, _ = _cargar_df()
+    return _fig_progresion(df, ejercicio)
+
+
+@callback(
+    Output("refresh-status", "children"),
+    Output("reload-trigger", "data"),
+    Input("btn-refresh", "n_clicks"),
+    prevent_initial_call=True,
+)
+def _refrescar_datos(n_clicks):
+    """Descarga el historial real del servidor (mismo pipeline que exportar_local.py)."""
+    import time
+    try:
+        import exportar_local
+        exportar_local.main()
+        df, estado = _cargar_df()
+        msg = html.Div(f"✓ Datos actualizados: {len(df)} filas descargadas del servidor. Recargando…",
+                       style={"background": "rgba(0,224,181,0.12)", "color": ACCENT,
+                              "padding": "10px 16px", "borderRadius": "10px", "marginBottom": "16px",
+                              "fontSize": "13px", "border": "1px solid rgba(0,224,181,0.3)"})
+        return msg, time.time()
+    except Exception as exc:  # noqa: BLE001
+        msg = html.Div(f"⚠ No se pudo actualizar: {exc}. Revisá tu conexión y el .env.",
+                       style={"background": "rgba(255,93,122,0.12)", "color": DANGER,
+                              "padding": "10px 16px", "borderRadius": "10px", "marginBottom": "16px",
+                              "fontSize": "13px", "border": "1px solid rgba(255,93,122,0.3)"})
+        from dash import no_update
+        return msg, no_update
+
+
+# Recarga la página cuando el refresh trae datos nuevos (para repintar todos los gráficos)
+app.clientside_callback(
+    "function(t){ if(t){ setTimeout(function(){ window.location.reload(); }, 900); } return ''; }",
+    Output("reload-dummy", "children"),
+    Input("reload-trigger", "data"),
+    prevent_initial_call=True,
+)
 
 
 @callback(
@@ -813,8 +915,9 @@ def _abrir_navegador(url: str = "http://127.0.0.1:8050", retraso: float = 1.5) -
 
 
 if __name__ == "__main__":
+    _df_init, _estado_init = _cargar_df()
     print(f"\n  Gym Tracker Dashboard")
-    print(f"  {'DEMO (CSV vacío)' if es_demo else f'Datos reales: {CSV_PATH}'}")
+    print(f"  Estado de datos: {_estado_init} ({len(_df_init)} filas)")
     print(f"  Abriendo en http://127.0.0.1:8050\n")
     _abrir_navegador()
     app.run(debug=False, host="127.0.0.1", port=8050)

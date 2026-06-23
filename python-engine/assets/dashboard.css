@@ -1,0 +1,164 @@
+/* ============================================================
+   Gym Tracker — estilos del dashboard (rediseño moderno oscuro)
+   Dash carga este archivo automáticamente desde /assets.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --bg:      #0b0d13;
+  --card:    #161922;
+  --card2:   #1e2230;
+  --line:    #2a2f42;
+  --text:    #eef0f6;
+  --muted:   #8b90a8;
+  --accent:  #00e0b5;
+  --accent2: #18b3ff;
+  --danger:  #ff5d7a;
+  --warn:    #ffc043;
+}
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: #2c3146; border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ---- Tarjetas ---- */
+.gym-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease;
+}
+.gym-card:hover { border-color: #00e0b555; }
+
+.gym-kpi {
+  background: linear-gradient(160deg, var(--card2) 0%, var(--card) 70%);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.gym-kpi:hover {
+  transform: translateY(-3px);
+  border-color: #00e0b566;
+  box-shadow: 0 8px 24px -12px #00e0b540;
+}
+
+/* ============================================================
+   Dropdowns (dcc.Dropdown usa react-select v1: clases .Select-*)
+   Fondo oscuro + texto claro = legible sobre el tema oscuro.
+   ============================================================ */
+.dash-dropdown-trigger {
+  background: var(--card2) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 9px !important;
+  color: var(--text) !important;
+  min-height: 42px !important;
+  padding: 0 12px !important;
+}
+.dash-dropdown-trigger:hover { border-color: #00e0b566 !important; }
+.dash-dropdown-wrapper:focus-within .dash-dropdown-trigger { border-color: var(--accent) !important; }
+
+.dash-dropdown-value,
+.dash-dropdown-value-item,
+.dash-dropdown-value-item span { color: var(--text) !important; }
+.dash-dropdown-placeholder { color: var(--muted) !important; }
+.dash-dropdown-trigger-icon { color: var(--muted) !important; opacity: .8; }
+
+/* Menú desplegable */
+.dash-dropdown-content {
+  background: var(--card2) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 10px !important;
+  color: var(--text) !important;
+  box-shadow: 0 12px 30px -10px rgba(0,0,0,.6) !important;
+  overflow: hidden !important;
+  z-index: 60 !important;
+}
+.dash-dropdown-search-container { background: var(--card2) !important; padding: 6px !important; }
+.dash-dropdown-search {
+  background: var(--card) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 7px !important;
+}
+.dash-dropdown-search-icon { color: var(--muted) !important; }
+.dash-dropdown-options { background: var(--card2) !important; }
+.dash-dropdown-option {
+  color: #cfd3e6 !important;
+  background: transparent !important;
+  padding: 9px 12px !important;
+}
+.dash-dropdown-option:hover,
+.dash-dropdown-option.is-highlighted,
+.dash-dropdown-option[aria-selected="true"],
+.dash-dropdown-option[data-selected="true"] {
+  background: #2b3150 !important;
+  color: #ffffff !important;
+}
+
+/* ---- Inputs numéricos ---- */
+input[type="number"] {
+  background: var(--card2) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 9px !important;
+}
+input[type="number"]:focus { outline: none; border-color: var(--accent) !important; }
+
+/* ---- Checklist ---- */
+input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 17px; height: 17px;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+/* ---- Botones ---- */
+.gym-btn {
+  background: linear-gradient(135deg, var(--accent) 0%, #00c2a3 100%);
+  color: #052b23;
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 12px 28px;
+  cursor: pointer;
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+.gym-btn:hover { filter: brightness(1.08); box-shadow: 0 8px 22px -10px #00e0b5; transform: translateY(-1px); }
+.gym-btn:active { transform: translateY(0); }
+
+.gym-btn-ghost {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid #00e0b566;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 9px 18px;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.gym-btn-ghost:hover { background: #00e0b515; border-color: var(--accent); }
+
+/* ---- Tabs ---- */
+.tab-parent .tab { transition: background .15s ease, color .15s ease; }
+
+/* ---- Tabla (DataTable) afinada por estilos inline; aquí solo el hover ---- */
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner tr:hover td {
+  background: #20263a !important;
+}
+
+/* ---- Animación de entrada ---- */
+@keyframes gymFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.gym-fade { animation: gymFadeIn .35s ease both; }
