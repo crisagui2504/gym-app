@@ -1,0 +1,169 @@
+<main class="app-shell">
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">Gym<strong>Tracker</strong></span>
+        <p class="eyebrow">{{ nombreDia() }}</p>
+      </div>
+      <div class="top-actions">
+        <span class="streak" *ngIf="racha() > 0" title="Racha de dias">🔥 {{ racha() }}</span>
+        <button class="theme-toggle" type="button" (click)="toggleTema()" aria-label="Cambiar tema">
+          {{ tema() === 'dark' ? '☀️' : '🌙' }}
+        </button>
+        <button class="btn-primary save" type="button" (click)="guardar()" [disabled]="guardando() || ejercicios().length === 0">
+          {{ guardando() ? '...' : 'Guardar' }}
+        </button>
+      </div>
+    </header>
+
+    <p class="status" *ngIf="mensaje()">{{ mensaje() }}</p>
+    <p class="status" *ngIf="cargando()">Cargando rutina...</p>
+
+    <!-- ===== CALENTAMIENTO ===== -->
+    <section class="warmup panel" *ngIf="!cargando() && ejercicios().length > 0">
+      <button class="warmup-head" type="button" (click)="toggleCalentamiento()">
+        <span class="warmup-badge">WU</span>
+        <span class="warmup-title">
+          <strong>Calentamiento previo</strong>
+          <small>5-8 min · no te lo saltes</small>
+        </span>
+        <span class="chevron" [class.open]="mostrarCalentamiento()">▾</span>
+      </button>
+      <div class="warmup-body" *ngIf="mostrarCalentamiento()">
+        <p class="section-label">Movilidad articular</p>
+        <div class="warmup-items">
+          <div class="warmup-item" *ngFor="let p of calentamiento().movilidad">
+            <span class="dot mov">MOV</span>
+            <div><p class="wi-name">{{ p.nombre }}</p><p class="wi-desc">{{ p.detalle }}</p><span class="chip">{{ p.meta }}</span></div>
+          </div>
+        </div>
+        <p class="section-label">Activacion</p>
+        <div class="warmup-items">
+          <div class="warmup-item" *ngFor="let p of calentamiento().activacion">
+            <span class="dot act">ACT</span>
+            <div><p class="wi-name">{{ p.nombre }}</p><p class="wi-desc">{{ p.detalle }}</p><span class="chip">{{ p.meta }}</span></div>
+          </div>
+        </div>
+        <div class="ramp" *ngIf="aproximacion() as ap">
+          <p class="section-label warm">Series de aproximacion · {{ ap.ejercicio }}</p>
+          <div class="ramp-grid">
+            <div class="ramp-set" *ngFor="let s of ap.series; let i = index">
+              <p class="rs-label">Serie {{ i + 1 }} · {{ s.label }}</p>
+              <p class="rs-peso">{{ s.peso }} kg</p>
+              <p class="rs-reps">x {{ s.reps }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== EJERCICIOS ===== -->
+    <section class="exercise-list" *ngIf="!cargando()">
+      <article class="exercise-card panel-strong" *ngFor="let ej of ejercicios()" [class.done]="ejercicioHecho(ej)">
+        <div class="card-head">
+          <div class="card-title">
+            <p class="block">{{ ej.bloque || 'Bloque' }}</p>
+            <h2>{{ ej.ejercicio }}</h2>
+            <p class="meta">
+              <button class="chip tecnica" type="button" (click)="abrirTecnica(ej.tecnica)" *ngIf="ej.tecnica">
+                {{ ej.tecnica }} <span class="info">?</span>
+              </button>
+              <span class="reps-target" *ngIf="ej.reps_min || ej.reps_max">
+                {{ ej.reps_min }}<span *ngIf="ej.reps_max">-{{ ej.reps_max }}</span> reps
+              </span>
+            </p>
+          </div>
+          <div class="bodymap-wrap">
+            <app-muscle-map [muscles]="ej.musculos"></app-muscle-map>
+          </div>
+        </div>
+
+        <div class="demo" *ngIf="ej.imagen && !ej.sinImagen">
+          <img [src]="ej.imagen" [alt]="ej.ejercicio" loading="lazy" (error)="imagenFallo(ej)" />
+        </div>
+
+        <div class="muscle-tags" *ngIf="ej.musculos.length">
+          <span class="tag" *ngFor="let m of ej.musculos">{{ etiquetas[m] }}</span>
+        </div>
+
+        <button class="alt-btn" type="button" (click)="toggleAlternativas(ej)">
+          🔄 {{ ej.mostrarAlt ? 'Cerrar alternativas' : 'Maquina ocupada · ver alternativas' }}
+        </button>
+        <div class="alt-panel" *ngIf="ej.mostrarAlt">
+          <p class="section-label">Mismo grupo muscular</p>
+          <p class="alt-empty" *ngIf="ej.alternativas.length === 0">No hay alternativas libres ahora mismo.</p>
+          <button class="alt-item" type="button" *ngFor="let a of ej.alternativas" (click)="elegirAlternativa(ej, a)">
+            <img *ngIf="a.imagen" [src]="a.imagen" [alt]="a.nombre" loading="lazy" />
+            <span>{{ a.nombre }}</span>
+            <span class="alt-use">Usar</span>
+          </button>
+        </div>
+
+        <p class="suggested">Sugerido hoy: <strong>{{ ej.peso_sugerido || '—' }} kg</strong></p>
+
+        <!-- Series -->
+        <div class="series">
+          <div class="serie" *ngFor="let s of ej.series; let i = index" [class.done]="s.hecho">
+            <div class="serie-top">
+              <span class="serie-n">Serie {{ i + 1 }}</span>
+              <button class="serie-check" type="button" (click)="toggleSerie(ej, s)" [attr.aria-label]="'completar serie ' + (i + 1)">
+                {{ s.hecho ? '✓' : '○' }}
+              </button>
+            </div>
+            <div class="serie-campos">
+              <div class="campo">
+                <label>Peso (kg)</label>
+                <div class="stepper">
+                  <button type="button" (click)="ajustar(s, 'peso', -1)">−</button>
+                  <input type="number" inputmode="decimal" step="1.25" [(ngModel)]="s.peso" />
+                  <button type="button" (click)="ajustar(s, 'peso', 1)">+</button>
+                </div>
+              </div>
+              <div class="campo">
+                <label>Reps</label>
+                <div class="stepper">
+                  <button type="button" (click)="ajustar(s, 'reps', -1)">−</button>
+                  <input type="number" inputmode="numeric" step="1" [(ngModel)]="s.reps" />
+                  <button type="button" (click)="ajustar(s, 'reps', 1)">+</button>
+                </div>
+              </div>
+            </div>
+            <div class="rpe">
+              <button class="rpe-label" type="button" (click)="abrirRpe()">RPE <span class="info">?</span></button>
+              <div class="rpe-grid">
+                <button type="button" *ngFor="let r of rpeValores" [class.active]="s.rpe === r" (click)="setRpe(s, r)">{{ r }}</button>
+              </div>
+              <p class="rpe-sig">RPE {{ s.rpe }}: {{ rpeTexto(s.rpe) }}</p>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+  </div>
+
+  <!-- ===== CRONOMETRO ===== -->
+  <div class="timer" *ngIf="tmrActivo() || tmrSeg() > 0" [class.fin]="tmrSeg() === 0">
+    <div class="timer-bar" [style.width.%]="tmrPct()"></div>
+    <div class="timer-row">
+      <div class="timer-info">
+        <span class="timer-time">{{ tmrTexto() }}</span>
+        <span class="timer-name">{{ tmrSeg() === 0 ? '¡Listo! A la siguiente serie' : 'Descanso · ' + tmrNombre() }}</span>
+      </div>
+      <div class="timer-actions">
+        <button type="button" (click)="sumarTiempo(15)" *ngIf="tmrActivo()">+15s</button>
+        <button type="button" class="timer-skip" (click)="cancelarTimer()">{{ tmrSeg() === 0 ? 'OK' : 'Saltar' }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MODAL TECNICA ===== -->
+  <div class="modal-overlay" *ngIf="tecnicaActiva() as t" (click)="cerrarTecnica()">
+    <div class="modal panel-strong" (click)="$event.stopPropagation()">
+      <div class="modal-head">
+        <h3>{{ t.titulo }}</h3>
+        <button type="button" class="modal-x" (click)="cerrarTecnica()">✕</button>
+      </div>
+      <p class="modal-text">{{ t.texto }}</p>
+    </div>
+  </div>
+</main>

@@ -1,0 +1,15 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Si la petición es para un archivo con extensión .php, permitir que pase
+  RewriteCond %{REQUEST_URI} \.php$
+  RewriteRule ^(.*)$ $1 [L]
+
+  # Si la petición es para un archivo o directorio que realmente existe, servirlo
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+
+  # De lo contrario, redirigir a index.html (Angular SPA)
+  # Esto evita los errores 404 que InfinityFree castiga
+  RewriteRule ^ index.html [L]
+</IfModule>
