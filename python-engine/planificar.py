@@ -77,8 +77,9 @@ def lunes_objetivo() -> date:
 
 
 def semana_mesociclo(objetivo: date, inicio: date) -> int:
+    """Ciclo de 5 semanas: S1 base, S2 rotacion, S3 superar S1, S4 pico, S5 deload."""
     delta = (objetivo - inicio).days
-    return (max(0, delta) // 7) % 4 + 1
+    return (max(0, delta) // 7) % 5 + 1
 
 
 # ---- Utilidades de historial ----
@@ -158,9 +159,10 @@ def peso_volumen(fila: Fila, lp, micro) -> float | None:
 def nota_semana(semana: int) -> str:
     return {
         1: "S1: establece tu base, no al maximo absoluto.",
-        2: "S2: supera el Top Set de la semana pasada.",
-        3: "S3: sigue subiendo 1 kg o 1 rep.",
-        4: "S4 PICO: supera todos los Top Sets del mes.",
+        2: "S2: rotacion Bloque B + supera el Top Set de la semana pasada.",
+        3: "S3: supera los registros de S1.",
+        4: "S4 PICO: supera TODOS los Top Sets del mes.",
+        5: "S5 DELOAD: mismo peso, 50% volumen, sin Bloque C. Recuperacion.",
     }[semana]
 
 
@@ -169,7 +171,18 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int) -> list[dic
     filas: list[dict] = []
     top_del_dia: dict[tuple[int, str], float | None] = {}
 
+    # semana efectiva para la logica de progresion: deload (S5) usa S4 como referencia
+    semana_prog = min(semana, 4)
+
     for f in PLAN:
+        # ── Filtrar por semana especifica del ejercicio ──────────────────────
+        if f.semanas is not None and semana_prog not in f.semanas:
+            continue
+
+        # ── S5 Deload: omitir Bloque C completo ─────────────────────────────
+        if semana == 5 and "C -" in f.bloque:
+            continue
+
         micro = microcarga(f.ejercicio)
         clave = (_norm(f.ejercicio), _norm(f.tecnica or ""))
         lp = ultima.get(clave)
@@ -177,16 +190,26 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int) -> list[dic
         nota = f.notas
 
         if _es(f.tecnica, "top set"):
-            peso = peso_top_set(f, lp, record.get(clave), micro, semana, clave in estancados)
+            if semana == 5:
+                # Deload: mantener peso de la ultima sesion, sin progression
+                peso = redondear(lp[0]) if lp else f.peso_base
+            else:
+                peso = peso_top_set(f, lp, record.get(clave), micro, semana_prog, clave in estancados)
             top_del_dia[(f.dia, _norm(f.ejercicio))] = peso
             nota = f"{f.notas or ''} {nota_semana(semana)}".strip()
+
         elif _es(f.tecnica, "back-off", "back off"):
             ts = top_del_dia.get((f.dia, _norm(f.ejercicio)))
             peso = redondear(ts * 0.8) if ts else (lp[0] if lp else f.peso_base)
+
         elif _es(f.tecnica, "tradicional", "amrap", "drop", "rest-pause", "rest pause", "superserie"):
             peso = peso_volumen(f, lp, micro)
+
         else:
-            peso = f.peso_base  # cardio / descanso
+            peso = f.peso_base  # cardio / descanso / farmer's carry
+
+        # ── S5 Deload: reducir a 1 serie en Bloque A y B ────────────────────
+        series_real = 1 if semana == 5 and "C -" not in f.bloque and f.tecnica else f.series
 
         filas.append(
             {
@@ -197,7 +220,7 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int) -> list[dic
                 "orden": f.orden,
                 "ejercicio": f.ejercicio,
                 "tecnica": f.tecnica,
-                "series_objetivo": f.series,
+                "series_objetivo": series_real,
                 "reps_min": f.reps_min,
                 "reps_max": f.reps_max,
                 "descanso_seg": f.descanso,
@@ -235,7 +258,8 @@ def main() -> None:
     historial = descargar_historial(sesion, base_url, token)
     filas = generar_filas(historial, semana_inicio, semana)
 
-    print(f"Semana objetivo {semana_inicio} | Mesociclo: semana {semana}/4 | {len(filas)} filas")
+    tipo = "DELOAD" if semana == 5 else f"S{semana}/4"
+    print(f"Semana objetivo {semana_inicio} | Mesociclo: {tipo} | {len(filas)} filas")
     if os.getenv("DRY_RUN"):
         for f in filas:
             if f["tecnica"]:
@@ -244,7 +268,7 @@ def main() -> None:
         return
 
     sincronizar_plan(sesion, base_url, token, semana_inicio, filas)
-    print(f"Plan de la semana {semana_inicio} (mesociclo S{semana}) sincronizado.")
+    print(f"Plan de la semana {semana_inicio} ({tipo}) sincronizado.")
 
 
 if __name__ == "__main__":
