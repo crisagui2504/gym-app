@@ -34,13 +34,14 @@ Sistema completo de seguimiento de entrenamiento con planificación automática 
 │  └── registro_series      → historial de cada serie hecha       │
 └───────────────────────────────────────────────────────────────────┘
             │
-            │ exportar_csv.php (historial en CSV)
+            │ exportar_csv.php → historial.csv local
             ▼
-┌───────────────────────┐
-│   Power BI Desktop    │
-│   Dashboards DAX      │
-│   Tonelaje / RPE / PR │
-└───────────────────────┘
+┌───────────────────────────────────┐
+│   Dashboard Python (Dash/Plotly)  │
+│   localhost:8050                   │
+│   Tonelaje · RPE · PRs · Logbook  │
+│   (Power BI queda como alternativa)│
+└───────────────────────────────────┘
 ```
 
 ---
@@ -53,10 +54,13 @@ gym/
 ├── angular-app/          → Versión alternativa / experimental de la app Angular
 ├── infinityfree/         → Backend PHP + SQL para alojar en InfinityFree
 │   └── api/              → Endpoints REST
-├── python-engine/        → Motor de planificación semanal (corre local)
+├── python-engine/        → Motor de planificación + dashboard (corre local)
+│   ├── planificar.py    → Motor de sobrecarga progresiva (mesociclo 5 semanas)
+│   ├── plan_template.py → Plantilla del plan con rotación por semana
+│   └── dashboard.py     → Dashboard Dash/Plotly (análisis de progreso)
 ├── python-scripts/       → Scripts auxiliares (optimización básica)
 ├── docs/                 → Roadmap por sprints
-└── powerbi_guide.md      → Guía para armar el dashboard en Power BI
+└── powerbi_guide.md      → Guía alternativa para Power BI
 ```
 
 ---
@@ -163,16 +167,19 @@ El cerebro del sistema. Corre en tu PC (no en el servidor) cada domingo o cuando
 
 1. **Descarga el historial** completo desde `exportar_csv.php`.
 2. **Analiza** el último rendimiento de cada ejercicio: peso, reps y RPE de la última sesión, el mejor peso del mes, y si hay estancamiento (3 semanas sin subir tonelaje).
-3. **Calcula el plan** de la semana siguiente según la posición en el mesociclo de 4 semanas:
-   - **S1** — establecer base, no al máximo.
-   - **S2 y S3** — sobrecarga progresiva (+1.25 kg o +1 rep según RPE).
-   - **S4** — semana pico: superar todos los Top Sets del mes.
+3. **Calcula el plan** de la semana siguiente según la posición en el mesociclo de **5 semanas** (metodología del Plan v3):
+   - **S1** — establecer línea base, no al máximo absoluto.
+   - **S2** — rota los ejercicios del Bloque B para atacar el músculo desde otro ángulo + primer intento de progresión.
+   - **S3** — superar los registros de la Semana 1 (sobrecarga progresiva).
+   - **S4 (Pico)** — superar todos los Top Sets del mes.
+   - **S5 (Deload)** — recuperación: mismo peso que la última sesión, volumen reducido al 50% (1 serie en Bloque A y B, sin Bloque C).
 4. **Aplica reglas distintas por bloque**:
    - **Top Set**: si completaste el rango de reps con RPE ≤ 9, subís. Si el RPE fue ≥ 9 y estás estancado, deload reactivo al 90%.
    - **Back-off**: siempre el 80% del Top Set calculado.
    - **Volumen / AMRAP / Drop Set / Rest-Pause / Superserie**: sube si llegaste al tope de reps con RPE ≤ 8.
    - **Cardio y core**: peso base fijo.
-5. **Sube el plan** calculado al servidor vía `actualizar_plan.php`.
+5. **Rota ejercicios según la semana** (campo `semanas` en cada fila de la plantilla): por ejemplo el Bloque B de Torso pasa de Press de Banca (S1/S3/S4) a Press Inclinado (S2), y los ejercicios de antebrazo (Farmer's Carry, Pinzamiento de Disco, Rodillo de Muñeca, Curl de Muñeca) aparecen en semanas específicas, siempre al final de la sesión.
+6. **Sube el plan** calculado al servidor vía `actualizar_plan.php`.
 
 > InfinityFree bloquea bots con un reto AES-128/CBC. El motor lo resuelve automáticamente con `pycryptodome` sin que tengas que hacer nada.
 
@@ -205,56 +212,61 @@ python planificar.py
 
 Salida de ejemplo:
 ```
-Semana objetivo 2026-06-30 | Mesociclo: semana 2/4 | 42 filas
-{'ok': True, 'inserted': 42, 'updated': 0}
-Plan de la semana 2026-06-30 (mesociclo S2) sincronizado.
+Semana objetivo 2026-06-30 | Mesociclo: S2/4 | 48 filas
+{'ok': True, 'inserted': 48, 'updated': 0}
+Plan de la semana 2026-06-30 (S2/4) sincronizado.
 ```
 
 ### Plantilla del plan (`plan_template.py`)
 
 Define la estructura semanal fija: qué ejercicios, en qué días, con qué técnica, cuántas series y el rango de reps. El motor lee esta plantilla y le aplica los pesos calculados del historial. Si es la primera semana (sin historial), usa los `peso_base` definidos en la plantilla.
 
-**Estructura semanal (Upper/Lower, 4 sesiones de pesas + cardio):**
+Cada fila tiene un campo `semanas` que controla en qué semanas del mesociclo aparece (`None` = todas). Así se implementa la rotación del Bloque B en S2 y los antebrazos por semana, fieles a la metodología del Plan v3.
 
-| Día | Sesión |
-|---|---|
-| Lunes | Torso A — Fuerza (Top Set + Back-off + Volumen + Aislamiento) |
-| Martes | Pierna A — Fuerza |
-| Miércoles | Descanso |
-| Jueves | Descanso |
-| Viernes | Torso Bombeo (Press Arnold, remos, face pull) |
-| Sábado | Pierna Bombeo (Hip Thrust, Peso Muerto, Drop Sets) |
-| Domingo | Cardio LISS + Core |
+**Estructura semanal (Upper/Lower, 4 días de pesas + 2 cardio + 1 descanso):**
+
+| Día | Sesión | Prioridad |
+|---|---|---|
+| Lunes | Torso A — Fuerza | Hombro (Press Militar primero) |
+| Martes | Pierna A — Fuerza | Cuádriceps (Sentadilla primero) |
+| Miércoles | Cardio LISS + Core | Zona 2, 35–45 min |
+| Jueves | Descanso Activo | 10–12k pasos |
+| Viernes | Torso Bombeo | Hombro (Press Arnold primero) |
+| Sábado | Pierna Bombeo | Cadena posterior (Hip Thrust + PDR) |
+| Domingo | Cardio LISS + Core | Zona 2, 35–45 min |
+
+**Descansos por técnica** (tabla del Plan v3): Top Set 180s · Back-off 120s · AMRAP/Volumen 90s · Rest-Pause 90s (10s intra) · Drop Set 90s (0s entre drops) · Aislamiento 90s · Superserie 60s.
 
 ---
 
-## Módulo 4 — Power BI (`powerbi_guide.md`)
+## Módulo 4 — Dashboard Python (`python-engine/dashboard.py`)
 
-Dashboard para analizar tu progreso de hipertrofia conectando directamente al CSV exportado.
+Panel de Inteligencia Deportiva local (**reemplaza a Power BI**). Es una app web hecha con **Dash + Plotly** que corre en tu PC y lee el mismo `historial.csv` que genera `exportar_local.py`.
 
-### Cómo conectarlo
+### Cómo lanzarlo
 
-1. Power BI Desktop → **Obtener datos** → **Web** (URL directa) o **Texto/CSV** (archivo local).
-2. URL para conexión en vivo: `https://TU-DOMINIO.infinityfreeapp.com/api/exportar_csv.php?token=TU_TOKEN`
-
-### Medidas DAX incluidas
-
-```dax
--- Tonelaje total movido (la métrica principal de hipertrofia)
-Tonelaje Total = SUMX('historial', 'historial'[repeticiones] * 'historial'[peso])
-
--- RPE promedio (para detectar sobreentrenamiento)
-RPE Promedio = AVERAGE('historial'[rpe])
-
--- Peso máximo histórico (PR)
-Peso Máximo (PR) = MAX('historial'[peso])
+```powershell
+cd python-engine
+.\run_dashboard.ps1
+# → abre automáticamente http://127.0.0.1:8050
 ```
 
-### Visualizaciones recomendadas
+El script crea el venv e instala dependencias la primera vez. Si `historial.csv` está vacío, el dashboard carga **datos de demostración** (8 semanas de ejemplo) para que puedas verlo funcionar antes de tener entrenos reales.
 
-- **Curva de sobrecarga progresiva**: línea de Tonelaje Total por semana, filtrada por ejercicio. Si la línea sube semana a semana, el sistema está funcionando.
-- **Termómetro del SNC**: RPE Promedio semanal. Si supera 9.5 sostenidamente → deload.
-- **Tabla/matriz de logbook**: fecha × ejercicio, con peso, reps y RPE.
+### Qué muestra (6 pestañas)
+
+| Pestaña | Contenido |
+|---|---|
+| **Resumen** | Tonelaje semanal, frecuencia de sesiones, volumen por bloque y RPE semanal |
+| **Progresión** | Curva de peso máximo + tonelaje por ejercicio (selector) |
+| **Records (PRs)** | Peso máximo histórico de cada ejercicio |
+| **Estado SNC** | RPE promedio semanal con zona óptima (7.5–9) y zona de deload (≥9) |
+| **Logbook** | Tabla completa, filtrable y ordenable, de todas las series |
+| **Plan semana** | El plan calculado por `planificar.py` para la próxima semana |
+
+Arriba muestra KPIs: sesiones totales, tonelaje acumulado, RPE promedio, racha de días y cantidad de ejercicios.
+
+> El módulo `powerbi_guide.md` se mantiene en el repo como alternativa para quien prefiera Power BI, pero el dashboard Python es ahora la herramienta principal de análisis.
 
 ---
 
@@ -285,9 +297,10 @@ El archivo resultante está ignorado por git (`.gitignore`).
 
 ```
 Domingo por la noche
-  └── python planificar.py
+  └── python planificar.py   (o motor_semanal.py para automatizar)
         ├── Descarga historial del servidor
-        ├── Calcula pesos para la semana siguiente (S1–S4 del mesociclo)
+        ├── Calcula pesos para la semana siguiente (S1–S5 del mesociclo)
+        │   → S2 rota Bloque B, S5 es semana de deload
         └── Sube el plan a InfinityFree
 
 Lunes a Sábado (en el gimnasio)
@@ -298,7 +311,8 @@ Lunes a Sábado (en el gimnasio)
         └── Al terminar: "Guardar entreno" → se sube al servidor
 
 Cuando querés analizar tu progreso
-  └── Power BI → conecta al CSV → dashboards de tonelaje, RPE, PRs
+  └── .\run_dashboard.ps1 → dashboard en localhost:8050
+        (tonelaje, RPE, PRs, logbook y plan de la semana)
 ```
 
 ---
@@ -311,7 +325,7 @@ Cuando querés analizar tu progreso
 | Backend | PHP 8+, MySQL 5.7+ |
 | Hosting | InfinityFree (gratuito) o cualquier hosting PHP/MySQL |
 | Motor Python | Python 3.10+, pandas, requests, pycryptodome, python-dotenv |
-| Análisis | Power BI Desktop (gratuito) |
+| Dashboard | Python 3.10+, dash, plotly (Power BI Desktop opcional) |
 
 ---
 
@@ -322,5 +336,5 @@ Ver [`docs/SPRINTS.md`](docs/SPRINTS.md) para el detalle. Resumen:
 - **Sprint 1** ✅ Infraestructura y API PHP
 - **Sprint 2** ✅ App Angular con tarjetas y registro de series
 - **Sprint 3** — Despliegue en dominio propio
-- **Sprint 4** ✅ Motor Python local con mesociclo de 4 semanas
-- **Sprint 5** — Dashboard Power BI conectado en vivo
+- **Sprint 4** ✅ Motor Python local con mesociclo de 5 semanas (deload + rotación)
+- **Sprint 5** ✅ Dashboard Python (Dash/Plotly) — reemplaza Power BI
