@@ -1,7 +1,6 @@
 @echo off
 chcp 65001 >nul
-title Gym Tracker - Dashboard (cerra esta ventana para detener)
-setlocal
+title Gym Tracker - Dashboard
 cd /d "%~dp0python-engine"
 
 echo ============================================
@@ -9,34 +8,47 @@ echo            GYM TRACKER - DASHBOARD
 echo ============================================
 echo.
 
-REM --- Crear entorno virtual la primera vez ---
-if not exist ".venv\Scripts\python.exe" (
-    echo [1/3] Creando entorno virtual por primera vez...
-    py -m venv .venv
-    echo [2/3] Instalando dependencias (esto tarda 1-2 min la primera vez)...
-    ".venv\Scripts\python.exe" -m pip install --upgrade pip >nul
-    ".venv\Scripts\python.exe" -m pip install -r requirements.txt
-)
+if not exist ".venv\Scripts\python.exe" goto setup
+goto checkdeps
 
-REM --- Verificar que las dependencias del dashboard esten instaladas ---
+:setup
+echo Creando entorno virtual por primera vez...
+py -m venv .venv
+if errorlevel 1 goto nopython
+echo Instalando dependencias, tarda 1-2 minutos la primera vez...
+".venv\Scripts\python.exe" -m pip install --upgrade pip >nul
+".venv\Scripts\python.exe" -m pip install -r requirements.txt
+goto run
+
+:checkdeps
 ".venv\Scripts\python.exe" -c "import dash, plotly, pandas" 2>nul
-if errorlevel 1 (
-    echo Instalando dependencias faltantes...
-    ".venv\Scripts\python.exe" -m pip install -r requirements.txt
-)
+if errorlevel 1 goto instalar
+goto run
 
-echo [3/3] Iniciando dashboard...
+:instalar
+echo Instalando dependencias faltantes...
+".venv\Scripts\python.exe" -m pip install -r requirements.txt
+goto run
+
+:run
+echo Iniciando dashboard...
 echo.
 echo  El navegador se abrira solo en unos segundos.
-echo  URL: http://127.0.0.1:8050
+echo  Si no, entra a:  http://127.0.0.1:8050
 echo.
-echo  (Para detener: cerra esta ventana)
+echo  Para detener: cerra esta ventana.
 echo ============================================
-
-REM --- Abrir el navegador cuando el servidor este listo ---
-start "" cmd /c "timeout /t 6 >nul & start http://127.0.0.1:8050"
-
-REM --- Lanzar el dashboard (bloquea hasta cerrar) ---
+echo.
 ".venv\Scripts\python.exe" dashboard.py
-
+echo.
+echo El dashboard se detuvo.
 pause
+goto :eof
+
+:nopython
+echo.
+echo ERROR: no se encontro Python.
+echo Instala Python 3.10+ desde python.org y marca "Add Python to PATH".
+echo.
+pause
+goto :eof

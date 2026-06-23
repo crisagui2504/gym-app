@@ -804,8 +804,17 @@ def _guardar_enfoque(n_clicks, enfoque, split, prioridades, peso):
     ])
 
 
+def _abrir_navegador(url: str = "http://127.0.0.1:8050", retraso: float = 1.5) -> None:
+    """Abre el navegador por defecto unos segundos despues, cuando el server ya esta listo."""
+    import threading
+    import webbrowser
+
+    threading.Timer(retraso, lambda: webbrowser.open(url)).start()
+
+
 if __name__ == "__main__":
     print(f"\n  Gym Tracker Dashboard")
     print(f"  {'DEMO (CSV vacío)' if es_demo else f'Datos reales: {CSV_PATH}'}")
     print(f"  Abriendo en http://127.0.0.1:8050\n")
+    _abrir_navegador()
     app.run(debug=False, host="127.0.0.1", port=8050)
