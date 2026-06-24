@@ -777,6 +777,23 @@ button {
   gap: 10px;
 }
 
+/* Core sin carga: una sola columna (solo reps) */
+.serie-campos.una-col {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Cardio: solo el campo de minutos */
+.serie-campos.cardio {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 220px;
+}
+
+.cardio-hint {
+  margin: 10px 0 0;
+  color: var(--on-surface-variant);
+  font-size: 0.84rem;
+}
+
 .repetir-btn {
   grid-column: 1 / -1;
   justify-self: end;

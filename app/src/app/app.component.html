@@ -106,63 +106,108 @@
           </div>
         </div>
 
-        <div class="muscle-tags" *ngIf="ej.musculos.length">
+        <div class="muscle-tags" *ngIf="ej.modo !== 'cardio' && ej.musculos.length">
           <span class="tag" *ngFor="let m of ej.musculos">{{ etiquetas[m] }}</span>
         </div>
 
-        <button class="alt-btn" type="button" (click)="toggleAlternativas(ej)">
-          🔄 {{ ej.mostrarAlt ? 'Cerrar alternativas' : 'Maquina ocupada · ver alternativas' }}
-        </button>
-        <div class="alt-panel" *ngIf="ej.mostrarAlt">
-          <p class="section-label">Mismo grupo muscular</p>
-          <p class="alt-empty" *ngIf="ej.alternativas.length === 0">No hay alternativas libres ahora mismo.</p>
-          <button class="alt-item" type="button" *ngFor="let a of ej.alternativas" (click)="elegirAlternativa(ej, a)">
-            <span>{{ a.nombre }}</span>
-            <span class="alt-use">Usar</span>
+        <ng-container *ngIf="ej.modo === 'fuerza'">
+          <button class="alt-btn" type="button" (click)="toggleAlternativas(ej)">
+            🔄 {{ ej.mostrarAlt ? 'Cerrar alternativas' : 'Maquina ocupada · ver alternativas' }}
           </button>
-        </div>
+          <div class="alt-panel" *ngIf="ej.mostrarAlt">
+            <p class="section-label">Mismo grupo muscular</p>
+            <p class="alt-empty" *ngIf="ej.alternativas.length === 0">No hay alternativas libres ahora mismo.</p>
+            <button class="alt-item" type="button" *ngFor="let a of ej.alternativas" (click)="elegirAlternativa(ej, a)">
+              <span>{{ a.nombre }}</span>
+              <span class="alt-use">Usar</span>
+            </button>
+          </div>
+        </ng-container>
 
-        <!-- Series (todas las del ejercicio, juntas) -->
+        <!-- Series adaptadas al tipo de ejercicio -->
         <div class="series">
           <div class="serie" *ngFor="let s of ej.series; let i = index" [class.done]="s.hecho" [class.al-fallo]="s.alFallo">
             <div class="serie-top">
               <span class="serie-n">
                 {{ s.etiqueta }}
-                <small class="serie-reps" *ngIf="s.repsObjetivo">· {{ s.repsObjetivo }}<span *ngIf="!s.alFallo"> reps</span></small>
+                <small class="serie-reps" *ngIf="s.repsObjetivo">· {{ s.repsObjetivo }}</small>
               </span>
               <button class="serie-check" type="button" (click)="toggleSerie(ej, s)" [attr.aria-label]="'completar ' + s.etiqueta">
                 {{ s.hecho ? '✓' : '○' }}
               </button>
             </div>
-            <div class="serie-campos">
-              <div class="campo">
-                <label>Peso (kg)</label>
-                <div class="stepper">
-                  <button type="button" (click)="ajustar(s, 'peso', -1)">−</button>
-                  <input type="number" inputmode="decimal" step="1.25" [(ngModel)]="s.peso" />
-                  <button type="button" (click)="ajustar(s, 'peso', 1)">+</button>
+
+            <!-- CARDIO: solo minutos -->
+            <ng-container *ngIf="ej.modo === 'cardio'">
+              <div class="serie-campos cardio">
+                <div class="campo">
+                  <label>Minutos</label>
+                  <div class="stepper">
+                    <button type="button" (click)="ajustar(s, 'reps', -5)">−</button>
+                    <input type="number" inputmode="numeric" step="5" [(ngModel)]="s.reps" />
+                    <button type="button" (click)="ajustar(s, 'reps', 5)">+</button>
+                  </div>
                 </div>
               </div>
-              <div class="campo">
-                <label>Reps</label>
-                <div class="stepper">
-                  <button type="button" (click)="ajustar(s, 'reps', -1)">−</button>
-                  <input type="number" inputmode="numeric" step="1" [(ngModel)]="s.reps" />
-                  <button type="button" (click)="ajustar(s, 'reps', 1)">+</button>
+              <p class="cardio-hint">🫀 Zona 2 · ritmo conversacional (podés hablar sin ahogarte).</p>
+            </ng-container>
+
+            <!-- CORE: reps (peso solo si lleva carga), sin RPE -->
+            <ng-container *ngIf="ej.modo === 'core'">
+              <div class="serie-campos" [class.una-col]="!ej.cargado">
+                <div class="campo" *ngIf="ej.cargado">
+                  <label>Peso (kg)</label>
+                  <div class="stepper">
+                    <button type="button" (click)="ajustar(s, 'peso', -1)">−</button>
+                    <input type="number" inputmode="decimal" step="1.25" [(ngModel)]="s.peso" />
+                    <button type="button" (click)="ajustar(s, 'peso', 1)">+</button>
+                  </div>
                 </div>
+                <div class="campo">
+                  <label>Reps</label>
+                  <div class="stepper">
+                    <button type="button" (click)="ajustar(s, 'reps', -1)">−</button>
+                    <input type="number" inputmode="numeric" step="1" [(ngModel)]="s.reps" />
+                    <button type="button" (click)="ajustar(s, 'reps', 1)">+</button>
+                  </div>
+                </div>
+                <button class="repetir-btn" type="button" *ngIf="hayPosteriores(ej, i)"
+                        (click)="repetir(ej, i)" title="Repetir en las siguientes">⟳ repetir</button>
               </div>
-              <button class="repetir-btn" type="button" *ngIf="hayPosteriores(ej, i)"
-                      (click)="repetir(ej, i)" title="Repetir este peso y reps en las series siguientes">
-                ⟳ repetir
-              </button>
-            </div>
-            <div class="rpe">
-              <button class="rpe-label" type="button" (click)="abrirRpe()">RPE <span class="info">?</span></button>
-              <div class="rpe-grid">
-                <button type="button" *ngFor="let r of rpeValores" [class.active]="s.rpe === r" (click)="setRpe(s, r)">{{ r }}</button>
+            </ng-container>
+
+            <!-- FUERZA: peso + reps + repetir + RPE -->
+            <ng-container *ngIf="ej.modo === 'fuerza'">
+              <div class="serie-campos">
+                <div class="campo">
+                  <label>Peso (kg)</label>
+                  <div class="stepper">
+                    <button type="button" (click)="ajustar(s, 'peso', -1)">−</button>
+                    <input type="number" inputmode="decimal" step="1.25" [(ngModel)]="s.peso" />
+                    <button type="button" (click)="ajustar(s, 'peso', 1)">+</button>
+                  </div>
+                </div>
+                <div class="campo">
+                  <label>Reps</label>
+                  <div class="stepper">
+                    <button type="button" (click)="ajustar(s, 'reps', -1)">−</button>
+                    <input type="number" inputmode="numeric" step="1" [(ngModel)]="s.reps" />
+                    <button type="button" (click)="ajustar(s, 'reps', 1)">+</button>
+                  </div>
+                </div>
+                <button class="repetir-btn" type="button" *ngIf="hayPosteriores(ej, i)"
+                        (click)="repetir(ej, i)" title="Repetir este peso y reps en las series siguientes">
+                  ⟳ repetir
+                </button>
               </div>
-              <p class="rpe-sig">RPE {{ s.rpe }}: {{ rpeTexto(s.rpe) }}</p>
-            </div>
+              <div class="rpe">
+                <button class="rpe-label" type="button" (click)="abrirRpe()">RPE <span class="info">?</span></button>
+                <div class="rpe-grid">
+                  <button type="button" *ngFor="let r of rpeValores" [class.active]="s.rpe === r" (click)="setRpe(s, r)">{{ r }}</button>
+                </div>
+                <p class="rpe-sig">RPE {{ s.rpe }}: {{ rpeTexto(s.rpe) }}</p>
+              </div>
+            </ng-container>
           </div>
         </div>
       </article>
