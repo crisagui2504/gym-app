@@ -22,6 +22,7 @@ repomix-output.*
 config_usuario.json
 python-engine/historial.csv
 python-engine/motor.log
+python-engine/registrar_sesion.py
 
 # OS / editor
 .DS_Store
