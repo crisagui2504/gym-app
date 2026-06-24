@@ -28,28 +28,49 @@ from generador import generar_plan
 # ─────────────────────────────────────────────────────────────────────────────
 # Constantes de diseño (paleta oscura que combina con la app Angular)
 # ─────────────────────────────────────────────────────────────────────────────
-ACCENT  = "#00e0b5"
-ACCENT2 = "#18b3ff"
-BG      = "#0b0d13"
-CARD    = "#161922"
-CARD2   = "#1e2230"
-LINE    = "#2a2f42"
-TEXT    = "#eef0f6"
-MUTED   = "#8b90a8"
-DANGER  = "#ff5d7a"
-WARN    = "#ffc043"
-
 CSV_PATH = pathlib.Path(__file__).resolve().parent / "historial.csv"
 
-PLOTLY_THEME = dict(
-    template="plotly_dark",
-    paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(color=TEXT, family="Inter, Segoe UI, sans-serif", size=13),
-    margin=dict(l=20, r=20, t=64, b=70),
-    colorway=[ACCENT, ACCENT2, "#a78bfa", "#ff9f6e", "#ff5d7a"],
-)
-GRID = "#222740"
+# ── Paletas de tema (oscuro / claro) ─────────────────────────────────────────
+TEMAS = {
+    "oscuro": dict(bg="#0b0d13", card="#161922", card2="#1e2230", line="#2a2f42",
+                   text="#eef0f6", muted="#8b90a8", accent="#00e0b5", accent2="#18b3ff",
+                   danger="#ff5d7a", warn="#ffc043", grid="#222740", template="plotly_dark"),
+    "claro":  dict(bg="#f4f6fb", card="#ffffff", card2="#eef1f7", line="#dde2ee",
+                   text="#1b1f2a", muted="#5a6072", accent="#00a98e", accent2="#1488d8",
+                   danger="#e23d5c", warn="#c77f00", grid="#e3e7f0", template="plotly_white"),
+}
+
+
+def _aplicar_tema(tema: str) -> None:
+    """Setea los colores globales y estilos derivados según el tema elegido."""
+    global BG, CARD, CARD2, LINE, TEXT, MUTED, ACCENT, ACCENT2, DANGER, WARN, GRID
+    global PLOTLY_THEME, _TAB_STYLE, _TAB_SELECTED_STYLE, _LABEL_STYLE
+    p = TEMAS.get(tema, TEMAS["oscuro"])
+    BG, CARD, CARD2, LINE = p["bg"], p["card"], p["card2"], p["line"]
+    TEXT, MUTED = p["text"], p["muted"]
+    ACCENT, ACCENT2 = p["accent"], p["accent2"]
+    DANGER, WARN, GRID = p["danger"], p["warn"], p["grid"]
+    PLOTLY_THEME = dict(
+        template=p["template"],
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=p["text"], family="Inter, Segoe UI, sans-serif", size=13),
+        margin=dict(l=20, r=20, t=64, b=70),
+        colorway=[p["accent"], p["accent2"], "#a78bfa", "#ff9f6e", "#ff5d7a"],
+    )
+    _TAB_STYLE = {
+        "backgroundColor": "transparent", "color": MUTED, "border": "none",
+        "borderBottom": "2px solid transparent", "padding": "12px 18px",
+        "fontWeight": "600", "fontSize": "13.5px",
+    }
+    _TAB_SELECTED_STYLE = {**_TAB_STYLE, "color": ACCENT,
+                           "borderBottom": f"2px solid {ACCENT}"}
+    _LABEL_STYLE = {"color": ACCENT, "fontSize": "11px", "fontWeight": "700",
+                    "textTransform": "uppercase", "letterSpacing": "1px"}
+
+
+_aplicar_tema(cargar_config().get("tema", "oscuro"))
+
+
 # estilo de titulo (alineado a la izquierda, compacto) para pasar como title=...
 def _titulo(texto: str) -> dict:
     return dict(text=texto, font=dict(size=15, color=TEXT), x=0.012, xanchor="left",
@@ -502,24 +523,10 @@ def _kpi_card(titulo: str, valor: str, icono: str = "") -> html.Div:
     })
 
 
-_TAB_STYLE = {
-    "backgroundColor": "transparent", "color": MUTED,
-    "border": "none", "borderBottom": f"2px solid transparent",
-    "padding": "12px 18px", "fontWeight": "600", "fontSize": "13.5px",
-}
-_TAB_SELECTED_STYLE = {
-    **_TAB_STYLE,
-    "color": ACCENT, "borderBottom": f"2px solid {ACCENT}",
-    "backgroundColor": "transparent",
-}
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Pestaña de configuración (cambiar enfoque sin tocar código)
 # ─────────────────────────────────────────────────────────────────────────────
 _DD_STYLE = {"marginTop": "6px"}
-_LABEL_STYLE = {"color": ACCENT, "fontSize": "11px", "fontWeight": "700",
-                "textTransform": "uppercase", "letterSpacing": "1px"}
 
 
 def _tab_config_children(estado: str = "real") -> html.Div:
@@ -575,10 +582,10 @@ def _tab_config_children(estado: str = "real") -> html.Div:
                 options=[{"label": f" {lbl}", "value": mid} for mid, lbl in MUSCULOS_PRIORIZABLES],
                 value=cfg.get("prioridades", []),
                 inline=True,
-                style={"color": TEXT, "fontSize": "14px", "marginTop": "10px",
+                style={"fontSize": "14px", "marginTop": "10px",
                        "display": "flex", "flexWrap": "wrap", "gap": "8px 4px"},
-                labelStyle={"marginRight": "16px", "cursor": "pointer", "display": "inline-flex",
-                            "alignItems": "center", "gap": "5px"},
+                labelStyle={"color": TEXT, "marginRight": "16px", "cursor": "pointer",
+                            "display": "inline-flex", "alignItems": "center", "gap": "5px"},
             ),
 
             html.Button("Generar y guardar plan", id="cfg-guardar", n_clicks=0,
@@ -769,15 +776,20 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
         "vacio": ("● SIN DATOS", MUTED),
     }[estado]
 
-    return html.Div([
+    tema = cargar_config().get("tema", "oscuro")
+    btn_tema = "☀️ Vista clara" if tema == "oscuro" else "🌙 Vista oscura"
+
+    contenido = html.Div([
         dcc.Store(id="reload-trigger"),
+        dcc.Store(id="tema-trigger"),
         html.Div(id="reload-dummy", style={"display": "none"}),
+        html.Div(id="tema-dummy", style={"display": "none"}),
 
         # Header
         html.Div([
             html.Div([
                 html.Div("🏋️", style={"fontSize": "26px",
-                                       "background": "linear-gradient(135deg,#00e0b5,#18b3ff)",
+                                       "background": f"linear-gradient(135deg,{ACCENT},{ACCENT2})",
                                        "WebkitBackgroundClip": "text", "WebkitTextFillColor": "transparent"}),
                 html.Div([
                     html.Div("Gym Tracker", style={"color": TEXT, "margin": "0",
@@ -789,11 +801,13 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
             ], style={"display": "flex", "alignItems": "center", "gap": "12px"}),
 
             html.Div([
+                html.Button(btn_tema, id="btn-tema", n_clicks=0,
+                            className="gym-btn-ghost", style={"marginRight": "10px"}),
                 html.Button("🔄 Actualizar datos", id="btn-refresh", n_clicks=0,
                             className="gym-btn-ghost", style={"marginRight": "14px"}),
                 html.Span(estado_chip[0], style={"color": estado_chip[1], "fontSize": "11px",
                                                   "fontWeight": "700", "letterSpacing": "0.5px"}),
-            ], style={"display": "flex", "alignItems": "center"}),
+            ], style={"display": "flex", "alignItems": "center", "flexWrap": "wrap"}),
         ], style={
             "display": "flex", "justifyContent": "space-between", "alignItems": "center",
             "marginBottom": "22px", "paddingBottom": "18px",
@@ -806,7 +820,12 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
         kpi_row,
         tabs,
     ], style={"padding": "24px 32px", "maxWidth": "1500px", "margin": "0 auto",
-               "minHeight": "100vh", "fontFamily": "Inter, Segoe UI, sans-serif"})
+               "fontFamily": "Inter, Segoe UI, sans-serif"})
+
+    # Wrapper full-bleed: aplica el fondo del tema y la clase que cascadea las
+    # variables CSS (.tema-claro) a todos los descendientes.
+    return html.Div(contenido, className=f"tema-{tema}",
+                    style={"backgroundColor": BG, "minHeight": "100vh"})
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -821,6 +840,7 @@ app = Dash(
 
 
 def _serve_layout() -> html.Div:
+    _aplicar_tema(cargar_config().get("tema", "oscuro"))
     df, estado = _cargar_df()
     return _build_layout(df, estado)
 
@@ -869,6 +889,28 @@ app.clientside_callback(
     "function(t){ if(t){ setTimeout(function(){ window.location.reload(); }, 900); } return ''; }",
     Output("reload-dummy", "children"),
     Input("reload-trigger", "data"),
+    prevent_initial_call=True,
+)
+
+
+@callback(
+    Output("tema-trigger", "data"),
+    Input("btn-tema", "n_clicks"),
+    prevent_initial_call=True,
+)
+def _cambiar_tema(n_clicks):
+    """Alterna entre tema oscuro y claro, lo guarda y dispara la recarga."""
+    import time
+    actual = cargar_config().get("tema", "oscuro")
+    guardar_config({"tema": "claro" if actual == "oscuro" else "oscuro"})
+    return time.time()
+
+
+# Recarga inmediata al cambiar de tema
+app.clientside_callback(
+    "function(t){ if(t){ window.location.reload(); } return ''; }",
+    Output("tema-dummy", "children"),
+    Input("tema-trigger", "data"),
     prevent_initial_call=True,
 )
 

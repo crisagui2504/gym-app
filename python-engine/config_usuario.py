@@ -15,6 +15,7 @@ DEFAULT_CONFIG: dict = {
     "split": "upper_lower",
     "prioridades": ["hombros", "cuadriceps"],
     "peso_corporal": 75,
+    "tema": "oscuro",  # "oscuro" | "claro"
 }
 
 

@@ -18,6 +18,21 @@
   --warn:    #ffc043;
 }
 
+/* Tema claro: se activa con la clase .tema-claro en el contenedor raíz.
+   Las variables se redefinen y cascadean a todos los descendientes. */
+.tema-claro {
+  --bg:      #f4f6fb;
+  --card:    #ffffff;
+  --card2:   #eef1f7;
+  --line:    #dde2ee;
+  --text:    #1b1f2a;
+  --muted:   #5a6072;
+  --accent:  #00a98e;
+  --accent2: #1488d8;
+  --danger:  #e23d5c;
+  --warn:    #c77f00;
+}
+
 html, body {
   margin: 0;
   background: var(--bg);

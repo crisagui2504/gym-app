@@ -292,7 +292,7 @@ Al presionar **"Generar y guardar plan"**, el `generador.py` reconstruye el plan
 | **⚙ Configuración** | Cambiar enfoque / split / prioridades y regenerar el plan |
 | **Plan semana** | El plan calculado para la próxima semana según tu config |
 
-Interfaz oscura moderna (fuente Inter, tarjetas con gradiente, dropdowns de alto contraste). Los estilos están en `python-engine/assets/dashboard.css` (Dash los carga solo).
+Interfaz moderna (fuente Inter, tarjetas con gradiente, dropdowns de alto contraste). Incluye **tema oscuro y tema claro** conmutables con el botón **☀️ Vista clara / 🌙 Vista oscura** del header; la preferencia se guarda en `config_usuario.json`. Los estilos están en `python-engine/assets/dashboard.css` (Dash los carga solo).
 
 > Power BI (`powerbi_guide.md`) queda como alternativa, pero el dashboard Python es la herramienta principal.
 
