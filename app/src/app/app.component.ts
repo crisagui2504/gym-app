@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { forkJoin } from 'rxjs';
 import { EjercicioPlan, RutinaApiService, SeriePayload } from './rutina-api.service';
 import { MuscleMapComponent } from './muscle-map.component';
 import {
@@ -68,6 +69,14 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly tema = signal<'light' | 'dark'>('dark');
   readonly racha = signal(0);
   readonly mostrarCalentamiento = signal(false);
+
+  // ----- Reprogramar la semana (mover el dia de descanso) -----
+  readonly diasLabel = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
+  readonly mostrarSemana = signal(false);
+  readonly cargandoSemana = signal(false);
+  readonly semana = signal<{ cal: number; sesion: number; nombre: string; descanso: boolean; hoy: boolean }[]>([]);
+  private nombresSesion: string[] = [];
+  readonly esDiaDescanso = computed(() => /descanso/i.test(this.nombreDia()));
   readonly calentamiento = computed<Calentamiento>(() => calentamientoDe(this.nombreDia()));
   readonly aproximacion = computed<{ ejercicio: string; series: ReturnType<typeof seriesAproximacion> } | null>(() => {
     let mejor: EjercicioVM | null = null;
@@ -114,11 +123,16 @@ export class AppComponent implements OnInit, OnDestroy {
     this.restaurarTimer();
     document.addEventListener('visibilitychange', this.onVisibilidad);
 
-    this.api.getRutinaHoy().subscribe({
+    this.cargarSesion(this.sesionDe(this.weekdayHoy()));
+  }
+
+  /** Carga la sesion (dia del plan) que corresponde mostrar hoy. */
+  private cargarSesion(sessionWeekday: number): void {
+    this.cargando.set(true);
+    this.mensaje.set('');
+    this.api.getRutinaHoy(this.fechaDeSesion(sessionWeekday)).subscribe({
       next: (res) => {
-        if (res.rutina.length > 0) {
-          this.nombreDia.set(res.rutina[0].nombre_dia);
-        }
+        this.nombreDia.set(res.rutina.length ? res.rutina[0].nombre_dia : 'Descanso');
         this.ejercicios.set(this.agrupar(res.rutina));
         this.cargando.set(false);
       },
@@ -127,6 +141,111 @@ export class AppComponent implements OnInit, OnDestroy {
         this.cargando.set(false);
       }
     });
+  }
+
+  // ----- Helpers de fechas / semana -----
+  private weekdayHoy(): number {
+    return ((new Date().getDay() + 6) % 7) + 1; // 1=Lun .. 7=Dom
+  }
+
+  private mondayActual(): Date {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return d;
+  }
+
+  private fechaDeSesion(sessionWeekday: number): Date {
+    const d = this.mondayActual();
+    d.setDate(d.getDate() + (sessionWeekday - 1));
+    return d;
+  }
+
+  private overrideKey(): string {
+    return 'horario-' + fechaLocal(this.mondayActual());
+  }
+
+  private cargarOverrideMap(): Record<number, number> {
+    try {
+      return JSON.parse(localStorage.getItem(this.overrideKey()) || '{}');
+    } catch {
+      return {};
+    }
+  }
+
+  /** Sesion del plan (1-7) que se muestra en un dia calendario, con override. */
+  sesionDe(cal: number): number {
+    const m = this.cargarOverrideMap();
+    return m[cal] ?? cal;
+  }
+
+  // ----- Panel "Mi semana" -----
+  toggleSemana(): void {
+    this.mostrarSemana.update((v) => !v);
+    if (this.mostrarSemana() && this.nombresSesion.length === 0) {
+      this.cargandoSemana.set(true);
+      const reqs = [1, 2, 3, 4, 5, 6, 7].map((s) => this.api.getRutinaHoy(this.fechaDeSesion(s)));
+      forkJoin(reqs).subscribe({
+        next: (arr) => {
+          this.nombresSesion = arr.map((r) => (r.rutina[0]?.nombre_dia ?? '—'));
+          this.reconstruirSemana();
+          this.cargandoSemana.set(false);
+        },
+        error: () => {
+          this.mensaje.set('No se pudo cargar la semana.');
+          this.cargandoSemana.set(false);
+        }
+      });
+    } else if (this.mostrarSemana()) {
+      this.reconstruirSemana();
+    }
+  }
+
+  private reconstruirSemana(): void {
+    const hoy = this.weekdayHoy();
+    this.semana.set(
+      [1, 2, 3, 4, 5, 6, 7].map((cal) => {
+        const s = this.sesionDe(cal);
+        const nombre = this.nombresSesion[s - 1] ?? '—';
+        return { cal, sesion: s, nombre, descanso: /descanso/i.test(nombre), hoy: cal === hoy };
+      })
+    );
+  }
+
+  private sesionDescanso(): number {
+    const i = this.nombresSesion.findIndex((n) => /descanso/i.test(n));
+    return i >= 0 ? i + 1 : 4;
+  }
+
+  /** Pone el descanso en este dia calendario, intercambiando con el dia de descanso actual. */
+  descansarEn(cal: number): void {
+    const m = this.cargarOverrideMap();
+    const full: Record<number, number> = {};
+    for (let d = 1; d <= 7; d++) full[d] = m[d] ?? d;
+
+    const rest = this.sesionDescanso();
+    let oldRestCal = 0;
+    for (let d = 1; d <= 7; d++) {
+      if (full[d] === rest) {
+        oldRestCal = d;
+        break;
+      }
+    }
+    if (!oldRestCal || oldRestCal === cal) return;
+
+    const tmp = full[cal];
+    full[cal] = full[oldRestCal];
+    full[oldRestCal] = tmp;
+
+    localStorage.setItem(this.overrideKey(), JSON.stringify(full));
+    this.reconstruirSemana();
+    this.cargarSesion(this.sesionDe(this.weekdayHoy())); // recarga hoy si cambio
+  }
+
+  restaurarSemana(): void {
+    localStorage.removeItem(this.overrideKey());
+    this.reconstruirSemana();
+    this.cargarSesion(this.sesionDe(this.weekdayHoy()));
   }
 
   ngOnDestroy(): void {

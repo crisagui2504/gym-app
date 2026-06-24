@@ -7,6 +7,9 @@
       </div>
       <div class="top-actions">
         <span class="streak" *ngIf="racha() > 0" title="Racha de dias">🔥 {{ racha() }}</span>
+        <button class="theme-toggle" type="button" (click)="toggleSemana()" aria-label="Reprogramar la semana" title="Mover el dia de descanso">
+          📅
+        </button>
         <button class="theme-toggle" type="button" (click)="toggleTema()" aria-label="Cambiar tema">
           {{ tema() === 'dark' ? '☀️' : '🌙' }}
         </button>
@@ -57,8 +60,36 @@
       </div>
     </section>
 
+    <!-- ===== MI SEMANA (mover el dia de descanso) ===== -->
+    <section class="week panel" *ngIf="mostrarSemana()">
+      <div class="week-head">
+        <strong>Mi semana</strong>
+        <button class="week-reset" type="button" (click)="restaurarSemana()">Restaurar</button>
+      </div>
+      <p class="week-hint">Tocá <b>“Descansar acá”</b> en el día que quieras descansar. Su entreno se mueve al día de descanso actual.</p>
+      <p class="status" *ngIf="cargandoSemana()">Cargando semana...</p>
+      <div class="week-grid" *ngIf="!cargandoSemana()">
+        <div class="week-day" *ngFor="let d of semana()" [class.descanso]="d.descanso" [class.hoy]="d.hoy">
+          <div class="week-day-info">
+            <span class="week-dia">{{ diasLabel[d.cal - 1] }}<span class="week-hoy" *ngIf="d.hoy"> · hoy</span></span>
+            <span class="week-sesion">{{ d.descanso ? '🛌 Descanso' : d.nombre }}</span>
+          </div>
+          <button class="rest-here-btn" type="button" *ngIf="!d.descanso" (click)="descansarEn(d.cal)">Descansar acá</button>
+          <span class="week-rest-tag" *ngIf="d.descanso">Descanso</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== DIA DE DESCANSO ===== -->
+    <section class="rest-day panel-strong" *ngIf="!cargando() && esDiaDescanso()">
+      <div class="rest-icon">🛌</div>
+      <h2>Día de descanso</h2>
+      <p>Recuperación activa: caminá 10-12k pasos, 2.5-3 L de agua, proteína y dormí 7-9 h. El músculo crece cuando descansás.</p>
+      <p class="rest-sub">¿Cambiaste de planes? Tocá 📅 arriba para mover el descanso a otro día.</p>
+    </section>
+
     <!-- ===== EJERCICIOS ===== -->
-    <section class="exercise-list" *ngIf="!cargando()">
+    <section class="exercise-list" *ngIf="!cargando() && !esDiaDescanso()">
       <article class="exercise-card panel-strong" *ngFor="let ej of ejercicios()" [class.done]="ejercicioHecho(ej)">
         <div class="card-head">
           <div class="card-title">
