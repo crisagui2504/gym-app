@@ -87,6 +87,7 @@ La interfaz móvil con la que entrenas en el gimnasio. Se conecta a la API PHP c
 - **Racha de días**, **tema oscuro/claro**, **calentamiento específico** por día y **series de aproximación** automáticas.
 - **Mapa de músculos SVG** (el "mapa de calor" de la esquina de cada tarjeta) resalta los grupos trabajados. *(Se quitaron las imágenes externas de wger.)*
 - **Alternativas de ejercicio**: si una máquina está ocupada, reemplazás el ejercicio (toda su tarjeta) por otro del mismo grupo muscular.
+- **Diseño adaptado a cada ejercicio**: la tarjeta muestra solo los campos que el ejercicio necesita — fuerza (peso + reps + RPE), cardio (minutos, Zona 2), plancha (segundos), Farmer's carry (peso + metros), pinzamiento (peso + segundos), rodillo (rondas), core (reps, sin RPE). Lo decide `medidaDe()` en `entreno-data.ts`.
 - **Reprogramar la semana** (botón 📅): movés el **día de descanso** sin tocar el servidor. Tocás "Descansar acá" en cualquier día y su entreno se intercambia con el día de descanso actual (p. ej. descansás el sábado y hacés su entreno el jueves). El cambio se guarda en `localStorage` para esa semana y vuelve solo al default la semana siguiente.
 - Modal de **explicación de técnica**: Top Set, Back-off, AMRAP, Rest-Pause, etc.
 

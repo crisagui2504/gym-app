@@ -15,6 +15,8 @@ import {
   descansoPorTecnica,
   explicacionTecnica,
   fechaLocal,
+  Medida,
+  medidaDe,
   musculosDe,
   norm,
   nSeriesDe,
@@ -37,14 +39,11 @@ interface SerieVM {
   hecho: boolean;
 }
 
-type ModoEjercicio = 'fuerza' | 'cardio' | 'core';
-
 interface EjercicioVM {
   ejercicio: string;
   nombre_dia: string;
   bloque: string | null;
-  modo: ModoEjercicio;   // adapta el diseño: pesas / cardio / core
-  cargado: boolean;      // (core) si lleva peso externo (polea, disco, etc.)
+  medida: Medida;        // que campos/unidades mostrar (se adapta al ejercicio)
   musculos: MuscleId[];
   tecnicas: string[];    // tecnicas distintas (para los chips)
   series: SerieVM[];     // todas las series del ejercicio, juntas
@@ -269,8 +268,7 @@ export class AppComponent implements OnInit, OnDestroy {
           ejercicio: ej.ejercicio,
           nombre_dia: ej.nombre_dia,
           bloque: ej.bloque,
-          modo: this.modoDe(ej.bloque, ej.ejercicio),
-          cargado: this.esCargado(ej.ejercicio),
+          medida: medidaDe(ej.ejercicio, ej.bloque),
           musculos: musculosDe(ej.ejercicio),
           tecnicas: [],
           series: [],
@@ -283,74 +281,38 @@ export class AppComponent implements OnInit, OnDestroy {
     return cards;
   }
 
-  private modoDe(bloque: string | null, nombre: string): ModoEjercicio {
-    const b = norm(bloque || '');
-    if (b.startsWith('cardio')) return 'cardio';
-    if (b.startsWith('core')) return 'core';
-    // por nombre, por si el bloque no lo dice
-    if (/(eliptica|bicicleta|caminata|cinta|cardio|remo ergometro|zona 2)/.test(norm(nombre))) return 'cardio';
-    return 'fuerza';
-  }
-
-  /** (core) si el ejercicio lleva carga externa y conviene registrar peso. */
-  private esCargado(nombre: string): boolean {
-    return /(polea|peso|mancuern|disco|placa|cable|lastr|barra)/.test(norm(nombre));
-  }
-
-  /** Agrega las series de una fila del plan a su tarjeta, segun el modo. */
+  /** Agrega las series de una fila del plan a su tarjeta, segun su medida. */
   private agregarSegmento(card: EjercicioVM, ej: EjercicioPlan): void {
     if (ej.tecnica && !card.tecnicas.includes(ej.tecnica)) card.tecnicas.push(ej.tecnica);
 
-    // --- Cardio: una sola entrada de minutos (Zona 2), sin peso ni RPE ---
-    if (card.modo === 'cardio') {
-      const minObj = ej.reps_min ?? 35;
-      const minMax = ej.reps_max ?? 45;
-      card.series.push({
-        planId: ej.id,
-        numeroSerie: 1,
-        tecnica: ej.tecnica,
-        etiqueta: ej.tecnica || 'Zona 2',
-        alFallo: false,
-        descanso: 0,
-        repsObjetivo: `${minObj}-${minMax} min`,
-        reps: minMax, // aqui "reps" = minutos
-        peso: 0,
-        rpe: 6, // Zona 2 = esfuerzo bajo
-        hecho: false
-      });
-      return;
-    }
-
-    // --- Fuerza / Core ---
+    const med = card.medida;
+    const unidad = med.cuenta?.unidad ?? '';
     const peso = Number(ej.peso_sugerido ?? 0);
-    const n = nSeriesDe(ej.series_objetivo);
+    const n = med.cardio ? 1 : nSeriesDe(ej.series_objetivo);
     const esAmrap = /amrap/i.test(ej.tecnica ?? '');
     const hayReps = ej.reps_min != null || ej.reps_max != null;
-    const reps = ej.reps_max ?? ej.reps_min ?? (card.modo === 'core' ? 15 : 10);
+    const valor = hayReps ? (ej.reps_max ?? ej.reps_min ?? 0) : (med.cuenta?.def ?? 0);
     const rango = ej.reps_min ? `${ej.reps_min}${ej.reps_max ? '-' + ej.reps_max : ''}` : '';
-    const rpeDefault = card.modo === 'core' ? 8 : 8;
 
     for (let i = 0; i < n; i++) {
       const ultima = i === n - 1;
       const alFallo = esAmrap && ultima;
       const repsObjetivo = alFallo
         ? 'al fallo'
-        : card.modo === 'core' && !hayReps
-        ? 'al fallo / tiempo'
-        : rango
-        ? `${rango} reps`
-        : '';
+        : hayReps && rango
+        ? `${rango} ${unidad}`
+        : med.objetivo;
       card.series.push({
         planId: ej.id,
         numeroSerie: i + 1,
         tecnica: ej.tecnica,
-        etiqueta: this.etiquetaSerie(ej.tecnica, i, n, alFallo, card.series.length),
+        etiqueta: med.cardio ? (ej.tecnica || 'Zona 2') : this.etiquetaSerie(ej.tecnica, i, n, alFallo, card.series.length),
         alFallo,
-        descanso: ej.descanso_seg && ej.descanso_seg > 0 ? ej.descanso_seg : descansoPorTecnica(ej.tecnica),
+        descanso: med.cardio ? 0 : (ej.descanso_seg && ej.descanso_seg > 0 ? ej.descanso_seg : descansoPorTecnica(ej.tecnica)),
         repsObjetivo,
-        reps,
+        reps: valor,        // "reps" = el conteo (reps / min / seg / metros / rondas)
         peso,
-        rpe: rpeDefault,
+        rpe: med.rpe ? 8 : (med.cardio ? 6 : 8),
         hecho: false
       });
     }

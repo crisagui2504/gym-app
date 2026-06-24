@@ -180,6 +180,96 @@ export function alternativasDe(nombre: string): Alternativa[] {
   }));
 }
 
+// ===== Medida del ejercicio (que campos mostrar y con que unidad) =====
+export interface Medida {
+  peso: boolean;                                          // mostrar campo de peso
+  cuenta: { label: string; unidad: string; paso: number; def: number } | null; // campo de conteo
+  rpe: boolean;                                           // mostrar RPE
+  nota: string;                                           // ayuda contextual
+  objetivo: string;                                       // texto de objetivo si el plan no trae rango
+  cardio: boolean;                                        // para ocultar musculos/alternativas
+}
+
+/**
+ * Clasifica un ejercicio por lo que realmente se mide.
+ * El diseno de la tarjeta se adapta a esto (no al reves).
+ */
+export function medidaDe(nombre: string, bloque: string | null): Medida {
+  const n = norm(nombre);
+  const b = norm(bloque || '');
+
+  // --- Cardio: minutos en Zona 2 ---
+  if (b.startsWith('cardio') || /(eliptica|bicicleta|bici|caminata|cinta|trotadora|remo ergometro|escaladora|spinning)/.test(n)) {
+    return {
+      peso: false, rpe: false, cardio: true,
+      cuenta: { label: 'Minutos', unidad: 'min', paso: 5, def: 40 },
+      nota: '🫀 Zona 2 · ritmo conversacional: podes hablar sin ahogarte.',
+      objetivo: '35-45 min'
+    };
+  }
+
+  // --- Plancha / isometricos: tiempo (segundos), sin peso ni RPE ---
+  if (/(plancha|hollow|isometric|vacio abdominal|hueco)/.test(n)) {
+    return {
+      peso: false, rpe: false, cardio: false,
+      cuenta: { label: 'Segundos', unidad: 'seg', paso: 5, def: 30 },
+      nota: 'Manten la posicion firme. Al fallo (minimo 30 seg).',
+      objetivo: 'al fallo'
+    };
+  }
+
+  // --- Paseos / carries: distancia (metros) con peso ---
+  if (/(farmer|paseo del granjero|carry|caminata del granjero|sentadilla en copa caminando)/.test(n)) {
+    return {
+      peso: true, rpe: false, cardio: false,
+      cuenta: { label: 'Metros', unidad: 'm', paso: 5, def: 30 },
+      nota: 'Camina con el peso, agarre firme y core apretado.',
+      objetivo: '30-40 m'
+    };
+  }
+
+  // --- Pinzamiento de disco: tiempo de sosten con peso ---
+  if (/(pinzamiento|pinch|sosten de disco|agarre de disco)/.test(n)) {
+    return {
+      peso: true, rpe: false, cardio: false,
+      cuenta: { label: 'Segundos', unidad: 'seg', paso: 5, def: 20 },
+      nota: 'Sosten el disco con los dedos (4 + pulgar).',
+      objetivo: '20-30 seg'
+    };
+  }
+
+  // --- Rodillo de muneca: rondas, sin peso ni RPE ---
+  if (/(rodillo|wrist roller|enrollar)/.test(n)) {
+    return {
+      peso: false, rpe: false, cardio: false,
+      cuenta: { label: 'Rondas', unidad: 'rondas', paso: 1, def: 3 },
+      nota: 'Sube y baja el peso enrollando la cuerda. Sin parar.',
+      objetivo: '3 series'
+    };
+  }
+
+  // --- Core / abdominales: reps (peso solo si lleva carga), sin RPE ---
+  const esCore = b.startsWith('core') ||
+    /(crunch|abdominal|elevaciones de piernas|elevacion de piernas|rueda|ab wheel|oblicuo|encogimiento abdominal|colgado)/.test(n);
+  if (esCore) {
+    return {
+      peso: /(polea|cable|disco|con peso|mancuern|lastrad)/.test(n),
+      rpe: false, cardio: false,
+      cuenta: { label: 'Reps', unidad: 'reps', paso: 1, def: 15 },
+      nota: '',
+      objetivo: 'al fallo'
+    };
+  }
+
+  // --- Por defecto: fuerza (peso + reps + RPE) ---
+  return {
+    peso: true, rpe: true, cardio: false,
+    cuenta: { label: 'Reps', unidad: 'reps', paso: 1, def: 10 },
+    nota: '',
+    objetivo: 'al fallo'
+  };
+}
+
 // ===== Tecnicas (explicaciones) =====
 export interface Tecnica {
   titulo: string;
