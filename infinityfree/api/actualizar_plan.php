@@ -16,6 +16,19 @@ $pdo = db();
 $pdo->beginTransaction();
 
 try {
+    // Desactivar el plan anterior de las semanas del payload, para que los
+    // ejercicios que ya no esten en el plan nuevo (p. ej. recortados por
+    // duracion) dejen de mostrarse. El upsert vuelve a poner activo = 1 en
+    // las filas que si estan en el plan nuevo.
+    $semanas = [];
+    foreach ($rutina as $item) {
+        $semanas[$item['semana_inicio'] ?? $semanaInicio] = true;
+    }
+    $deact = $pdo->prepare('UPDATE plan_rutina SET activo = 0 WHERE semana_inicio = :s');
+    foreach (array_keys($semanas) as $s) {
+        $deact->execute([':s' => $s]);
+    }
+
     // Upsert por casilla unica: (semana_inicio, dia_semana, orden).
     $update = $pdo->prepare(
         'UPDATE plan_rutina SET
