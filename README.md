@@ -64,7 +64,8 @@ gym/
 │   ├── config_usuario.py → Guarda tu enfoque elegido (lo hace permanente)
 │   ├── planificar.py    → Motor de sobrecarga progresiva (mesociclo 5 semanas)
 │   ├── plan_template.py → Dataclass Fila + plantilla de referencia
-│   └── dashboard.py     → Dashboard Dash/Plotly + configuración interactiva
+│   ├── dashboard.py     → Dashboard Dash/Plotly + configuración interactiva
+│   └── assets/         → CSS del dashboard (tema oscuro, lo carga Dash solo)
 ├── python-scripts/       → Scripts auxiliares (optimización básica)
 ├── docs/                 → Roadmap por sprints
 └── powerbi_guide.md      → Guía alternativa para Power BI
@@ -257,7 +258,11 @@ Doble clic en **`GymTracker.bat`** (en la raíz del proyecto). La primera vez cr
 - **`GymTracker (sin consola).vbs`** — igual, pero sin ninguna ventana de consola.
 - **`Crear acceso directo en escritorio.bat`** — corrélo una vez y te deja el icono **"Gym Tracker"** en el escritorio para abrirlo cuando quieras.
 
-Si `historial.csv` está vacío, el dashboard carga **datos de demostración** para que lo veas funcionar antes de tener entrenos reales.
+### Datos reales y botón "Actualizar datos"
+
+El dashboard muestra tus **datos reales** del backend. El botón **🔄 Actualizar datos** (arriba a la derecha) descarga el historial del servidor sin salir del dashboard — corre el mismo pipeline que `exportar_local.py` (Angular → PHP → MySQL → `historial.csv`) y recarga la vista. El chip de estado indica **● EN VIVO** (hay datos), **● SIN DATOS** o **● DEMO**.
+
+Si todavía no registraste entrenos, ves un estado vacío con instrucciones (no datos falsos). Para una demo con datos de ejemplo, arrancá con la variable de entorno `GYM_DEMO=1`.
 
 ### Autonomía: cambiar el enfoque desde el dashboard
 
@@ -286,6 +291,8 @@ Al presionar **"Generar y guardar plan"**, el `generador.py` reconstruye el plan
 | **Logbook** | Tabla completa, filtrable y ordenable, de todas las series |
 | **⚙ Configuración** | Cambiar enfoque / split / prioridades y regenerar el plan |
 | **Plan semana** | El plan calculado para la próxima semana según tu config |
+
+Interfaz oscura moderna (fuente Inter, tarjetas con gradiente, dropdowns de alto contraste). Los estilos están en `python-engine/assets/dashboard.css` (Dash los carga solo).
 
 > Power BI (`powerbi_guide.md`) queda como alternativa, pero el dashboard Python es la herramienta principal.
 
