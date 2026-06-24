@@ -15,7 +15,8 @@ DEFAULT_CONFIG: dict = {
     "split": "upper_lower",
     "prioridades": ["hombros", "cuadriceps"],
     "peso_corporal": 75,
-    "tema": "oscuro",  # "oscuro" | "claro"
+    "duracion_min": 90,  # 60 | 75 | 90 | 120 -> ajusta cuantos ejercicios por dia
+    "tema": "oscuro",    # "oscuro" | "claro"
 }
 
 

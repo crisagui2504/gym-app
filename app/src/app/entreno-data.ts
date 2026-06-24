@@ -40,7 +40,7 @@ export function fechaLocal(d: Date = new Date()): string {
   return `${y}-${m}-${dia}`;
 }
 
-function norm(texto: string): string {
+export function norm(texto: string): string {
   return texto
     .toLowerCase()
     .normalize('NFD')
@@ -109,76 +109,63 @@ export function musculosDe(nombre: string): MuscleId[] {
   return s;
 }
 
-// ===== Catalogo de ejercicios con imagen (wger.de) y musculo primario =====
-const WGER = 'https://wger.de/media/exercise-images/';
-
+// ===== Catalogo de ejercicios comunes por musculo primario (sin imagenes) =====
 interface CatItem {
   nombre: string;
   muscle: MuscleId;
   claves: string[];
-  archivo: string;
 }
 
-// Ordenado de mas especifico a mas generico (para imagenDe).
+// Ordenado de mas especifico a mas generico.
 const CATALOGO: CatItem[] = [
   // Pecho
-  { nombre: 'Press Inclinado con Mancuernas', muscle: 'pecho', claves: ['press inclinado', 'inclinado'], archivo: '41/Incline-bench-press-1.png' },
-  { nombre: 'Aperturas en Maquina (Pec Deck)', muscle: 'pecho', claves: ['pec deck', 'apertura', 'aperturas', 'peck'], archivo: '98/Butterfly-machine-2.png' },
-  { nombre: 'Press de Banca con Barra', muscle: 'pecho', claves: ['press de banca', 'banca'], archivo: '192/Bench-press-1.png' },
-  { nombre: 'Press con Mancuernas', muscle: 'pecho', claves: ['press con mancuernas', 'press plano'], archivo: '97/Dumbbell-bench-press-1.png' },
+  { nombre: 'Press Inclinado con Mancuernas', muscle: 'pecho', claves: ['press inclinado', 'inclinado'] },
+  { nombre: 'Aperturas en Maquina (Pec Deck)', muscle: 'pecho', claves: ['pec deck', 'apertura', 'aperturas', 'peck'] },
+  { nombre: 'Press de Banca con Barra', muscle: 'pecho', claves: ['press de banca', 'banca'] },
+  { nombre: 'Press con Mancuernas', muscle: 'pecho', claves: ['press con mancuernas', 'press plano'] },
   // Hombros
-  { nombre: 'Face Pull / Pajaros', muscle: 'hombros', claves: ['face pull', 'pajaro', 'pec deck invertido', 'posterior'], archivo: '109/Barbell-rear-delt-row-1.png' },
-  { nombre: 'Press Militar con Mancuernas', muscle: 'hombros', claves: ['press militar', 'militar', 'arnold', 'press de hombro'], archivo: '123/dumbbell-shoulder-press-large-1.png' },
-  { nombre: 'Elevaciones Laterales', muscle: 'hombros', claves: ['elevacion', 'elevaciones', 'lateral'], archivo: '148/lateral-dumbbell-raises-large-2.png' },
-  { nombre: 'Press de Hombro en Maquina', muscle: 'hombros', claves: ['hombro en maquina'], archivo: '53/Shoulder-press-machine-2.png' },
+  { nombre: 'Face Pull / Pajaros', muscle: 'hombros', claves: ['face pull', 'pajaro', 'pec deck invertido', 'posterior'] },
+  { nombre: 'Press Militar con Mancuernas', muscle: 'hombros', claves: ['press militar', 'militar', 'arnold', 'press de hombro'] },
+  { nombre: 'Elevaciones Laterales', muscle: 'hombros', claves: ['elevacion', 'elevaciones', 'lateral'] },
+  { nombre: 'Press de Hombro en Maquina', muscle: 'hombros', claves: ['hombro en maquina'] },
   // Dorsales
-  { nombre: 'Remo Sentado en Polea', muscle: 'dorsales', claves: ['remo en polea', 'remo sentado', 'gironda', 'polea baja'], archivo: '143/Cable-seated-rows-2.png' },
-  { nombre: 'Jalon al Pecho / Dominadas', muscle: 'dorsales', claves: ['jalon', 'dominada'], archivo: '181/Chin-ups-2.png' },
-  { nombre: 'Remo con Barra', muscle: 'dorsales', claves: ['remo'], archivo: '110/Reverse-grip-bent-over-rows-1.png' },
-  { nombre: 'Remo en Maquina (T-Bar)', muscle: 'dorsales', claves: ['t-bar', 'remo t'], archivo: '106/T-bar-row-1.png' },
+  { nombre: 'Remo Sentado en Polea', muscle: 'dorsales', claves: ['remo en polea', 'remo sentado', 'gironda', 'polea baja'] },
+  { nombre: 'Jalon al Pecho / Dominadas', muscle: 'dorsales', claves: ['jalon', 'dominada'] },
+  { nombre: 'Remo con Barra', muscle: 'dorsales', claves: ['remo'] },
+  { nombre: 'Remo en Maquina (T-Bar)', muscle: 'dorsales', claves: ['t-bar', 'remo t'] },
   // Triceps
-  { nombre: 'Extension de Triceps en Polea', muscle: 'triceps', claves: ['extension triceps', 'extension de triceps', 'triceps', 'frances', 'patada'], archivo: '84/Lying-close-grip-triceps-press-to-chin-1.png' },
-  { nombre: 'Fondos en Banco', muscle: 'triceps', claves: ['fondos', 'dips'], archivo: '83/Bench-dips-1.png' },
-  { nombre: 'Press Cerrado', muscle: 'triceps', claves: ['press cerrado', 'close grip'], archivo: '61/Close-grip-bench-press-1.png' },
+  { nombre: 'Extension de Triceps en Polea', muscle: 'triceps', claves: ['extension triceps', 'extension de triceps', 'triceps', 'frances', 'patada'] },
+  { nombre: 'Fondos en Banco', muscle: 'triceps', claves: ['fondos', 'dips'] },
+  { nombre: 'Press Cerrado', muscle: 'triceps', claves: ['press cerrado', 'close grip'] },
   // Biceps
-  { nombre: 'Curl Martillo', muscle: 'biceps', claves: ['martillo'], archivo: '86/Bicep-hammer-curl-1.png' },
-  { nombre: 'Curl con Barra', muscle: 'biceps', claves: ['curl con barra', 'curl ez', 'barra ez', 'curl de biceps'], archivo: '129/Standing-biceps-curl-1.png' },
-  { nombre: 'Curl con Mancuernas', muscle: 'biceps', claves: ['curl con mancuernas', 'curl alterno'], archivo: '74/Bicep-curls-1.png' },
-  { nombre: 'Curl Predicador', muscle: 'biceps', claves: ['predicador', 'preacher'], archivo: '193/Preacher-curl-3-1.png' },
+  { nombre: 'Curl Martillo', muscle: 'biceps', claves: ['martillo'] },
+  { nombre: 'Curl con Barra', muscle: 'biceps', claves: ['curl con barra', 'curl ez', 'barra ez', 'curl de biceps'] },
+  { nombre: 'Curl con Mancuernas', muscle: 'biceps', claves: ['curl con mancuernas', 'curl alterno'] },
+  { nombre: 'Curl Predicador', muscle: 'biceps', claves: ['predicador', 'preacher'] },
   // Cuadriceps
-  { nombre: 'Zancadas Caminando', muscle: 'cuadriceps', claves: ['zancada', 'bulgara', 'split'], archivo: '113/Walking-lunges-1.png' },
-  { nombre: 'Sentadilla Hack en Maquina', muscle: 'cuadriceps', claves: ['hack'], archivo: '130/Narrow-stance-hack-squats-1-1024x721.png' },
-  { nombre: 'Sentadilla con Barra', muscle: 'cuadriceps', claves: ['sentadilla', 'frontal', 'prensa', 'extension de cuadriceps', 'extensiones de cuadriceps', 'cuadriceps'], archivo: '191/Front-squat-1-857x1024.png' },
+  { nombre: 'Zancadas Caminando', muscle: 'cuadriceps', claves: ['zancada', 'bulgara', 'split'] },
+  { nombre: 'Sentadilla Hack en Maquina', muscle: 'cuadriceps', claves: ['hack'] },
+  { nombre: 'Prensa de Piernas', muscle: 'cuadriceps', claves: ['prensa'] },
+  { nombre: 'Extension de Cuadriceps', muscle: 'cuadriceps', claves: ['extension de cuadriceps', 'extensiones de cuadriceps'] },
+  { nombre: 'Sentadilla con Barra', muscle: 'cuadriceps', claves: ['sentadilla', 'frontal', 'cuadriceps'] },
   // Isquios
-  { nombre: 'Curl de Isquios en Maquina', muscle: 'isquios', claves: ['curl de isquios', 'curl femoral', 'isquios', 'femoral'], archivo: '154/lying-leg-curl-machine-large-1.png' },
-  { nombre: 'Peso Muerto Rumano', muscle: 'isquios', claves: ['rumano', 'pdr', 'buenos dias', 'peso muerto'], archivo: '116/Good-mornings-2.png' },
+  { nombre: 'Curl de Isquios en Maquina', muscle: 'isquios', claves: ['curl de isquios', 'curl femoral', 'isquios', 'femoral'] },
+  { nombre: 'Peso Muerto Rumano', muscle: 'isquios', claves: ['rumano', 'pdr', 'buenos dias', 'peso muerto'] },
   // Gluteos
-  { nombre: 'Hip Thrust', muscle: 'gluteos', claves: ['hip thrust', 'puente'], archivo: '116/Good-mornings-2.png' },
+  { nombre: 'Hip Thrust', muscle: 'gluteos', claves: ['hip thrust', 'puente'] },
   // Trapecios
-  { nombre: 'Encogimientos', muscle: 'trapecios', claves: ['encogimiento', 'shrug', 'trapecio'], archivo: '151/Dumbbell-shrugs-2.png' },
+  { nombre: 'Encogimientos', muscle: 'trapecios', claves: ['encogimiento', 'shrug', 'trapecio'] },
   // Abdomen
-  { nombre: 'Elevaciones de Piernas', muscle: 'abdomen', claves: ['elevaciones de piernas', 'elevacion de piernas', 'colgado'], archivo: '125/Leg-raises-2.png' },
-  { nombre: 'Crunch / Plancha', muscle: 'abdomen', claves: ['crunch', 'abdominal', 'plancha', 'rueda', 'oblicuo'], archivo: '91/Crunches-1.png' },
+  { nombre: 'Elevaciones de Piernas', muscle: 'abdomen', claves: ['elevaciones de piernas', 'elevacion de piernas', 'colgado'] },
+  { nombre: 'Crunch / Plancha', muscle: 'abdomen', claves: ['crunch', 'abdominal', 'plancha', 'rueda', 'oblicuo'] },
   // Lumbar
-  { nombre: 'Hiperextensiones', muscle: 'lumbar', claves: ['lumbar', 'hiperextension', 'extensiones lumbares'], archivo: '128/Hyperextensions-1.png' },
+  { nombre: 'Hiperextensiones', muscle: 'lumbar', claves: ['lumbar', 'hiperextension', 'extensiones lumbares'] },
   // Antebrazos
-  { nombre: 'Curl con Cuerda', muscle: 'antebrazos', claves: ['antebrazo', 'muneca', 'curl invertido', 'farmer'], archivo: '138/Hammer-curls-with-rope-1.png' }
+  { nombre: 'Curl con Cuerda', muscle: 'antebrazos', claves: ['antebrazo', 'muneca', 'curl invertido', 'farmer'] }
 ];
-
-/** URL de imagen de demostracion del ejercicio, o null si no hay. */
-export function imagenDe(nombre: string): string | null {
-  const n = norm(nombre);
-  for (const item of CATALOGO) {
-    if (item.archivo && item.claves.some((k) => n.includes(k))) {
-      return WGER + item.archivo;
-    }
-  }
-  return null;
-}
 
 export interface Alternativa {
   nombre: string;
-  imagen: string | null;
   musculos: MuscleId[];
 }
 
@@ -189,7 +176,6 @@ export function alternativasDe(nombre: string): Alternativa[] {
   const objetivo = norm(nombre);
   return CATALOGO.filter((c) => c.muscle === primario && norm(c.nombre) !== objetivo).map((c) => ({
     nombre: c.nombre,
-    imagen: c.archivo ? WGER + c.archivo : null,
     musculos: musculosDe(c.nombre)
   }));
 }

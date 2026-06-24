@@ -234,7 +234,43 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                 "notas": nota,
             }
         )
-    return filas
+
+    # Recortar volumen para que la sesion entre en la duracion objetivo
+    from config_usuario import cargar_config
+    return _recortar_duracion(filas, int(cargar_config().get("duracion_min", 90)))
+
+
+# Max de ejercicios (movimientos) de pesas por dia segun la duracion objetivo.
+_CAP_MOVIMIENTOS = {60: 5, 75: 6, 90: 8, 120: 11}
+
+
+def _recortar_duracion(filas: list[dict], duracion_min: int) -> list[dict]:
+    """Limita los ejercicios de pesas por dia (ya filtrados por semana).
+    Recorta el Bloque C desde el final hasta entrar en el tiempo."""
+    cap = _CAP_MOVIMIENTOS.get(duracion_min, 8)
+    por_dia: dict[int, list[dict]] = {}
+    for f in filas:
+        por_dia.setdefault(f["dia_semana"], []).append(f)
+
+    quitar: set[tuple[int, str]] = set()
+    for dia, fdia in por_dia.items():
+        movs: list[str] = []
+        for f in fdia:
+            b = (f["bloque"] or "")[:1]
+            if b in ("A", "B", "C") and f["ejercicio"] not in movs:
+                movs.append(f["ejercicio"])
+        if len(movs) <= cap:
+            continue
+        c_movs = [m for m in movs
+                  if any(f["ejercicio"] == m and (f["bloque"] or "").startswith("C") for f in fdia)]
+        restantes = len(movs)
+        for m in reversed(c_movs):
+            if restantes <= cap:
+                break
+            quitar.add((dia, m))
+            restantes -= 1
+
+    return [f for f in filas if (f["dia_semana"], f["ejercicio"]) not in quitar]
 
 
 def sincronizar_plan(sesion: requests.Session, base_url: str, token: str, semana_inicio: str, filas: list[dict]) -> None:

@@ -79,17 +79,15 @@ La interfaz móvil con la que entrenas en el gimnasio. Se conecta a la API PHP c
 
 ### Qué hace
 - Descarga la rutina del día al abrirse (`GET /get_rutina_hoy.php`).
-- Muestra cada ejercicio como una tarjeta con: técnica, rango de reps, peso sugerido, imagen del movimiento y músculos involucrados.
+- **Una tarjeta por ejercicio con todas sus series juntas**: el Top Set, el Back-off y las series de volumen del mismo ejercicio van en la misma tarjeta. Cada serie se etiqueta (Top Set / Back-off / Serie N), y la serie AMRAP se marca **"Al fallo (AMRAP)"** resaltada.
 - Permite registrar cada serie: ajustás el **peso** (en pasos de 1.25 kg) y las **repeticiones**, y le ponés un **RPE del 6 al 10**.
-- Al terminar una serie, arranca automáticamente un **cronómetro de descanso** (el tiempo viene del plan; si no hay, se calcula según la técnica). Suena una alarma (Web Audio API) y vibra el teléfono cuando termina.
+- **Botón "⟳ repetir"**: copia el peso y las reps de una serie a todas las siguientes del ejercicio (la mayoría de las veces repetís el mismo peso → ahorra tiempo).
+- Al terminar una serie, arranca automáticamente un **cronómetro de descanso basado en timestamp**: sigue contando bien aunque salgas de la app o bloquees el teléfono, y se reanuda si recargás (se persiste en `localStorage`). Suena una alarma (Web Audio API) y vibra al terminar.
 - Botón **Guardar entreno**: manda todas las series al servidor (`POST /guardar_entreno.php`).
-- **Racha de días**: cuenta cuántos días seguidos entrenas y lo muestra. Se guarda en `localStorage`.
-- **Tema oscuro/claro**: se recuerda entre sesiones.
-- **Calentamiento específico** por día de entrenamiento con movilidad y activación.
-- **Series de aproximación**: si hay un ejercicio con peso ≥ 10 kg, genera automáticamente calentamientos progresivos (50% → 70% → 85%).
-- **Mapa de músculos SVG**: resalta los grupos musculares del ejercicio activo.
-- **Alternativas de ejercicio**: si un ejercicio no te va, podés reemplazarlo por otro del mismo grupo muscular sin salir de la app.
-- Modal de **explicación de técnica**: descripción de Top Set, Back-off, AMRAP, Rest-Pause, etc.
+- **Racha de días**, **tema oscuro/claro**, **calentamiento específico** por día y **series de aproximación** automáticas.
+- **Mapa de músculos SVG** (el "mapa de calor" de la esquina de cada tarjeta) resalta los grupos trabajados. *(Se quitaron las imágenes externas de wger.)*
+- **Alternativas de ejercicio**: si una máquina está ocupada, reemplazás el ejercicio (toda su tarjeta) por otro del mismo grupo muscular.
+- Modal de **explicación de técnica**: Top Set, Back-off, AMRAP, Rest-Pause, etc.
 
 ### Archivos clave
 
@@ -98,7 +96,7 @@ La interfaz móvil con la que entrenas en el gimnasio. Se conecta a la API PHP c
 | `src/app/app.component.ts` | Componente principal: toda la lógica (cargar, guardar, timer, racha, tema) |
 | `src/app/app.component.html` | Template: tarjetas, series, controles, modal de técnica |
 | `src/app/rutina-api.service.ts` | Servicio HTTP: `getRutinaHoy()` y `guardarEntreno()` |
-| `src/app/entreno-data.ts` | Base de datos local: músculos por ejercicio, imágenes (wger.de), técnicas, alternativas, calentamientos, descansos por técnica |
+| `src/app/entreno-data.ts` | Base de datos local: músculos por ejercicio, técnicas, alternativas, calentamientos, descansos por técnica |
 | `src/app/muscle-map.component.ts` | SVG del cuerpo humano con músculos en highlight |
 | `src/environments/environment.ts` | URL base de la API y token de autenticación |
 
@@ -271,6 +269,7 @@ En la pestaña **⚙ Configuración** elegís:
 - **Enfoque (objetivo):** Recomposición · Volumen (Bulk) · Definición (Cut) · Powerbuilding · Fuerza Pura. Cada uno ajusta rangos de reps, técnicas, volumen de los bloques, cardio y guía de macros según la teoría.
 - **Split:** Upper/Lower (4 días) · Push/Pull/Legs (6 días) · Full Body (3 días).
 - **Músculos prioritarios:** los que marques reciben el estímulo máximo (van **primero en el Bloque A**) y frecuencia extra al final de otros días.
+- **Duración por sesión:** ~60 / 75 / 90 / 120 min. Limita cuántos ejercicios tiene cada día (recorta el Bloque C de menor prioridad) para que la sesión entre en tu tiempo y no llegues fundido a los últimos ejercicios.
 
 Al presionar **"Generar y guardar plan"**, el `generador.py` reconstruye el plan completo aplicando las reglas del informe (patrones de movimiento, bloques A/B/C, técnicas, descansos, prioridad de orden, rotación del Bloque B y antebrazos por semana). La elección se guarda en `config_usuario.json` (por eso es **permanente**) y el motor `planificar.py` la usa en su próxima corrida.
 

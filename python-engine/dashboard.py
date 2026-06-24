@@ -571,7 +571,23 @@ def _tab_config_children(estado: str = "real") -> html.Div:
                               min=40, max=200, step=1,
                               style={"width": "100%", "padding": "9px 12px", "marginTop": "6px",
                                      "boxSizing": "border-box", "height": "42px"}),
-                ], style={"flex": "1", "minWidth": "160px"}),
+                ], style={"flex": "1", "minWidth": "140px"}),
+
+                # Duración objetivo
+                html.Div([
+                    html.Label("Duración por sesión", style=_LABEL_STYLE),
+                    dcc.Dropdown(
+                        id="cfg-duracion", clearable=False, className="dash-dropdown",
+                        style=_DD_STYLE,
+                        options=[
+                            {"label": "~60 min (corto)", "value": 60},
+                            {"label": "~75 min", "value": 75},
+                            {"label": "~90 min", "value": 90},
+                            {"label": "~120 min (completo)", "value": 120},
+                        ],
+                        value=cfg.get("duracion_min", 90),
+                    ),
+                ], style={"flex": "1", "minWidth": "180px"}),
             ], style={"display": "flex", "gap": "16px", "flexWrap": "wrap",
                       "marginBottom": "22px"}),
 
@@ -922,14 +938,16 @@ app.clientside_callback(
     State("cfg-split", "value"),
     State("cfg-prioridades", "value"),
     State("cfg-peso", "value"),
+    State("cfg-duracion", "value"),
     prevent_initial_call=True,
 )
-def _guardar_enfoque(n_clicks, enfoque, split, prioridades, peso):
+def _guardar_enfoque(n_clicks, enfoque, split, prioridades, peso, duracion):
     cfg = {
         "enfoque": enfoque,
         "split": split,
         "prioridades": prioridades or [],
         "peso_corporal": peso or 75,
+        "duracion_min": duracion or 90,
     }
     guardar_config(cfg)
     # validar que el plan se genera sin errores con la nueva config

@@ -65,21 +65,14 @@
             <p class="block">{{ ej.bloque || 'Bloque' }}</p>
             <h2>{{ ej.ejercicio }}</h2>
             <p class="meta">
-              <button class="chip tecnica" type="button" (click)="abrirTecnica(ej.tecnica)" *ngIf="ej.tecnica">
-                {{ ej.tecnica }} <span class="info">?</span>
+              <button class="chip tecnica" type="button" (click)="abrirTecnica(t)" *ngFor="let t of ej.tecnicas">
+                {{ t }} <span class="info">?</span>
               </button>
-              <span class="reps-target" *ngIf="ej.reps_min || ej.reps_max">
-                {{ ej.reps_min }}<span *ngIf="ej.reps_max">-{{ ej.reps_max }}</span> reps
-              </span>
             </p>
           </div>
           <div class="bodymap-wrap">
             <app-muscle-map [muscles]="ej.musculos"></app-muscle-map>
           </div>
-        </div>
-
-        <div class="demo" *ngIf="ej.imagen && !ej.sinImagen">
-          <img [src]="ej.imagen" [alt]="ej.ejercicio" loading="lazy" (error)="imagenFallo(ej)" />
         </div>
 
         <div class="muscle-tags" *ngIf="ej.musculos.length">
@@ -93,20 +86,20 @@
           <p class="section-label">Mismo grupo muscular</p>
           <p class="alt-empty" *ngIf="ej.alternativas.length === 0">No hay alternativas libres ahora mismo.</p>
           <button class="alt-item" type="button" *ngFor="let a of ej.alternativas" (click)="elegirAlternativa(ej, a)">
-            <img *ngIf="a.imagen" [src]="a.imagen" [alt]="a.nombre" loading="lazy" />
             <span>{{ a.nombre }}</span>
             <span class="alt-use">Usar</span>
           </button>
         </div>
 
-        <p class="suggested">Sugerido hoy: <strong>{{ ej.peso_sugerido || '—' }} kg</strong></p>
-
-        <!-- Series -->
+        <!-- Series (todas las del ejercicio, juntas) -->
         <div class="series">
-          <div class="serie" *ngFor="let s of ej.series; let i = index" [class.done]="s.hecho">
+          <div class="serie" *ngFor="let s of ej.series; let i = index" [class.done]="s.hecho" [class.al-fallo]="s.alFallo">
             <div class="serie-top">
-              <span class="serie-n">Serie {{ i + 1 }}</span>
-              <button class="serie-check" type="button" (click)="toggleSerie(ej, s)" [attr.aria-label]="'completar serie ' + (i + 1)">
+              <span class="serie-n">
+                {{ s.etiqueta }}
+                <small class="serie-reps" *ngIf="s.repsObjetivo">· {{ s.repsObjetivo }}<span *ngIf="!s.alFallo"> reps</span></small>
+              </span>
+              <button class="serie-check" type="button" (click)="toggleSerie(ej, s)" [attr.aria-label]="'completar ' + s.etiqueta">
                 {{ s.hecho ? '✓' : '○' }}
               </button>
             </div>
@@ -127,6 +120,10 @@
                   <button type="button" (click)="ajustar(s, 'reps', 1)">+</button>
                 </div>
               </div>
+              <button class="repetir-btn" type="button" *ngIf="hayPosteriores(ej, i)"
+                      (click)="repetir(ej, i)" title="Repetir este peso y reps en las series siguientes">
+                ⟳ repetir
+              </button>
             </div>
             <div class="rpe">
               <button class="rpe-label" type="button" (click)="abrirRpe()">RPE <span class="info">?</span></button>
