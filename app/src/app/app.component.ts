@@ -243,12 +243,19 @@ export class AppComponent implements OnInit, OnDestroy {
     localStorage.setItem(this.overrideKey(), JSON.stringify(full));
     this.reconstruirSemana();
     this.cargarSesion(this.sesionDe(this.weekdayHoy())); // recarga hoy si cambio
+
+    // feedback claro de lo que paso
+    const diaDesc = this.diasLabel[cal - 1];
+    const sesionMovida = this.nombresSesion[tmp - 1] ?? 'su entreno';
+    const diaQueRecibe = this.diasLabel[oldRestCal - 1];
+    this.mensaje.set(`Descanso movido al ${diaDesc}. ${sesionMovida} pasa al ${diaQueRecibe}.`);
   }
 
   restaurarSemana(): void {
     localStorage.removeItem(this.overrideKey());
     this.reconstruirSemana();
     this.cargarSesion(this.sesionDe(this.weekdayHoy()));
+    this.mensaje.set('Semana restaurada al horario original.');
   }
 
   ngOnDestroy(): void {

@@ -16,45 +16,27 @@ $pdo = db();
 $pdo->beginTransaction();
 
 try {
-    // Desactivar el plan anterior de las semanas del payload, para que los
-    // ejercicios que ya no esten en el plan nuevo (p. ej. recortados por
-    // duracion) dejen de mostrarse. El upsert vuelve a poner activo = 1 en
-    // las filas que si estan en el plan nuevo.
+    // Reemplazo total por semana: borrar el plan anterior e insertar el nuevo.
+    // Asi se eliminan duplicados y ejercicios huerfanos de una sola vez, sin
+    // depender de rowCount() (que en MySQL cuenta filas CAMBIADAS y generaba
+    // inserts duplicados al re-empujar un plan identico).
+    // El historial (registro_series) no se pierde: el FK es ON DELETE SET NULL.
     $semanas = [];
     foreach ($rutina as $item) {
         $semanas[$item['semana_inicio'] ?? $semanaInicio] = true;
     }
-    $deact = $pdo->prepare('UPDATE plan_rutina SET activo = 0 WHERE semana_inicio = :s');
+    $del = $pdo->prepare('DELETE FROM plan_rutina WHERE semana_inicio = :s');
     foreach (array_keys($semanas) as $s) {
-        $deact->execute([':s' => $s]);
+        $del->execute([':s' => $s]);
     }
-
-    // Upsert por casilla unica: (semana_inicio, dia_semana, orden).
-    $update = $pdo->prepare(
-        'UPDATE plan_rutina SET
-            nombre_dia = :nombre_dia,
-            bloque = :bloque,
-            ejercicio = :ejercicio,
-            tecnica = :tecnica,
-            series_objetivo = :series_objetivo,
-            reps_min = :reps_min,
-            reps_max = :reps_max,
-            descanso_seg = :descanso_seg,
-            peso_sugerido = :peso_sugerido,
-            notas = :notas,
-            activo = 1
-         WHERE semana_inicio = :semana_inicio
-           AND dia_semana = :dia_semana
-           AND orden = :orden'
-    );
 
     $insert = $pdo->prepare(
         'INSERT INTO plan_rutina
         (semana_inicio, dia_semana, nombre_dia, bloque, orden, ejercicio, tecnica,
-         series_objetivo, reps_min, reps_max, descanso_seg, peso_sugerido, notas)
+         series_objetivo, reps_min, reps_max, descanso_seg, peso_sugerido, notas, activo)
         VALUES
         (:semana_inicio, :dia_semana, :nombre_dia, :bloque, :orden, :ejercicio, :tecnica,
-         :series_objetivo, :reps_min, :reps_max, :descanso_seg, :peso_sugerido, :notas)'
+         :series_objetivo, :reps_min, :reps_max, :descanso_seg, :peso_sugerido, :notas, 1)'
     );
 
     $procesados = 0;
@@ -64,7 +46,7 @@ try {
             continue;
         }
 
-        $params = [
+        $insert->execute([
             ':semana_inicio' => $item['semana_inicio'] ?? $semanaInicio,
             ':dia_semana' => (int) $item['dia_semana'],
             ':orden' => (int) $item['orden'],
@@ -78,12 +60,7 @@ try {
             ':descanso_seg' => isset($item['descanso_seg']) ? (int) $item['descanso_seg'] : null,
             ':peso_sugerido' => isset($item['peso_sugerido']) && $item['peso_sugerido'] !== null ? (float) $item['peso_sugerido'] : null,
             ':notas' => $item['notas'] ?? null,
-        ];
-
-        $update->execute($params);
-        if ($update->rowCount() === 0) {
-            $insert->execute($params);
-        }
+        ]);
         $procesados++;
     }
 
