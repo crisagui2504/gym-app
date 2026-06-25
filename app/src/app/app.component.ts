@@ -306,6 +306,8 @@ export class AppComponent implements OnInit, OnDestroy {
       const alFallo = esAmrap && ultima;
       const repsObjetivo = alFallo
         ? 'al fallo'
+        : med.cardio && hayReps
+        ? `${rango} ${unidad} continuos`
         : hayReps && rango
         ? `${rango} ${unidad}`
         : med.objetivo;
@@ -313,7 +315,7 @@ export class AppComponent implements OnInit, OnDestroy {
         planId: ej.id,
         numeroSerie: i + 1,
         tecnica: ej.tecnica,
-        etiqueta: med.cardio ? (ej.tecnica || 'Zona 2') : this.etiquetaSerie(ej.tecnica, i, n, alFallo, card.series.length),
+        etiqueta: med.cardio ? 'Sesión continua' : this.etiquetaSerie(ej.tecnica, i, n, alFallo, card.series.length),
         alFallo,
         descanso: med.cardio ? 0 : (ej.descanso_seg && ej.descanso_seg > 0 ? ej.descanso_seg : descansoPorTecnica(ej.tecnica)),
         repsObjetivo,
