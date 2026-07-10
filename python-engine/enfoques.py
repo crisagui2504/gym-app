@@ -14,11 +14,15 @@ from dataclasses import dataclass, field
 import ejercicios_db as db
 
 
-# ── Descansos por tecnica (segundos), tabla del informe v3 ───────────────────
+# ── Descansos por tecnica (segundos) ─────────────────────────────────────────
+# "volumen" (compuestos del Bloque B) usa >= 2 min: con 90 s se pierden reps en
+# las series siguientes y con ello volumen efectivo (Schoenfeld 2016 y metas
+# posteriores recomiendan >= 2 min en multiarticulares). 90 s queda solo para
+# aislamientos monoarticulares.
 DESC = {
     "top_set":   180,
     "back_off":  120,
-    "volumen":   90,
+    "volumen":   120,
     "rest_pause": 90,
     "drop_set":  90,
     "aislamiento": 90,
@@ -49,9 +53,16 @@ class Enfoque:
     nombre: str
     descripcion: str
     bloque: Bloque
-    macros: str             # guia nutricional resumida
+    macros: str             # guia nutricional resumida (texto)
     cardio_dias: int        # dias de cardio LISS por semana
     nota: str = ""
+    # rangos estructurados en g/kg de peso corporal — el dashboard los usa
+    # para mostrar los gramos diarios ya calculados
+    prot_g_kg: tuple[float, float] = (1.8, 2.2)
+    carb_g_kg: tuple[float, float] = (3.0, 5.0)
+    grasa_g_kg: tuple[float, float] = (0.8, 1.2)
+    # tendencia de peso corporal objetivo, en % del peso por semana
+    tendencia_sem: tuple[float, float] = (-0.25, 0.25)
 
 
 # ── Enfoques disponibles ─────────────────────────────────────────────────────
@@ -66,9 +77,11 @@ ENFOQUES: dict[str, Enfoque] = {
             tecnica_c="Rest-Pause", reps_c=(12, 15),
             n_ejercicios_b=2, n_ejercicios_c=3,
         ),
-        macros="Proteina 1.6-2.2 g/kg | Carbos 3-5 g/kg | Grasas 0.8-1.2 g/kg | Deficit 200-400 kcal",
+        macros="Proteina 1.8-2.2 g/kg | Carbos 3-5 g/kg | Grasas 0.8-1.2 g/kg | Deficit 200-400 kcal | Creatina 3-5 g/dia",
+        prot_g_kg=(1.8, 2.2), carb_g_kg=(3, 5), grasa_g_kg=(0.8, 1.2),
+        tendencia_sem=(-0.5, 0.0),
         cardio_dias=2,
-        nota="Hombro/pierna prioritarios. Tension mecanica + estres metabolico equilibrados.",
+        nota="Hombro/pierna prioritarios. Tension mecanica + estres metabolico equilibrados. En deficit, dormir 7-9 h es requisito, no consejo.",
     ),
     "volumen": Enfoque(
         clave="volumen",
@@ -80,9 +93,11 @@ ENFOQUES: dict[str, Enfoque] = {
             tecnica_c="Rest-Pause", reps_c=(10, 15),
             n_ejercicios_b=3, n_ejercicios_c=4,   # mas volumen en B y C
         ),
-        macros="Proteina 1.6-2.0 g/kg | Carbos 4-6 g/kg | Grasas 1.0-1.2 g/kg | Superavit +200-400 kcal",
+        macros="Proteina 1.6-2.0 g/kg | Carbos 4-6 g/kg | Grasas 1.0-1.2 g/kg | Superavit +200-400 kcal | Creatina 3-5 g/dia",
+        prot_g_kg=(1.6, 2.0), carb_g_kg=(4, 6), grasa_g_kg=(1.0, 1.2),
+        tendencia_sem=(0.25, 0.5),
         cardio_dias=1,
-        nota="Mayor volumen en Bloque B (doc F.2). Aceptar +0.3-0.5 kg/semana.",
+        nota="Mayor volumen en Bloque B (doc F.2). Ritmo objetivo: +0.2-0.4 kg/semana (~0.25-0.5% del peso corporal); mas rapido es mayormente grasa.",
     ),
     "definicion": Enfoque(
         clave="definicion",
@@ -94,7 +109,9 @@ ENFOQUES: dict[str, Enfoque] = {
             tecnica_c="Drop Set", reps_c=(12, 15),
             n_ejercicios_b=2, n_ejercicios_c=2,   # reduce Bloque C (doc F.2)
         ),
-        macros="Proteina 2.3-2.5 g/kg | Carbos 2-4 g/kg | Grasas 0.8-1.0 g/kg | Deficit 400-600 kcal",
+        macros="Proteina 2.3-2.5 g/kg | Carbos 2-4 g/kg | Grasas 0.8-1.0 g/kg | Deficit 400-600 kcal | Creatina 3-5 g/dia",
+        prot_g_kg=(2.3, 2.5), carb_g_kg=(2, 4), grasa_g_kg=(0.8, 1.0),
+        tendencia_sem=(-1.0, -0.5),
         cardio_dias=3,
         nota="Mantener intensidad (peso del Top Set) para retener musculo. Mas cardio.",
     ),
@@ -108,7 +125,9 @@ ENFOQUES: dict[str, Enfoque] = {
             tecnica_c="Rest-Pause", reps_c=(10, 12),
             n_ejercicios_b=2, n_ejercicios_c=3,
         ),
-        macros="Proteina 1.8-2.2 g/kg | Carbos 4-6 g/kg | Grasas 1.0 g/kg | Mantenimiento o leve superavit",
+        macros="Proteina 1.8-2.2 g/kg | Carbos 4-6 g/kg | Grasas 1.0 g/kg | Mantenimiento o leve superavit | Creatina 3-5 g/dia",
+        prot_g_kg=(1.8, 2.2), carb_g_kg=(4, 6), grasa_g_kg=(1.0, 1.0),
+        tendencia_sem=(-0.25, 0.25),
         cardio_dias=1,
         nota="Top Set 3-5 reps (mas peso, menos reps). Descansos completos.",
     ),
@@ -122,9 +141,12 @@ ENFOQUES: dict[str, Enfoque] = {
             tecnica_c="Tradicional", reps_c=(8, 12),
             n_ejercicios_b=2, n_ejercicios_c=2, series_b=4, series_c=3,
         ),
-        macros="Proteina 1.8-2.2 g/kg | Carbos 4-6 g/kg | Grasas 1.0 g/kg | Mantenimiento",
+        macros="Proteina 1.8-2.2 g/kg | Carbos 4-6 g/kg | Grasas 1.0 g/kg | Mantenimiento | Creatina 3-5 g/dia",
+        prot_g_kg=(1.8, 2.2), carb_g_kg=(4, 6), grasa_g_kg=(1.0, 1.0),
+        tendencia_sem=(-0.25, 0.25),
         cardio_dias=1,
-        nota="Volumen reducido, intensidad neural alta. Referencia 5/3/1.",
+        nota="Volumen reducido, intensidad neural alta. Referencia 5/3/1. "
+             "Top Sets de 1-3 reps SIN pasar de RPE 9: el PR se gana, nunca se fuerza.",
     ),
 }
 
@@ -164,7 +186,9 @@ SPLITS: dict[str, Split] = {
             DiaPlan("Torso A - Fuerza", "torso",
                     [P.EMPUJE_VERTICAL, P.TIRON_HORIZONTAL],
                     [P.EMPUJE_HORIZONTAL, P.TIRON_VERTICAL],
-                    [P.AISL_HOMBRO, P.AISL_BICEPS, P.AISL_TRICEPS]),
+                    # pecho tambien en C: sin este aislamiento el pecho quedaba
+                    # en ~6 series/semana, bajo el rango productivo de 10-20
+                    [P.AISL_HOMBRO, P.AISL_BICEPS, P.AISL_TRICEPS, P.EMPUJE_HORIZONTAL]),
             DiaPlan("Pierna A - Fuerza", "pierna",
                     [P.DOMINANTE_RODILLA, P.DOMINANTE_CADERA],
                     [P.DOMINANTE_RODILLA],
@@ -172,7 +196,7 @@ SPLITS: dict[str, Split] = {
             DiaPlan("Torso Bombeo", "torso",
                     [P.EMPUJE_VERTICAL, P.TIRON_HORIZONTAL],
                     [P.EMPUJE_HORIZONTAL, P.TIRON_VERTICAL],
-                    [P.AISL_HOMBRO, P.AISL_BICEPS, P.AISL_TRICEPS]),
+                    [P.AISL_HOMBRO, P.AISL_BICEPS, P.AISL_TRICEPS, P.EMPUJE_HORIZONTAL]),
             DiaPlan("Pierna Bombeo", "pierna",
                     [P.DOMINANTE_CADERA, P.DOMINANTE_RODILLA],
                     [P.DOMINANTE_CADERA],
@@ -208,20 +232,36 @@ SPLITS: dict[str, Split] = {
         clave="full_body",
         nombre="Full Body (3 dias pesas)",
         descripcion="Cuerpo completo x3. Ideal con poca disponibilidad.",
+        # 2 patrones en A + 2 en B por dia = 12 huecos -> los 6 patrones
+        # fundamentales quedan 2x/semana (antes empuje vertical, tiron vertical
+        # y dominante de cadera quedaban 1x, rompiendo la regla de frecuencia).
         dias_pesas=[
             DiaPlan("Full Body A", "full",
-                    [P.DOMINANTE_RODILLA, P.EMPUJE_HORIZONTAL], [P.TIRON_HORIZONTAL],
+                    [P.DOMINANTE_RODILLA, P.EMPUJE_HORIZONTAL],
+                    [P.TIRON_HORIZONTAL, P.DOMINANTE_CADERA],
                     [P.AISL_HOMBRO, P.AISL_BICEPS]),
             DiaPlan("Full Body B", "full",
-                    [P.DOMINANTE_CADERA, P.EMPUJE_VERTICAL], [P.TIRON_VERTICAL],
+                    [P.DOMINANTE_CADERA, P.EMPUJE_VERTICAL],
+                    [P.TIRON_VERTICAL, P.DOMINANTE_RODILLA],
                     [P.AISL_HOMBRO, P.AISL_TRICEPS]),
             DiaPlan("Full Body C", "full",
-                    [P.DOMINANTE_RODILLA, P.TIRON_HORIZONTAL], [P.EMPUJE_HORIZONTAL],
+                    [P.EMPUJE_VERTICAL, P.TIRON_HORIZONTAL],
+                    [P.EMPUJE_HORIZONTAL, P.TIRON_VERTICAL],
                     [P.PANTORRILLA, P.AISL_BICEPS]),
         ],
     ),
 }
 
+
+# Equipo que el usuario puede marcar como NO disponible en su gimnasio
+# (el generador sustituye por alternativas del mismo patron; el peso corporal
+# siempre esta disponible y no se puede excluir)
+EQUIPOS_FILTRABLES = [
+    ("barra", "Barra"),
+    ("mancuerna", "Mancuernas"),
+    ("polea", "Poleas"),
+    ("maquina", "Maquinas"),
+]
 
 # Musculos que el usuario puede marcar como prioritarios (rezagados)
 MUSCULOS_PRIORIZABLES = [

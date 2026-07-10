@@ -11,6 +11,9 @@ un plan semanal completo (list[Fila]) aplicando las reglas del informe v3:
   - Antebrazos SIEMPRE al final, en dias no consecutivos (Seccion 8.1).
   - Rotacion del Bloque B en la Semana 2 (Seccion 9).
   - Descansos por tecnica segun la tabla del informe (Seccion 7).
+  - Gestion de fatiga (evidencia 2022-2025, ver docs/CAMBIOS_EVIDENCIA.md):
+    S1-S2 a RIR 1-2; las tecnicas de intensidad (AMRAP / Rest-Pause / Drop)
+    solo en S3-S4 y solo en la ultima serie del ejercicio.
 
 El resultado usa la misma dataclass Fila que consume planificar.py, asi que el
 motor de sobrecarga progresiva sigue funcionando sin cambios.
@@ -58,19 +61,33 @@ def _patron_prioritario(dia: DiaPlan, prioridades: list[str]) -> list[str]:
     return patrones
 
 
-def _elegir(patron: str, bloque: str, usados: set[str], orden_pref: int = 0):
+def _nota_pc(ej, nota: str) -> str:
+    """Agrega la ruta de progresion a los ejercicios de peso corporal
+    (dominadas, fondos...): sin esto no tienen forma de sobrecargar."""
+    if ej.equipo == "peso_corporal":
+        return f"{nota} Peso corporal: si superas el rango en todas las series, agrega lastre (+2.5 kg).".strip()
+    return nota
+
+
+def _elegir(patron: str, bloque: str, usados: set[str], orden_pref: int = 0,
+            excluidos: frozenset[str] = frozenset()):
     """Devuelve el ejercicio mas preferido de un patron/bloque que no este usado.
-    orden_pref=1 devuelve el segundo mas preferido (para rotacion del Bloque B)."""
-    opciones = [e for e in db.por_patron(patron, bloque) if e.nombre not in usados]
+    orden_pref=1 devuelve el segundo mas preferido (para rotacion del Bloque B).
+    excluidos = equipo que el gym no tiene; si no queda opcion, el filtro se
+    ignora antes que dejar el patron sin ejercicio."""
+    todos = db.por_patron(patron, bloque)
+    disponibles = [e for e in todos if e.equipo not in excluidos] or todos
+    opciones = [e for e in disponibles if e.nombre not in usados]
     if not opciones:
-        opciones = db.por_patron(patron, bloque)  # permite repetir si no hay alternativa
+        opciones = disponibles  # permite repetir si no hay alternativa
     if not opciones:
         return None
     return opciones[min(orden_pref, len(opciones) - 1)]
 
 
 def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
-               con_antebrazo: bool, variante: int = 0) -> list[Fila]:
+               con_antebrazo: bool, variante: int = 0,
+               excluidos: frozenset[str] = frozenset()) -> list[Fila]:
     b = enf.bloque
     filas: list[Fila] = []
     usados: set[str] = set()
@@ -86,7 +103,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
     # ── BLOQUE A — Top Set + Back-off (musculo prioritario primero) ──────────
     for patron in patrones_a:
         # el 2do dia del mismo foco usa el ejercicio alternativo (variedad)
-        ej = _elegir(patron, "A", usados, orden_pref=variante)
+        ej = _elegir(patron, "A", usados, orden_pref=variante, excluidos=excluidos)
         if not ej:
             continue
         usados.add(ej.nombre)
@@ -94,34 +111,52 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
         nota_prio = f"{ej.musculo.upper()} PRIMERO. " if es_prio else ""
         filas.append(Fila(dia_sem, dia.nombre, "A - Fuerza maxima", orden, ej.nombre,
                           b.tecnica_a, 1, b.reps_top[0], b.reps_top[1], DESC["top_set"],
-                          ej.peso_base, f"{nota_prio}Supera el Top Set de la semana pasada."))
+                          ej.peso_base,
+                          _nota_pc(ej, f"{nota_prio}Supera el Top Set de la semana pasada.")))
         orden += 1
         filas.append(Fila(dia_sem, dia.nombre, "A - Fuerza maxima", orden, ej.nombre,
                           "Back-off", 2, b.reps_backoff[0], b.reps_backoff[1],
                           DESC["back_off"], None, "80% del Top Set."))
         orden += 1
 
-    # ── BLOQUE B — Volumen (con rotacion en S2) ──────────────────────────────
+    # ── BLOQUE B — Volumen (RIR 1-2; fallo solo en S3-S4) ───────────────────
+    # Evidencia (Refalo 2023, Robinson 2024): entrenar a 1-3 reps en reserva
+    # produce hipertrofia comparable al fallo con bastante menos fatiga. El
+    # fallo se reserva para la mitad final del mesociclo, cuando el pico lo pide.
     es_bombeo = "Bombeo" in dia.nombre or "B" == dia.nombre[-1:]
     tecnica_b = "Drop Set" if es_bombeo and enf.clave in ("recomposicion", "volumen") else b.tecnica_b
-    desc_b = DESC["drop_set"] if "Drop" in tecnica_b else DESC["volumen"]
     patrones_b = (dia.patrones_b * b.n_ejercicios_b)[:b.n_ejercicios_b]
     for patron in patrones_b:
-        # primario (S1/S3/S4)
-        ej = _elegir(patron, "B", usados)
+        ej = _elegir(patron, "B", usados, excluidos=excluidos)
         if ej:
             usados.add(ej.nombre)
-            nota = "Ultima serie al fallo (AMRAP)." if "AMRAP" in tecnica_b else (
-                   "Ultima serie Drop: fallo -> -20% -> fallo." if "Drop" in tecnica_b else "")
-            filas.append(Fila(dia_sem, dia.nombre, "B - Volumen", orden, ej.nombre,
-                              tecnica_b, b.series_b, b.reps_b[0], b.reps_b[1], desc_b,
-                              ej.peso_base, nota, semanas=(1, 3, 4)))
-            # alternativo (S2) - rotacion de angulo
-            alt = _elegir(patron, "B", usados, orden_pref=1)
+            nota_fallo = ("Ultima serie al fallo (AMRAP)." if "AMRAP" in tecnica_b else
+                          "Ultima serie Drop: fallo -> -20% -> fallo." if "Drop" in tecnica_b else "")
+            if nota_fallo:
+                # S1: base sin fallo; S3-S4: se agrega la tecnica de intensidad
+                filas.append(Fila(dia_sem, dia.nombre, "B - Volumen", orden, ej.nombre,
+                                  "Tradicional", b.series_b, b.reps_b[0], b.reps_b[1],
+                                  DESC["volumen"], ej.peso_base,
+                                  _nota_pc(ej, "Deja 1-2 reps en reserva (RIR 1-2)."),
+                                  semanas=(1,)))
+                filas.append(Fila(dia_sem, dia.nombre, "B - Volumen", orden, ej.nombre,
+                                  tecnica_b, b.series_b, b.reps_b[0], b.reps_b[1],
+                                  DESC["volumen"], ej.peso_base,
+                                  _nota_pc(ej, f"Series previas RIR 1-2. {nota_fallo}"),
+                                  semanas=(3, 4)))
+            else:
+                filas.append(Fila(dia_sem, dia.nombre, "B - Volumen", orden, ej.nombre,
+                                  tecnica_b, b.series_b, b.reps_b[0], b.reps_b[1],
+                                  DESC["volumen"], ej.peso_base,
+                                  _nota_pc(ej, "Deja 1-2 reps en reserva (RIR 1-2)."),
+                                  semanas=(1, 3, 4)))
+            # alternativo (S2) - rotacion de angulo: estimulo nuevo, sin fallo
+            alt = _elegir(patron, "B", usados, orden_pref=1, excluidos=excluidos)
             if alt and alt.nombre != ej.nombre:
                 filas.append(Fila(dia_sem, dia.nombre, "B - Volumen", orden, alt.nombre,
-                                  tecnica_b, b.series_b, b.reps_b[0], b.reps_b[1], desc_b,
-                                  alt.peso_base, f"S2: rotacion de angulo. {nota}".strip(),
+                                  "Tradicional", b.series_b, b.reps_b[0], b.reps_b[1],
+                                  DESC["volumen"], alt.peso_base,
+                                  _nota_pc(alt, "S2: rotacion de angulo. RIR 1-2."),
                                   semanas=(2,)))
             orden += 1
 
@@ -138,34 +173,55 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
 
     n_c = 0
     for patron in patrones_c:
-        if n_c >= b.n_ejercicios_c and patron not in (db.AISL_HOMBRO, db.PANTORRILLA):
+        # el triceps de la superserie no consume cupo ni puede ser recortado:
+        # la pareja bi+tri cuenta como UN movimiento (comparten los 60 s de
+        # descanso). Antes, con n_ejercicios_c bajo (Definicion), el triceps se
+        # recortaba y quedaba un biceps "en superserie" sin pareja.
+        es_tri_pareado = patron == db.AISL_TRICEPS and tiene_bi
+        exento = patron in (db.AISL_HOMBRO, db.PANTORRILLA) or es_tri_pareado
+        if n_c >= b.n_ejercicios_c and not exento:
             continue
-        ej = _elegir(patron, "C", usados)
+        ej = _elegir(patron, "C", usados, excluidos=excluidos)
         if not ej:
             continue
         usados.add(ej.nombre)
-        # tecnica: superserie si biceps/triceps juntos; pantorrilla/core tradicional
-        if patron == db.AISL_BICEPS and tiene_tri:
-            tecnica_c, desc_c = "Superserie", DESC["superserie"]
-            nota_c = "Superserie con triceps. 60 s entre rondas."
-        elif patron == db.AISL_TRICEPS and tiene_bi:
-            tecnica_c, desc_c = "Superserie", DESC["superserie"]
-            nota_c = "Superserie con biceps. 60 s entre rondas."
-        elif patron == db.PANTORRILLA:
-            tecnica_c, desc_c, nota_c = "Tradicional", DESC["aislamiento"], ""
-        else:
-            tecnica_c = b.tecnica_c
-            desc_c = DESC["drop_set"] if "Drop" in tecnica_c else (
-                     DESC["rest_pause"] if "Rest" in tecnica_c else DESC["aislamiento"])
-            nota_c = ("Fallo -> 10 s -> fallo." if "Rest" in tecnica_c else
-                      "Fallo -> -20% -> fallo." if "Drop" in tecnica_c else "")
         extra = " Extra hombro (frecuencia 4x/sem)." if patron == db.AISL_HOMBRO and "hombros" in prioridades else ""
         reps_lo, reps_hi = (15, 20) if patron == db.PANTORRILLA else b.reps_c
-        filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
-                          tecnica_c, b.series_c, reps_lo, reps_hi, desc_c,
-                          ej.peso_base, (nota_c + extra).strip()))
+
+        # tecnica: superserie si biceps/triceps juntos; pantorrilla tradicional
+        if patron == db.AISL_BICEPS and tiene_tri:
+            filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
+                              "Superserie", b.series_c, reps_lo, reps_hi, DESC["superserie"],
+                              ej.peso_base, ("Superserie con triceps. 60 s entre rondas. RIR 1-2." + extra).strip()))
+        elif es_tri_pareado:
+            filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
+                              "Superserie", b.series_c, reps_lo, reps_hi, DESC["superserie"],
+                              ej.peso_base, ("Superserie con biceps. 60 s entre rondas. RIR 1-2." + extra).strip()))
+        elif patron == db.PANTORRILLA:
+            filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
+                              "Tradicional", b.series_c, reps_lo, reps_hi, DESC["aislamiento"],
+                              ej.peso_base, extra.strip()))
+        elif "Rest" in b.tecnica_c or "Drop" in b.tecnica_c:
+            # tecnica de intensidad solo en S3-S4 y solo en la ULTIMA serie;
+            # S1-S2 tradicional lejos del fallo (gestion de fatiga)
+            desc_c = DESC["drop_set"] if "Drop" in b.tecnica_c else DESC["rest_pause"]
+            nota_c = ("Ultima serie Rest-Pause: fallo -> 10 s -> fallo. Series previas RIR 1-2."
+                      if "Rest" in b.tecnica_c else
+                      "Ultima serie Drop: fallo -> -20% -> fallo. Series previas RIR 1-2.")
+            filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
+                              "Tradicional", b.series_c, reps_lo, reps_hi, DESC["aislamiento"],
+                              ej.peso_base, ("Deja 1-2 reps en reserva (RIR 1-2)." + extra).strip(),
+                              semanas=(1, 2)))
+            filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
+                              b.tecnica_c, b.series_c, reps_lo, reps_hi, desc_c,
+                              ej.peso_base, (nota_c + extra).strip(), semanas=(3, 4)))
+        else:
+            filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
+                              b.tecnica_c, b.series_c, reps_lo, reps_hi, DESC["aislamiento"],
+                              ej.peso_base, ("Deja 1-2 reps en reserva (RIR 1-2)." + extra).strip()))
         orden += 1
-        n_c += 1
+        if not es_tri_pareado:
+            n_c += 1
 
     # ── ANTEBRAZO — siempre al final, rotando por semana ─────────────────────
     if con_antebrazo:
@@ -208,6 +264,7 @@ def generar_plan(config: dict | None = None) -> list[Fila]:
     enf = ENFOQUES.get(cfg["enfoque"], ENFOQUES["recomposicion"])
     split = SPLITS.get(cfg["split"], SPLITS["upper_lower"])
     prioridades = cfg.get("prioridades", [])
+    excluidos = frozenset(cfg.get("equipo_excluido", []))
     layout = LAYOUTS[split.clave]
     antebrazo_dias = ANTEBRAZO_EN_DIAS.get(split.clave, [])
 
@@ -219,7 +276,8 @@ def generar_plan(config: dict | None = None) -> list[Fila]:
         variante = foco_visto.get(dia_plan.foco, 0)
         foco_visto[dia_plan.foco] = variante + 1
         filas += _dia_pesas(dia_plan, dia_sem, enf, prioridades,
-                            con_antebrazo=i in antebrazo_dias, variante=variante)
+                            con_antebrazo=i in antebrazo_dias, variante=variante,
+                            excluidos=excluidos)
 
     # Dias libres -> cardio (hasta enf.cardio_dias) y luego descanso
     for j, dia_sem in enumerate(layout["libres"]):

@@ -12,10 +12,10 @@ S5 deload de volumen (gestionado por planificar.py).
 Campo semanas: tuple con los numeros de semana en que aparece la fila
 (None = todas las semanas del ciclo S1-S4; el deload se maneja en el motor).
 
-Descansos segun tabla del informe v3:
+Descansos (actualizados a evidencia: >= 2 min en compuestos multiarticulares):
   Bloque A Top Set  → 3 min
   Bloque A Back-off → 2 min
-  Bloque B AMRAP    → 90 s
+  Bloque B AMRAP    → 2 min  (antes 90 s; con 90 s se pierden reps y volumen)
   Bloque C RP       → 90 s entre series (10 s micro-descanso intra-serie)
   Bloque C Drop Set → 90 s entre series (0 s entre drops intra-serie)
   Bloque C Aislam.  → 90 s
@@ -46,7 +46,7 @@ class Fila:
 # ── Descansos por tecnica (segundos) ────────────────────────────────────────
 DESC_TOP     = 180   # Bloque A — Top Set
 DESC_BACKOFF = 120   # Bloque A — Back-off
-DESC_VOL     = 90    # Bloque B — AMRAP / Tradicional
+DESC_VOL     = 120   # Bloque B — AMRAP / Tradicional (compuestos: >= 2 min)
 DESC_RP      = 90    # Bloque C — entre series Rest-Pause (10 s intra-serie)
 DESC_DROP    = 90    # Bloque C — entre series Drop Set (0 s entre drops)
 DESC_AISLAM  = 90    # Bloque C — Aislamiento Tradicional  [doc: 90 s]

@@ -22,6 +22,8 @@ repomix-output.*
 # Config y datos personales del usuario (se generan al usar la app)
 config_usuario.json
 python-engine/historial.csv
+python-engine/peso_corporal.csv
+python-engine/backups/
 python-engine/motor.log
 python-engine/registrar_sesion.py
 

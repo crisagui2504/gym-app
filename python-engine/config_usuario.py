@@ -17,6 +17,7 @@ DEFAULT_CONFIG: dict = {
     "peso_corporal": 75,
     "duracion_min": 90,  # 60 | 75 | 90 | 120 -> ajusta cuantos ejercicios por dia
     "tema": "oscuro",    # "oscuro" | "claro"
+    "equipo_excluido": [],  # equipo que tu gym NO tiene: "barra" | "mancuerna" | "polea" | "maquina"
 }
 
 

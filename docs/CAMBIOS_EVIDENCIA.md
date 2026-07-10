@@ -1,0 +1,305 @@
+# Ajustes del sistema de rutinas y cargas a la evidencia científica (Julio 2026)
+
+> Revisión del motor de planificación como lo haría un especialista en ciencias
+> del deporte: cada regla de programación se contrastó con la literatura de
+> hipertrofia y fuerza de 2016–2025. Este documento explica **qué se cambió,
+> por qué, y dónde en el código**.
+
+**Alcance revisado**: los 5 enfoques (Recomposición, Volumen/Bulk, Definición,
+Powerbuilding, Fuerza Pura), los 3 splits (Upper/Lower, PPL, Full Body), las
+reglas de progresión por bloque, el mesociclo de 5 semanas, los descansos, y
+las guías de macros.
+
+---
+
+## Resumen de veredicto
+
+La arquitectura del sistema ya estaba bien fundamentada (frecuencia 2×/semana
+por patrón, doble progresión regulada por RPE, deload programado + reactivo,
+prioridad muscular al inicio de la sesión, macros por objetivo). Los problemas
+encontrados iban casi todos en la misma dirección: **exceso de agresividad**
+(demasiado fallo, PR forzado por calendario, descansos cortos) que generaba
+fatiga innecesaria y, en dos casos, bloqueaba la propia sobrecarga progresiva
+del sistema.
+
+---
+
+## 1. El fallo prescrito bloqueaba la progresión (crítico)
+
+**Problema.** El plan ordena fallo en la última serie (AMRAP en Bloque B,
+Rest-Pause/Drop en Bloque C), pero la regla de progresión de esos bloques solo
+subía el peso si el **RPE promedio de la sesión** era ≤ 8. La serie al fallo
+(RPE 10) arrastraba el promedio por encima de 8 → **los bloques B y C nunca
+progresaban en carga, por diseño**.
+
+**Arreglo** (`planificar.py · ultimas_y_records`):
+- Se calcula el **RPE de trabajo**: si la última serie fue prescrita al fallo
+  (AMRAP / Rest-Pause / Drop), se excluye del promedio. Ese RPE 10 es
+  intencional y no informa sobre la carga de las series de trabajo.
+
+**Arreglo relacionado** (`planificar.py · _familia`):
+- El historial ahora se agrupa por **familia de técnica** (top set / back-off /
+  volumen) en lugar del texto exacto. Antes, cuando la técnica rotaba
+  (Tradicional ↔ AMRAP ↔ Drop Set), el motor "perdía" el historial del
+  ejercicio y reiniciaba la progresión.
+
+## 2. La semana pico (S4) forzaba un PR por calendario (riesgo de lesión)
+
+**Problema.** En S4 el motor imponía `peso = max(progresión, mejor_del_mes +
+microcarga)` sin condición alguna — incluso pisando el caso en que la semana
+anterior no se llegó ni al mínimo de reps (donde la regla ya había bajado el
+peso 5%). Un intento de PR con fatiga acumulada y rendimiento en caída es la
+receta clásica de lesión, especialmente con top sets de 1–3 reps (Fuerza Pura).
+
+**Arreglo** (`planificar.py · peso_top_set`): el intento de superar el mejor
+del mes en S4 solo se prescribe si la última sesión **completó el rango de
+reps con RPE ≤ 8**. La progresión se gana con rendimiento, no se impone con
+fecha. La nota de S4 en la app ahora lo dice explícitamente.
+
+## 3. Exceso de trabajo al fallo crónico
+
+**Evidencia.** Los meta-análisis recientes (Refalo 2023; Robinson 2024; Grgic
+2022) muestran que entrenar a 1–3 repeticiones en reserva (RIR) produce una
+hipertrofia comparable al fallo con bastante menos fatiga y mejor recuperación
+entre sesiones — más relevante aún en déficit calórico (Recomposición y
+Definición).
+
+**Arreglo** (`generador.py · _dia_pesas`): el fallo ahora está **periodizado
+dentro del mesociclo**:
+
+| Semana | Bloque B | Bloque C (aislamientos) |
+|---|---|---|
+| S1 | Tradicional, RIR 1–2 | Tradicional, RIR 1–2 |
+| S2 (rotación) | Tradicional, RIR 1–2 (estímulo nuevo) | Tradicional, RIR 1–2 |
+| S3–S4 | Técnica de intensidad (AMRAP/Drop) en la última serie | Rest-Pause/Drop **solo en la última serie** |
+| S5 deload | Tradicional, RIR 3–4 (cero fallo) | (el Bloque C no se hace) |
+
+Además el deload S5 ahora **sustituye activamente** cualquier técnica de fallo
+por trabajo tradicional a RIR 3–4 (`planificar.py · generar_filas`): antes la
+app mostraba "AMRAP" también en la semana de recuperación.
+
+## 4. Descansos de 90 s en compuestos del Bloque B
+
+**Evidencia.** Con 90 s entre series de multiarticulares se pierden reps en
+las series siguientes y con ello volumen efectivo; ≥ 2 min produce más
+hipertrofia (Schoenfeld 2016 y metas posteriores).
+
+**Arreglo** (`enfoques.py · DESC`): `volumen: 90 → 120` s. Se mantienen 180 s
+(Top Set), 120 s (Back-off), 90 s (aislamientos), 60 s (superserie
+antagonista). Se alineó también la app (`entreno-data.ts ·
+descansoPorTecnica`) y la plantilla de referencia (`plan_template.py`).
+
+## 5. El pecho quedaba en ~6 series/semana (Upper/Lower)
+
+**Problema.** En el split por defecto, el pecho solo aparecía en el Bloque B
+(3 series × 2 días de torso) y el Bloque C de torso no incluía ningún
+aislamiento de pecho. La relación dosis-respuesta (Schoenfeld 2017; Pelland
+2024) sitúa el rango productivo en ~10–20 series/músculo/semana.
+
+**Arreglo** (`enfoques.py · SPLITS`): los dos días de torso agregan un
+aislamiento de empuje horizontal al Bloque C (pec deck / aperturas / cruce de
+poleas) → pecho pasa a ~10 series directas/semana.
+
+## 6. El Full Body rompía la regla de frecuencia 2×
+
+**Problema.** El código promete "cada patrón 2×/semana", pero en el split
+Full Body el empuje vertical, el tirón vertical y el dominante de cadera
+quedaban 1×/semana.
+
+**Arreglo** (`enfoques.py · full_body`): cada día pasa a 2 patrones en A + 2
+en B (12 huecos), de modo que **los 6 patrones fundamentales quedan
+exactamente 2×/semana**. Verificado por prueba automática.
+
+## 7. Doble progresión estricta
+
+**Problema.** El Top Set subía peso incluso a mitad del rango de reps (p. ej.
+6 de un rango 6–8) si el RPE era ≤ 8, lo que producía "dientes de sierra"
+(subir peso → caer bajo el mínimo → −5% → repetir).
+
+**Arreglo** (`planificar.py · peso_top_set`): dentro del rango se mantiene el
+peso y se progresa en reps; la carga solo sube al **completar** el rango. Es
+la doble progresión canónica.
+
+## 8. Bugs de programación con efecto en el entrenamiento
+
+- **Superserie rota en Definición** (`generador.py`): con `n_ejercicios_c = 2`
+  el tríceps se recortaba por cupo y el bíceps quedaba etiquetado "Superserie
+  con tríceps" sin pareja. La pareja bíceps+tríceps ahora cuenta como **un
+  solo movimiento** (comparten los 60 s de descanso) y no se puede recortar a
+  medias.
+- **Superserie rota por duración** (`planificar.py · _recortar_duracion`): el
+  recorte por tiempo (60/75 min) podía eliminar solo un miembro de la
+  superserie. Ahora se recorta como unidad (ambos o ninguno).
+- **Récord mensual con NaN** (`planificar.py`): `max() or peso` no funciona
+  con NaN (NaN es "truthy"); se sustituyó por `pd.notna()`.
+
+## 9. Ajustes menores de evidencia
+
+- **Peso corporal** (`generador.py · _nota_pc`): dominadas y fondos ahora
+  llevan ruta de progresión explícita (superar el rango en todas las series →
+  agregar lastre +2.5 kg). Antes no tenían forma de sobrecargar.
+- **"Estado del SNC" → "Fatiga percibida"** (`dashboard.py`): un promedio de
+  RPE semanal es un buen indicador de fatiga percibida, pero llamarlo estado
+  del sistema nervioso central sobrevende lo que mide (la literatura actual
+  le baja el tono a la "fatiga del SNC" en hipertrofia). El texto de alerta
+  ahora recomienda exactamente lo que hace la S5: misma intensidad, mitad de
+  volumen, cero fallo.
+- **Ritmo de bulk realista** (`enfoques.py · volumen`): "+0.3–0.5 kg/semana"
+  → "+0.2–0.4 kg/semana (~0.25–0.5% del peso corporal)"; más rápido es
+  mayormente grasa (Iraki/Helms 2019).
+- **Creatina 3–5 g/día** añadida a las guías de macros de los 5 enfoques: es
+  el suplemento con mayor evidencia para fuerza e hipertrofia, seguro y
+  barato.
+- **Proteína en Recomposición**: límite inferior 1.6 → 1.8 g/kg (en déficit
+  conviene la mitad alta del rango).
+- **Fuerza Pura**: nota explícita de no pasar de RPE 9 en top sets de 1–3
+  reps.
+
+## Lo que se revisó y NO se cambió (estaba bien)
+
+- Frecuencia 2×/semana por patrón en Upper/Lower y PPL.
+- Estructura de bloques A (Top Set + Back-off 80%) / B (volumen) / C
+  (aislamiento) y los rangos de reps por enfoque (6–8 / 8–12 / 12–15;
+  Powerbuilding 3–5; Fuerza 1–3).
+- Deload S5: misma intensidad, −50% volumen, sin Bloque C — coincide con las
+  recomendaciones actuales de descarga.
+- Deload reactivo por estancamiento (3 semanas sin subir tonelaje + RPE ≥ 9 →
+  −10%).
+- Cardio LISS Zona 2 dosificado por objetivo (1–3 días) y core separado.
+- Guías de macros por enfoque (rangos de proteína/carbos/grasas y tamaño del
+  déficit/superávit son consistentes con la literatura).
+- Antebrazos al final y en días no consecutivos; superserie antagonista
+  bíceps/tríceps; calentamiento con rampa 50/70/90%.
+
+---
+
+# Segunda tanda — mejoras de seguimiento y autorregulación
+
+> Mismo criterio de evidencia; el foco pasa de "corregir la programación" a
+> "cerrar los lazos de retroalimentación" (rendimiento → carga, fatiga →
+> deload, báscula → kcal).
+
+## A. "Supera tu marca" en cada tarjeta (`planificar.py · marca_anterior`)
+
+La doble progresión vive de comparar contra la sesión anterior. Ahora las
+notas del plan incluyen **"Anterior: X kg × Y @RPE Z"** en Top Sets y bloques
+de volumen, así la app muestra en el gimnasio exactamente qué hay que superar.
+Las notas se recortan a 255 caracteres (límite del `VARCHAR` en MySQL).
+
+## B. Deload reactivo global (`planificar.py · fatiga_global`)
+
+El dashboard ya avisaba "RPE ≥ 9 sostenido 2+ semanas → adelanta el deload",
+pero el motor no actuaba. Ahora `planificar.py` calcula esa misma señal y, si
+se dispara, genera la semana como deload (S5) sin esperar al calendario. El
+mesociclo continúa normal a la semana siguiente.
+
+## C. Progresión por repeticiones para peso corporal y core
+
+Dominadas, fondos, crunch, elevaciones de piernas…: sin carga externa la única
+sobrecarga es hacer más reps. Si el rango se completó con RPE ≤ 8, el rango
+objetivo sube (p. ej. 15–20 → 18–23), con tope en 30 reps (después: lastre).
+Además `peso_volumen` ya no sugiere cargas absurdas (1.25 kg) en ejercicios de
+peso corporal.
+
+## D. Objetivo de RPE visible por serie (app Angular)
+
+Cada serie muestra ahora un chip **"Objetivo: RPE 8–9 · deja 1-2 reps"** (o
+"al fallo (RPE 10)" en la última serie de AMRAP/Rest-Pause/Drop). Registrar el
+RPE honesto es el combustible de todo el motor; darle el objetivo antes mejora
+la calidad del dato (`entreno-data.ts · rpeObjetivoDe`).
+
+## E. Filtro de equipo disponible (`generador.py` + Configuración)
+
+Nueva opción "Equipo que tu gym NO tiene" (barra / mancuernas / poleas /
+máquinas): el generador sustituye por alternativas del mismo patrón, con
+fallback seguro (nunca deja un patrón vacío). No es fisiología: es adherencia,
+la variable que más resultados predice.
+
+## F. Macros en gramos, no en g/kg (dashboard · Configuración)
+
+El sistema ya conocía tu peso corporal, pero te dejaba la multiplicación a ti.
+La pestaña Configuración muestra ahora **gramos diarios** de proteína, carbos
+y grasas para tu peso y enfoque, más la distribución recomendada de proteína
+(3–5 comidas de ~0.4–0.55 g/kg, una peri-entreno; Schoenfeld & Aragon 2018).
+
+## G. Peso corporal con tendencia y semáforo calórico (dashboard, nueva pestaña)
+
+El hueco nutricional más grande: el sistema prescribía déficit/superávit pero
+nunca verificaba si funcionaba. La nueva pestaña **"Peso corporal"**:
+
+- registra el peso diario en `peso_corporal.csv` (local, gitignoreado);
+- grafica el pesaje crudo y la **media móvil de 7 días** (la que manda);
+- calcula la tendencia semanal (%) y la compara con el objetivo del enfoque
+  (Recomposición −0.5 a 0 %/sem · Definición −1.0 a −0.5 · Bulk +0.25 a +0.5 ·
+  Powerbuilding/Fuerza ±0.25);
+- semáforo: dentro del rango → no toques nada; fuera → ajustar ±100–200
+  kcal/día y reevaluar en 2 semanas.
+
+Registrar el peso también actualiza `peso_corporal` en la config, así los
+macros en gramos y el generador quedan sincronizados.
+
+## Verificación (segunda tanda)
+
+38 comprobaciones automáticas en verde (las 31 previas + marca anterior, cap
+de 255, deload reactivo positivo/negativo, subida de rango del core, sin pesos
+absurdos en peso corporal, y plan sin barra al excluir equipo). Dashboard:
+smoke test del layout completo con las pestañas nuevas. App Angular: build de
+producción sin errores.
+
+---
+
+# Tercera tanda — robustez y protección de datos (tester/dev)
+
+## H. Guardado blindado en la app (Angular)
+
+- **Cola offline**: si `guardar_entreno` falla (sin señal en el gym, hosting
+  caído), el entreno completo queda en `localStorage` y se **reenvía solo** al
+  volver la conexión (evento `online`), al abrir la app, o con el botón
+  "Reintentar ahora" del banner de pendientes. Un pendiente por fecha:
+  reintentar el mismo día reemplaza, nunca duplica.
+- **Anti duplicados**: el botón se deshabilita durante el envío y, tras
+  guardar, cambia a "Guardado ✓"; un segundo envío el mismo día pide
+  confirmación explícita (protege el historial, que es el combustible del
+  motor de progresión).
+- **Caché del plan**: la rutina del día se guarda en el teléfono al cargarla;
+  si el servidor no responde, la app muestra la última copia y avisa que está
+  en modo offline — puedes entrenar normal.
+
+## I. Backups fechados del historial (`exportar_local.py`)
+
+Cada descarga guarda además una copia en `python-engine/backups/historial-AAAA-MM-DD.csv`
+(una por día, se conservan las últimas 30). El historial vive en un hosting
+gratuito: estas copias locales son el respaldo real de tus datos.
+
+## J. Botón "Recalcular y subir plan" (dashboard · Plan semana)
+
+Corre el motor completo (`planificar.main()`: historial → progresión → subida
+a MySQL) desde el navegador, sin terminal. Muestra el resultado y avisa si se
+activó el deload reactivo.
+
+## K. Suite de pruebas en el repo
+
+`python-engine/tests/test_motor.py` — 38 comprobaciones automáticas de toda la
+lógica de rutinas y progresión. Se corre con
+`python tests/test_motor.py` desde `python-engine/`.
+
+## Referencias principales
+
+- Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
+- Robinson ZP et al. (2024). *Exploring the dose-response relationship between estimated resistance training proximity to failure, strength gain, and muscle hypertrophy.* Meta-analysis.
+- Grgic J et al. (2022). *Effects of resistance training performed to repetition failure or non-failure on muscular strength and hypertrophy.* J Sport Health Sci.
+- Schoenfeld BJ et al. (2016). *Longer interset rest periods enhance muscle strength and hypertrophy in resistance-trained men.* J Strength Cond Res.
+- Schoenfeld BJ, Ogborn D, Krieger JW (2017). *Dose-response relationship between weekly resistance training volume and increases in muscle mass.* J Sports Sci.
+- Pelland J et al. (2024). *The resistance training dose-response: meta-regressions of volume and hypertrophy/strength.*
+- Iraki J, Fitschen P, Espinar S, Helms E (2019). *Nutrition recommendations for bodybuilders in the off-season.* Sports (Basel).
+- Helms ER et al. (2014). *Evidence-based recommendations for natural bodybuilding contest preparation: nutrition and supplementation.* JISSN.
+- Schoenfeld BJ, Aragon AA (2018). *How much protein can the body use in a single meal for muscle-building?* JISSN (distribución de proteína por comida).
+
+## Verificación
+
+Suite de pruebas con historial sintético (31 comprobaciones, todas en verde):
+estructura de los 3 splits × 5 enfoques × 5 semanas, frecuencia 2× en Full
+Body, pecho en C, fallo solo en S3–S4, superserie íntegra en Definición y en
+todos los recortes de duración, RPE de trabajo, continuidad del historial por
+familia, gating del PR de S4, doble progresión estricta y deload S5 sin fallo.
+La app Angular compila sin errores tras el cambio de descansos.
