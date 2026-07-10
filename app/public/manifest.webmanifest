@@ -1,0 +1,16 @@
+{
+  "name": "GymTracker",
+  "short_name": "GymTracker",
+  "description": "Tu rutina inteligente: registro de series, progresion automatica y cronometro de descanso.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0d13",
+  "theme_color": "#161819",
+  "lang": "es",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

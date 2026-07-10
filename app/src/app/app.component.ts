@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
-import { EjercicioPlan, RutinaApiService, SeriePayload } from './rutina-api.service';
+import { EjercicioPlan, RutinaApiService, SerieHistorial, SeriePayload } from './rutina-api.service';
 import { MuscleMapComponent } from './muscle-map.component';
 import {
   Alternativa,
@@ -80,6 +80,14 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly racha = signal(0);
   readonly mostrarCalentamiento = signal(false);
 
+  // Readiness: como llegas hoy -> modula el objetivo de RPE del dia
+  readonly readiness = signal<'bien' | 'normal' | 'baja' | null>(null);
+
+  // Historial (ultimas sesiones, desde el servidor)
+  readonly mostrarHistorial = signal(false);
+  readonly cargandoHistorial = signal(false);
+  readonly historial = signal<Array<{ fecha: string; items: Array<{ ejercicio: string; mejor: string }> }>>([]);
+
   // ----- Reprogramar la semana (mover el dia de descanso) -----
   readonly diasLabel = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
   readonly mostrarSemana = signal(false);
@@ -132,6 +140,10 @@ export class AppComponent implements OnInit, OnDestroy {
 
     this.restaurarTimer();
     document.addEventListener('visibilitychange', this.onVisibilidad);
+
+    // readiness del dia (persiste si recargas la app en el gym)
+    const r = localStorage.getItem('readiness-' + this.fecha);
+    if (r === 'bien' || r === 'normal' || r === 'baja') this.readiness.set(r);
 
     // guardado blindado: estado de la cola y reintento automatico
     this.yaGuardadoHoy.set(localStorage.getItem('ultimoGuardado') === this.fecha);
@@ -435,10 +447,112 @@ export class AppComponent implements OnInit, OnDestroy {
     return rpeSignificado(rpe);
   }
 
-  /** RPE objetivo de la serie (guia antes de registrar el real). */
+  /** RPE objetivo de la serie (guia antes de registrar el real).
+   *  En dia de baja energia (readiness) se entrena igual pero lejos del fallo:
+   *  la autorregulacion diaria protege la recuperacion sin perder la sesion. */
   rpeObjetivo(s: SerieVM, ultima: boolean): string {
+    if (this.readiness() === 'baja') return 'RPE 7-8 · hoy sin fallo (RIR 3-4)';
     if (s.alFallo) return 'al fallo (RPE 10)';
     return rpeObjetivoDe(s.tecnica, ultima);
+  }
+
+  // ----- Readiness (como llegas hoy) -----
+  setReadiness(v: 'bien' | 'normal' | 'baja'): void {
+    this.readiness.set(v);
+    try {
+      localStorage.setItem('readiness-' + this.fecha, v);
+    } catch {
+      /* noop */
+    }
+  }
+
+  // ----- Historial (ultimas sesiones) -----
+  toggleHistorial(): void {
+    this.mostrarHistorial.update((v) => !v);
+    if (this.mostrarHistorial() && this.historial().length === 0) {
+      this.cargandoHistorial.set(true);
+      this.api.getHistorial(30).subscribe({
+        next: (res) => {
+          this.historial.set(this.agruparHistorial(res.series ?? []));
+          this.cargandoHistorial.set(false);
+        },
+        error: () => {
+          this.mensaje.set('No se pudo cargar el historial. Revisa tu conexion.');
+          this.cargandoHistorial.set(false);
+          this.mostrarHistorial.set(false);
+        }
+      });
+    }
+  }
+
+  /** Agrupa las series por fecha y muestra la mejor serie de cada ejercicio. */
+  private agruparHistorial(series: SerieHistorial[]): Array<{ fecha: string; items: Array<{ ejercicio: string; mejor: string }> }> {
+    const porFecha = new Map<string, Map<string, { e1rm: number; label: string }>>();
+    for (const s of series) {
+      const fecha = String(s.fecha_entreno).slice(0, 10);
+      const peso = Number(s.peso_kg) || 0;
+      const reps = Number(s.repeticiones) || 0;
+      const e1rm = peso > 0 ? peso * (1 + Math.min(reps, 15) / 30) : reps;
+      const label = peso > 0 ? `${peso} kg × ${reps} @RPE ${Number(s.rpe) || '—'}` : `${reps} reps @RPE ${Number(s.rpe) || '—'}`;
+      if (!porFecha.has(fecha)) porFecha.set(fecha, new Map());
+      const dia = porFecha.get(fecha)!;
+      const prev = dia.get(s.ejercicio);
+      if (!prev || e1rm > prev.e1rm) dia.set(s.ejercicio, { e1rm, label });
+    }
+    return Array.from(porFecha.entries()).map(([fecha, dia]) => ({
+      fecha,
+      items: Array.from(dia.entries()).map(([ejercicio, v]) => ({ ejercicio, mejor: v.label }))
+    }));
+  }
+
+  // ----- Records personales (e1RM) + celebracion -----
+  /** Detecta PRs comparando el e1RM de hoy contra el record guardado. */
+  private detectarPrs(items: SeriePayload[]): string[] {
+    let prs: Record<string, number> = {};
+    try {
+      prs = JSON.parse(localStorage.getItem('prs') ?? '{}');
+    } catch {
+      prs = {};
+    }
+    const hoy = new Map<string, number>();
+    for (const it of items) {
+      const peso = Number(it.peso_kg) || 0;
+      const reps = Number(it.repeticiones) || 0;
+      if (peso <= 0 || reps <= 0) continue;
+      const e1rm = peso * (1 + Math.min(reps, 15) / 30);
+      if (e1rm > (hoy.get(it.ejercicio) ?? 0)) hoy.set(it.ejercicio, e1rm);
+    }
+    const nuevos: string[] = [];
+    for (const [ej, e1rm] of hoy) {
+      const record = prs[ej] ?? 0;
+      if (record > 0 && e1rm > record + 0.01) nuevos.push(ej);
+      if (e1rm > record) prs[ej] = Math.round(e1rm * 100) / 100;
+    }
+    try {
+      localStorage.setItem('prs', JSON.stringify(prs));
+    } catch {
+      /* noop */
+    }
+    return nuevos;
+  }
+
+  /** Lluvia de confeti (sin librerias): piezas CSS que caen y se autodestruyen. */
+  private celebrar(): void {
+    const cont = document.createElement('div');
+    cont.className = 'confetti';
+    const colores = ['#00e0b5', '#18b3ff', '#ffc043', '#ff5d7a', '#b18cff'];
+    for (let i = 0; i < 28; i++) {
+      const p = document.createElement('span');
+      p.className = 'confetti-piece';
+      p.style.left = Math.random() * 100 + 'vw';
+      p.style.background = colores[i % colores.length];
+      p.style.animationDelay = Math.random() * 0.6 + 's';
+      p.style.animationDuration = 1.8 + Math.random() * 1.2 + 's';
+      cont.appendChild(p);
+    }
+    document.body.appendChild(cont);
+    setTimeout(() => cont.remove(), 3600);
+    if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
   }
 
   cerrarTecnica(): void {
@@ -629,7 +743,13 @@ export class AppComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.registrarRacha();
         this.marcarGuardadoHoy();
-        this.mensaje.set(`✓ Entreno guardado: ${res.inserted} series. Racha: ${this.racha()} dias.`);
+        const prs = this.detectarPrs(items);
+        if (prs.length) {
+          this.celebrar();
+          this.mensaje.set(`🎉 ¡PR en ${prs.join(', ')}! Entreno guardado: ${res.inserted} series. Racha: ${this.racha()} dias.`);
+        } else {
+          this.mensaje.set(`✓ Entreno guardado: ${res.inserted} series. Racha: ${this.racha()} dias.`);
+        }
         this.guardando.set(false);
         this.reenviarPendientes();
       },

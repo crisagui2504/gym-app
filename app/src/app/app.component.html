@@ -7,6 +7,9 @@
       </div>
       <div class="top-actions">
         <span class="streak" *ngIf="racha() > 0" title="Racha de dias">🔥 {{ racha() }}</span>
+        <button class="theme-toggle" type="button" (click)="toggleHistorial()" aria-label="Ver historial" title="Tus ultimas sesiones">
+          📓
+        </button>
         <button class="theme-toggle" type="button" (click)="toggleSemana()" aria-label="Reprogramar la semana" title="Mover el dia de descanso">
           📅
         </button>
@@ -27,6 +30,34 @@
       </button>
     </p>
     <p class="status" *ngIf="cargando()">Cargando rutina...</p>
+
+    <!-- ===== READINESS: como llegas hoy ===== -->
+    <section class="readiness panel" *ngIf="!cargando() && ejercicios().length > 0 && !esDiaDescanso()">
+      <p class="readiness-q">¿Cómo llegás hoy?</p>
+      <div class="readiness-opts">
+        <button type="button" [class.active]="readiness() === 'bien'" (click)="setReadiness('bien')">😃 Bien</button>
+        <button type="button" [class.active]="readiness() === 'normal'" (click)="setReadiness('normal')">😐 Normal</button>
+        <button type="button" [class.active]="readiness() === 'baja'" (click)="setReadiness('baja')">😫 Cansada</button>
+      </div>
+      <p class="readiness-hint" *ngIf="readiness() === 'baja'">
+        Día suave activado: mismo entreno, pero <b>sin series al fallo</b> y dejando 3-4 reps en reserva.
+        Entrenar suave &gt; no entrenar. Mañana se recupera la intensidad.
+      </p>
+    </section>
+
+    <!-- ===== HISTORIAL (ultimas sesiones) ===== -->
+    <section class="week panel" *ngIf="mostrarHistorial()">
+      <div class="week-head"><strong>📓 Últimas sesiones (30 días)</strong></div>
+      <p class="status" *ngIf="cargandoHistorial()">Cargando historial...</p>
+      <p class="week-hint" *ngIf="!cargandoHistorial() && historial().length === 0">Todavía no hay entrenos registrados.</p>
+      <div class="hist-day" *ngFor="let d of historial()">
+        <p class="hist-fecha">{{ d.fecha }}</p>
+        <div class="hist-item" *ngFor="let it of d.items">
+          <span class="hist-ej">{{ it.ejercicio }}</span>
+          <span class="hist-mejor">{{ it.mejor }}</span>
+        </div>
+      </div>
+    </section>
 
     <!-- ===== CALENTAMIENTO ===== -->
     <section class="warmup panel" *ngIf="!cargando() && ejercicios().length > 0">

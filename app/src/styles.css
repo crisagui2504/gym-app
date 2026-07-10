@@ -219,6 +219,110 @@ button {
   opacity: 0.6;
 }
 
+/* ===== Readiness (como llegas hoy) ===== */
+.readiness {
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.readiness-q {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.readiness-opts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.readiness-opts button {
+  border: 1px solid var(--outline, rgba(128, 128, 128, 0.35));
+  background: var(--surface-container);
+  color: var(--on-surface);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.readiness-opts button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.readiness-hint {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  color: var(--on-surface-variant);
+  border-left: 3px solid #ffc043;
+  padding-left: 10px;
+}
+
+/* ===== Historial (ultimas sesiones) ===== */
+.hist-day {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--outline, rgba(128, 128, 128, 0.2));
+}
+
+.hist-fecha {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: 0.4px;
+}
+
+.hist-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 0.82rem;
+}
+
+.hist-ej {
+  color: var(--on-surface);
+}
+
+.hist-mejor {
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+
+/* ===== Confeti de PR ===== */
+.confetti {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  overflow: hidden;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -12px;
+  width: 9px;
+  height: 14px;
+  border-radius: 2px;
+  opacity: 0.95;
+  animation: confetti-fall 2.4s ease-in forwards;
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-10px) rotate(0deg);
+  }
+  100% {
+    transform: translateY(105vh) rotate(720deg);
+    opacity: 0.7;
+  }
+}
+
 /* ===== Calentamiento ===== */
 .warmup {
   margin: 6px 0 16px;

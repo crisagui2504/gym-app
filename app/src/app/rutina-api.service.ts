@@ -27,6 +27,22 @@ export interface RutinaHoyResponse {
   rutina: EjercicioPlan[];
 }
 
+export interface SerieHistorial {
+  fecha_entreno: string;
+  ejercicio: string;
+  tecnica: string | null;
+  numero_serie: number | string;
+  peso_kg: number | string;
+  repeticiones: number | string;
+  rpe: number | string;
+}
+
+export interface HistorialResponse {
+  ok: boolean;
+  dias: number;
+  series: SerieHistorial[];
+}
+
 export interface SeriePayload {
   plan_id: number;
   ejercicio: string;
@@ -47,6 +63,13 @@ export class RutinaApiService {
     const iso = fechaLocal(fecha);
     return this.http.get<RutinaHoyResponse>(
       `${environment.apiBaseUrl}/get_rutina_hoy.php?fecha=${iso}`,
+      { headers: this.headers }
+    );
+  }
+
+  getHistorial(dias = 30): Observable<HistorialResponse> {
+    return this.http.get<HistorialResponse>(
+      `${environment.apiBaseUrl}/get_historial.php?dias=${dias}`,
       { headers: this.headers }
     );
   }
