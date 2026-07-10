@@ -183,24 +183,30 @@ SPLITS: dict[str, Split] = {
         nombre="Upper / Lower (4 dias pesas)",
         descripcion="Torso/Pierna x2. Cada grupo 2x/semana. El split del plan original.",
         dias_pesas=[
+            # Orden del Bloque C = prioridad ante el recorte por tiempo (se corta
+            # desde el final): primero lo que NADIE mas cubre (brazos directos,
+            # curl femoral), al final lo redundante con los compuestos del dia
+            # (aislamiento de pecho, extension de cuadriceps).
             DiaPlan("Torso A - Fuerza", "torso",
                     [P.EMPUJE_VERTICAL, P.TIRON_HORIZONTAL],
                     [P.EMPUJE_HORIZONTAL, P.TIRON_VERTICAL],
-                    # pecho tambien en C: sin este aislamiento el pecho quedaba
-                    # en ~6 series/semana, bajo el rango productivo de 10-20
-                    [P.AISL_HOMBRO, P.AISL_BICEPS, P.AISL_TRICEPS, P.EMPUJE_HORIZONTAL]),
+                    [P.AISL_BICEPS, P.AISL_TRICEPS, P.AISL_HOMBRO, P.EMPUJE_HORIZONTAL]),
+            # curl femoral en ambos dias de pierna: la flexion de rodilla no la
+            # cubre ningun compuesto (RDL = cadera; el femoral corto queda fuera)
             DiaPlan("Pierna A - Fuerza", "pierna",
                     [P.DOMINANTE_RODILLA, P.DOMINANTE_CADERA],
                     [P.DOMINANTE_RODILLA],
-                    [P.DOMINANTE_RODILLA, P.DOMINANTE_CADERA, P.PANTORRILLA, P.AISL_HOMBRO]),
+                    [P.AISL_ISQUIOS, P.PANTORRILLA, P.DOMINANTE_RODILLA, P.AISL_HOMBRO]),
+            # hombro POSTERIOR en el 2do dia de torso (el lateral ya se cubre en
+            # Torso A y, si hay prioridad de hombro, tambien en los dias de pierna)
             DiaPlan("Torso Bombeo", "torso",
                     [P.EMPUJE_VERTICAL, P.TIRON_HORIZONTAL],
                     [P.EMPUJE_HORIZONTAL, P.TIRON_VERTICAL],
-                    [P.AISL_HOMBRO, P.AISL_BICEPS, P.AISL_TRICEPS, P.EMPUJE_HORIZONTAL]),
+                    [P.AISL_BICEPS, P.AISL_TRICEPS, P.AISL_HOMBRO_POST, P.EMPUJE_HORIZONTAL]),
             DiaPlan("Pierna Bombeo", "pierna",
                     [P.DOMINANTE_CADERA, P.DOMINANTE_RODILLA],
                     [P.DOMINANTE_CADERA],
-                    [P.DOMINANTE_CADERA, P.DOMINANTE_RODILLA, P.PANTORRILLA, P.AISL_HOMBRO]),
+                    [P.AISL_ISQUIOS, P.PANTORRILLA, P.DOMINANTE_RODILLA, P.AISL_HOMBRO]),
         ],
     ),
     "ppl": Split(
@@ -213,19 +219,19 @@ SPLITS: dict[str, Split] = {
                     [P.AISL_HOMBRO, P.AISL_TRICEPS]),
             DiaPlan("Pull A", "pull",
                     [P.TIRON_HORIZONTAL, P.TIRON_VERTICAL], [P.TIRON_VERTICAL],
-                    [P.AISL_BICEPS, P.AISL_HOMBRO]),
+                    [P.AISL_BICEPS, P.AISL_HOMBRO_POST]),
             DiaPlan("Legs A", "pierna",
                     [P.DOMINANTE_RODILLA, P.DOMINANTE_CADERA], [P.DOMINANTE_RODILLA],
-                    [P.DOMINANTE_RODILLA, P.PANTORRILLA]),
+                    [P.DOMINANTE_RODILLA, P.AISL_ISQUIOS, P.PANTORRILLA]),
             DiaPlan("Push B", "push",
                     [P.EMPUJE_HORIZONTAL, P.EMPUJE_VERTICAL], [P.EMPUJE_VERTICAL],
                     [P.AISL_HOMBRO, P.AISL_TRICEPS]),
             DiaPlan("Pull B", "pull",
                     [P.TIRON_VERTICAL, P.TIRON_HORIZONTAL], [P.TIRON_HORIZONTAL],
-                    [P.AISL_BICEPS, P.AISL_HOMBRO]),
+                    [P.AISL_BICEPS, P.AISL_HOMBRO_POST]),
             DiaPlan("Legs B", "pierna",
                     [P.DOMINANTE_CADERA, P.DOMINANTE_RODILLA], [P.DOMINANTE_CADERA],
-                    [P.DOMINANTE_CADERA, P.PANTORRILLA]),
+                    [P.AISL_ISQUIOS, P.PANTORRILLA]),
         ],
     ),
     "full_body": Split(
@@ -243,7 +249,7 @@ SPLITS: dict[str, Split] = {
             DiaPlan("Full Body B", "full",
                     [P.DOMINANTE_CADERA, P.EMPUJE_VERTICAL],
                     [P.TIRON_VERTICAL, P.DOMINANTE_RODILLA],
-                    [P.AISL_HOMBRO, P.AISL_TRICEPS]),
+                    [P.AISL_HOMBRO_POST, P.AISL_TRICEPS]),
             DiaPlan("Full Body C", "full",
                     [P.EMPUJE_VERTICAL, P.TIRON_HORIZONTAL],
                     [P.EMPUJE_HORIZONTAL, P.TIRON_VERTICAL],

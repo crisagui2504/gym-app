@@ -25,13 +25,15 @@ TIRON_VERTICAL    = "tiron_vertical"
 DOMINANTE_RODILLA = "dominante_rodilla"
 DOMINANTE_CADERA  = "dominante_cadera"
 # Accesorios / aislamientos
-AISL_HOMBRO   = "aislamiento_hombro"
-AISL_BICEPS   = "aislamiento_biceps"
-AISL_TRICEPS  = "aislamiento_triceps"
-PANTORRILLA   = "pantorrilla"
-ANTEBRAZO     = "antebrazo"
-CORE          = "core"
-CARDIO        = "cardio"
+AISL_HOMBRO      = "aislamiento_hombro"        # deltoide LATERAL (elevaciones)
+AISL_HOMBRO_POST = "aislamiento_hombro_post"   # deltoide POSTERIOR + manguito (face pull)
+AISL_BICEPS      = "aislamiento_biceps"
+AISL_TRICEPS     = "aislamiento_triceps"
+AISL_ISQUIOS     = "aislamiento_isquios"       # flexion de rodilla (curl femoral)
+PANTORRILLA      = "pantorrilla"
+ANTEBRAZO        = "antebrazo"
+CORE             = "core"
+CARDIO           = "cardio"
 
 
 @dataclass(frozen=True)
@@ -94,15 +96,24 @@ EJERCICIOS: list[Ejercicio] = [
     Ejercicio("Peso Muerto Convencional",          DOMINANTE_CADERA, "isquios", "barra",     ("A",), None, 4),
     Ejercicio("Peso Muerto Sumo con Barra",        DOMINANTE_CADERA, "gluteos", "barra",     ("A", "B"), None, 5),
     Ejercicio("Extensiones Lumbares en Maquina",   DOMINANTE_CADERA, "lumbar",  "maquina",   ("B", "C"), None, 6),
-    Ejercicio("Curl de Isquios Tumbado (Maquina)", DOMINANTE_CADERA, "isquios", "maquina",   ("C",), None, 7),
-    Ejercicio("Curl de Isquios Sentado (Maquina)", DOMINANTE_CADERA, "isquios", "maquina",   ("C",), None, 8),
+
+    # ===================== AISLAMIENTO ISQUIOS (flexion de rodilla) ===========
+    # El RDL/hip thrust NO cubre la flexion de rodilla: el curl femoral es el
+    # unico que carga la cabeza corta del biceps femoral. Patron propio para
+    # que el generador nunca lo deje fuera.
+    Ejercicio("Curl de Isquios Tumbado (Maquina)", AISL_ISQUIOS, "isquios", "maquina", ("C",), None, 1),
+    Ejercicio("Curl de Isquios Sentado (Maquina)", AISL_ISQUIOS, "isquios", "maquina", ("C",), None, 2),
 
     # ===================== AISLAMIENTO HOMBRO (deltoides lateral) =============
     Ejercicio("Elevaciones Laterales Mancuernas",  AISL_HOMBRO, "hombros", "mancuerna", ("C",), None, 1),
     Ejercicio("Elevaciones Laterales Polea Baja",  AISL_HOMBRO, "hombros", "polea",     ("C",), None, 2),
     Ejercicio("Elevaciones Laterales en Maquina",  AISL_HOMBRO, "hombros", "maquina",   ("C",), None, 3),
-    Ejercicio("Pec Deck Invertido",                AISL_HOMBRO, "hombros", "maquina",   ("C",), None, 4),
-    Ejercicio("Face Pull Polea Alta",              AISL_HOMBRO, "hombros", "polea",     ("C",), None, 5),
+
+    # ===================== HOMBRO POSTERIOR + MANGUITO ========================
+    # Patron propio: si vive dentro de "hombro" el generador siempre elige
+    # elevaciones laterales y el deltoide posterior queda sin entrenar.
+    Ejercicio("Face Pull Polea Alta",              AISL_HOMBRO_POST, "hombros", "polea",   ("C",), None, 1),
+    Ejercicio("Pec Deck Invertido",                AISL_HOMBRO_POST, "hombros", "maquina", ("C",), None, 2),
 
     # ===================== AISLAMIENTO BICEPS =================================
     Ejercicio("Curl con Barra EZ",                 AISL_BICEPS, "biceps", "barra",     ("C",), None, 1),
@@ -171,9 +182,11 @@ PATRON_LABEL = {
     TIRON_VERTICAL:    "Tiron Vertical",
     DOMINANTE_RODILLA: "Dominante de Rodilla",
     DOMINANTE_CADERA:  "Dominante de Cadera",
-    AISL_HOMBRO:       "Hombro (aislamiento)",
+    AISL_HOMBRO:       "Hombro lateral (aislamiento)",
+    AISL_HOMBRO_POST:  "Hombro posterior / manguito",
     AISL_BICEPS:       "Biceps",
     AISL_TRICEPS:      "Triceps",
+    AISL_ISQUIOS:      "Isquios (curl femoral)",
     PANTORRILLA:       "Pantorrilla",
     ANTEBRAZO:         "Antebrazo",
     CORE:              "Core",

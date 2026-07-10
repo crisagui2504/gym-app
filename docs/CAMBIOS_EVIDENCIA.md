@@ -338,6 +338,78 @@ gamificación de PRs tiene efecto medible en adherencia.
 Suite completa en verde, smoke del dashboard con datos reales (e1RM, récords,
 panel de peso con cintura), build de producción de la app sin errores.
 
+---
+
+# Quinta tanda — cobertura muscular garantizada y selección con intención
+
+> Auditoría: ¿algún músculo queda "desapercibido"? ¿la selección de ejercicios
+> y las alternativas son dirigidas o genéricas? Respuesta: había 4 huecos
+> reales. Todos cerrados y ahora protegidos por pruebas automáticas.
+
+## R. Hombro posterior y manguito — patrón propio
+
+El Face Pull y el Pec Deck Invertido vivían dentro del patrón "hombro", donde
+el generador siempre elegía elevaciones laterales: **el deltoide posterior
+nunca aparecía en los planes generados**. Ahora `AISL_HOMBRO_POST` es un
+patrón propio, presente cada semana (2.º día de torso en Upper/Lower, días
+Pull en PPL, FB B en Full Body), siempre Tradicional a RIR 2-3 — es trabajo de
+salud de hombro, jamás al fallo.
+
+## S. Curl femoral — patrón propio en ambos días de pierna
+
+Los curls de isquios vivían en "dominante de cadera", donde perdían contra las
+extensiones lumbares: **la flexión de rodilla no aparecía nunca**. El RDL no la
+cubre (la cabeza corta del bíceps femoral solo trabaja flexionando la
+rodilla). Ahora `AISL_ISQUIOS` va en los dos días de pierna (tumbado un día,
+sentado el otro).
+
+## T. Variedad con intención entre días repetidos (Bloque C)
+
+El 2.º día del mismo foco ahora usa el aislamiento alternativo: curl EZ ↔ curl
+con mancuernas, extensión con cuerda ↔ con barra, laterales con mancuerna ↔ en
+polea, curl femoral tumbado ↔ sentado. Cobertura de cabezas/ángulos distintos
+en vez de repetir el estímulo exacto.
+
+## U. El recorte por tiempo ya no "sacrifica" músculos enteros
+
+Dos bugs del recorte por duración:
+1. La superserie bíceps+tríceps contaba como 2 ejercicios (cuesta el tiempo de
+   1: rondas de 60 s) → **a 60/75 min desaparecía todo el trabajo directo de
+   brazos**. Ahora cuenta como 1.
+2. El orden del Bloque C ahora ES la prioridad ante el recorte: primero lo que
+   nadie más cubre (brazos, curl femoral, pantorrilla), al final lo redundante
+   con los compuestos del día (aislamiento de pecho, extensión de cuádriceps).
+
+## V. Alternativas de la app por FUNCIÓN, no por músculo genérico
+
+`alternativasDe` ofrecía "mismo músculo primario": para un press militar
+sugería elevaciones laterales o face pulls (no son sustitutos). Ahora cada
+ejercicio del catálogo tiene un **grupo funcional** (empuje vertical, tirón
+horizontal, bisagra de cadera, curl femoral…) y las alternativas se buscan por
+grupo — un press se sustituye con otro press, un remo con otro remo. Si no hay
+ninguna del mismo grupo, cae al músculo primario como red de seguridad.
+
+## Volumen resultante (config real: recomposición, U/L, 75 min)
+
+| Día | Ejercicios | Series |
+|---|---|---|
+| Torso A / Torso Bombeo | 7 | 18 |
+| Pierna A / Pierna Bombeo | 6 | 16 |
+| Cardio + Core ×2 | 4 | 10 |
+
+Series directas/semana: dorsales 12 · cuádriceps 12 · hombros 10 · isquios 10
+· pecho 6 (+aislamiento con sesiones de 90 min) · glúteos 6 · bíceps, tríceps
+y gemelos 4 c/u (+ todo el trabajo indirecto de los compuestos). Ningún grupo
+en cero; por sesión ningún músculo pasa de ~9 series duras (techo productivo
+~8-10/sesión).
+
+## Verificación (quinta tanda)
+
+47 comprobaciones en verde, incluidas las nuevas: hombro posterior y curl
+femoral presentes cada semana (U/L y PPL), bíceps distinto entre los dos días
+de torso, hombro posterior nunca al fallo, y brazos directos conservados
+incluso con recorte a 60 y 75 minutos.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

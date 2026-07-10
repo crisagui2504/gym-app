@@ -355,13 +355,16 @@ def _recortar_duracion(filas: list[dict], duracion_min: int) -> list[dict]:
                 unidades[-1].append(m)
             else:
                 unidades.append([m])
-        restantes = len(movs)
+        # la superserie bi+tri cuesta el tiempo de UN ejercicio (rondas de 60 s):
+        # cuenta como 1 para el cupo. Si contara como 2, el recorte de 60/75 min
+        # eliminaba el unico trabajo directo de brazos de la semana.
+        restantes = len(movs) - sum(len(u) - 1 for u in unidades)
         for unidad in reversed(unidades):
             if restantes <= cap:
                 break
             for m in unidad:
                 quitar.add((dia, m))
-            restantes -= len(unidad)
+            restantes -= 1
 
     return [f for f in filas if (f["dia_semana"], f["ejercicio"]) not in quitar]
 

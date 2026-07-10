@@ -178,18 +178,28 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
         # descanso). Antes, con n_ejercicios_c bajo (Definicion), el triceps se
         # recortaba y quedaba un biceps "en superserie" sin pareja.
         es_tri_pareado = patron == db.AISL_TRICEPS and tiene_bi
-        exento = patron in (db.AISL_HOMBRO, db.PANTORRILLA) or es_tri_pareado
+        exento = (patron in (db.AISL_HOMBRO, db.AISL_HOMBRO_POST, db.PANTORRILLA)
+                  or es_tri_pareado)
         if n_c >= b.n_ejercicios_c and not exento:
             continue
-        ej = _elegir(patron, "C", usados, excluidos=excluidos)
+        # orden_pref=variante: el 2do dia del mismo foco usa el aislamiento
+        # alternativo (curl EZ vs mancuernas, laterales mancuerna vs polea...)
+        # para cubrir cabezas/angulos distintos, no repetir el mismo estimulo.
+        ej = _elegir(patron, "C", usados, orden_pref=variante, excluidos=excluidos)
         if not ej:
             continue
         usados.add(ej.nombre)
         extra = " Extra hombro (frecuencia 4x/sem)." if patron == db.AISL_HOMBRO and "hombros" in prioridades else ""
-        reps_lo, reps_hi = (15, 20) if patron == db.PANTORRILLA else b.reps_c
+        reps_lo, reps_hi = (15, 20) if patron in (db.PANTORRILLA, db.AISL_HOMBRO_POST) else b.reps_c
 
         # tecnica: superserie si biceps/triceps juntos; pantorrilla tradicional
-        if patron == db.AISL_BICEPS and tiene_tri:
+        if patron == db.AISL_HOMBRO_POST:
+            # salud de hombro: trabajo ligero y controlado, nunca al fallo
+            filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
+                              "Tradicional", b.series_c, reps_lo, reps_hi, DESC["aislamiento"],
+                              ej.peso_base,
+                              "Deltoide posterior + manguito. Lento y controlado, RIR 2-3."))
+        elif patron == db.AISL_BICEPS and tiene_tri:
             filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
                               "Superserie", b.series_c, reps_lo, reps_hi, DESC["superserie"],
                               ej.peso_base, ("Superserie con triceps. 60 s entre rondas. RIR 1-2." + extra).strip()))

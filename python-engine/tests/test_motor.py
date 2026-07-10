@@ -202,6 +202,41 @@ con_barra = [f.ejercicio for f in plan_sin_barra
              if f.bloque.startswith(("A", "B")) and EQUIPO.get(f.ejercicio) == "barra"]
 check("sin ejercicios de barra en bloques A/B", not con_barra, f"con barra: {con_barra}")
 
+print("\n== 9c. El recorte de 60/75 min conserva el trabajo directo de brazos ==")
+for dur in (60, 75):
+    filas_dur = pl._recortar_duracion(pl.generar_filas(df1, "2026-07-13", 1, plan=plan_ul), dur)
+    for d in sorted({f["dia_semana"] for f in filas_dur
+                     if "Torso" in (f["nombre_dia"] or "")}):
+        pats = {NOMBRE_A_PATRON.get(f["ejercicio"]) for f in filas_dur if f["dia_semana"] == d}
+        check(f"{dur} min, dia {d}: biceps y triceps directos presentes",
+              db.AISL_BICEPS in pats and db.AISL_TRICEPS in pats, f"patrones: {pats}")
+
+print("\n== 15. Cobertura muscular: nada queda desapercibido ==")
+plan_cov = generar_plan({"enfoque": "recomposicion", "split": "upper_lower",
+                         "prioridades": ["hombros"], "duracion_min": 90})
+sem1 = [f for f in plan_cov if f.tecnica and (f.semanas is None or 1 in f.semanas)]
+patrones_sem = {NOMBRE_A_PATRON.get(f.ejercicio) for f in sem1}
+check("hombro posterior presente (face pull / pec deck invertido)",
+      db.AISL_HOMBRO_POST in patrones_sem)
+check("curl femoral presente (flexion de rodilla, ambos dias de pierna)",
+      len({f.dia for f in sem1
+           if NOMBRE_A_PATRON.get(f.ejercicio) == db.AISL_ISQUIOS}) >= 2)
+dias_torso = sorted({f.dia for f in sem1 if "Torso" in f.nombre_dia})
+bi_por_dia = [{f.ejercicio for f in sem1
+               if f.dia == d and NOMBRE_A_PATRON.get(f.ejercicio) == db.AISL_BICEPS}
+              for d in dias_torso]
+check("biceps DISTINTO entre Torso A y Torso Bombeo (variedad de cabezas)",
+      len(bi_por_dia) == 2 and bi_por_dia[0] and bi_por_dia[1]
+      and not (bi_por_dia[0] & bi_por_dia[1]), f"{bi_por_dia}")
+plan_ppl2 = generar_plan({"enfoque": "recomposicion", "split": "ppl",
+                          "prioridades": [], "duracion_min": 90})
+pats_ppl = {NOMBRE_A_PATRON.get(f.ejercicio) for f in plan_ppl2 if f.tecnica}
+check("PPL: hombro posterior y curl femoral presentes",
+      db.AISL_HOMBRO_POST in pats_ppl and db.AISL_ISQUIOS in pats_ppl)
+hp = [f for f in plan_cov if NOMBRE_A_PATRON.get(f.ejercicio) == db.AISL_HOMBRO_POST]
+check("hombro posterior NUNCA al fallo (salud de hombro)",
+      all(f.tecnica == "Tradicional" for f in hp))
+
 print("\n== 10. Todas las semanas generan plan sin errores ==")
 for enfoque in ("recomposicion", "volumen", "definicion", "powerbuilding", "fuerza"):
     for split in ("upper_lower", "ppl", "full_body"):
