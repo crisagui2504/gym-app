@@ -14,12 +14,18 @@
           {{ tema() === 'dark' ? '☀️' : '🌙' }}
         </button>
         <button class="btn-primary save" type="button" (click)="guardar()" [disabled]="guardando() || ejercicios().length === 0">
-          {{ guardando() ? '...' : 'Guardar' }}
+          {{ guardando() ? '...' : yaGuardadoHoy() ? 'Guardado ✓' : 'Guardar' }}
         </button>
       </div>
     </header>
 
     <p class="status" *ngIf="mensaje()">{{ mensaje() }}</p>
+    <p class="status pendientes" *ngIf="pendientes() > 0">
+      📥 {{ pendientes() }} entreno(s) sin sincronizar
+      <button class="retry-btn" type="button" (click)="reenviarPendientes()" [disabled]="reintentando()">
+        {{ reintentando() ? 'Enviando…' : 'Reintentar ahora' }}
+      </button>
+    </p>
     <p class="status" *ngIf="cargando()">Cargando rutina...</p>
 
     <!-- ===== CALENTAMIENTO ===== -->
@@ -162,6 +168,7 @@
 
             <div class="rpe" *ngIf="ej.medida.rpe">
               <button class="rpe-label" type="button" (click)="abrirRpe()">RPE <span class="info">?</span></button>
+              <span class="rpe-target">Objetivo: {{ rpeObjetivo(s, i === ej.series.length - 1) }}</span>
               <div class="rpe-grid">
                 <button type="button" *ngFor="let r of rpeValores" [class.active]="s.rpe === r" (click)="setRpe(s, r)">{{ r }}</button>
               </div>

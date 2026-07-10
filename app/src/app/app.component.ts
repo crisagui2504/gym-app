@@ -21,6 +21,7 @@ import {
   norm,
   nSeriesDe,
   RPE_INFO,
+  rpeObjetivoDe,
   rpeSignificado,
   seriesAproximacion
 } from './entreno-data';
@@ -63,6 +64,12 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly cargando = signal(true);
   readonly guardando = signal(false);
   readonly mensaje = signal('');
+  // Blindaje del guardado: cola offline + no duplicar el envio del dia
+  readonly pendientes = signal(0);
+  readonly reintentando = signal(false);
+  readonly yaGuardadoHoy = signal(false);
+  readonly modoOffline = signal(false);
+  private readonly onOnline = () => this.reenviarPendientes();
   readonly fecha = fechaLocal();
   readonly nombreDia = signal('Rutina de hoy');
   readonly ejercicios = signal<EjercicioVM[]>([]);
@@ -126,20 +133,49 @@ export class AppComponent implements OnInit, OnDestroy {
     this.restaurarTimer();
     document.addEventListener('visibilitychange', this.onVisibilidad);
 
+    // guardado blindado: estado de la cola y reintento automatico
+    this.yaGuardadoHoy.set(localStorage.getItem('ultimoGuardado') === this.fecha);
+    this.pendientes.set(this.leerCola().length);
+    window.addEventListener('online', this.onOnline);
+    this.reenviarPendientes();
+
     this.cargarSesion(this.sesionDe(this.weekdayHoy()));
   }
 
-  /** Carga la sesion (dia del plan) que corresponde mostrar hoy. */
+  /** Carga la sesion (dia del plan) que corresponde mostrar hoy.
+   *  El plan se cachea en el telefono: si el servidor no responde (InfinityFree
+   *  caido o sin datos en el gym), se usa la ultima copia descargada. */
   private cargarSesion(sessionWeekday: number): void {
     this.cargando.set(true);
     this.mensaje.set('');
+    this.modoOffline.set(false);
+    const cacheKey = 'plan-' + fechaLocal(this.fechaDeSesion(sessionWeekday));
     this.api.getRutinaHoy(this.fechaDeSesion(sessionWeekday)).subscribe({
       next: (res) => {
         this.nombreDia.set(res.rutina.length ? res.rutina[0].nombre_dia : 'Descanso');
         this.ejercicios.set(this.agrupar(res.rutina));
         this.cargando.set(false);
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(res.rutina));
+        } catch {
+          /* almacenamiento lleno: seguimos sin cache */
+        }
       },
       error: () => {
+        const cache = localStorage.getItem(cacheKey);
+        if (cache) {
+          try {
+            const rutina = JSON.parse(cache) as EjercicioPlan[];
+            this.nombreDia.set(rutina.length ? rutina[0].nombre_dia : 'Descanso');
+            this.ejercicios.set(this.agrupar(rutina));
+            this.modoOffline.set(true);
+            this.mensaje.set('📡 Sin conexion: mostrando la rutina guardada en el telefono. Puedes entrenar normal; el entreno se sincronizara despues.');
+            this.cargando.set(false);
+            return;
+          } catch {
+            /* cache corrupta: cae al mensaje de error */
+          }
+        }
         this.mensaje.set('No se pudo cargar la rutina. Revisa tu conexion.');
         this.cargando.set(false);
       }
@@ -261,6 +297,7 @@ export class AppComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     if (this.intervalo) clearInterval(this.intervalo);
     document.removeEventListener('visibilitychange', this.onVisibilidad);
+    window.removeEventListener('online', this.onOnline);
   }
 
   /** Une filas consecutivas del mismo ejercicio en una sola tarjeta. */
@@ -396,6 +433,12 @@ export class AppComponent implements OnInit, OnDestroy {
 
   rpeTexto(rpe: number): string {
     return rpeSignificado(rpe);
+  }
+
+  /** RPE objetivo de la serie (guia antes de registrar el real). */
+  rpeObjetivo(s: SerieVM, ultima: boolean): string {
+    if (s.alFallo) return 'al fallo (RPE 10)';
+    return rpeObjetivoDe(s.tecnica, ultima);
   }
 
   cerrarTecnica(): void {
@@ -558,8 +601,13 @@ export class AppComponent implements OnInit, OnDestroy {
     if (navigator.vibrate) navigator.vibrate([200, 90, 200]);
   }
 
-  // ----- Guardar -----
+  // ----- Guardar (blindado: sin duplicados y sin perder entrenos) -----
   guardar(): void {
+    if (this.guardando()) return; // anti doble-tap
+    if (this.yaGuardadoHoy() &&
+        !window.confirm('Ya guardaste este entreno hoy. ¿Enviarlo OTRA VEZ? Puede duplicar series en el historial.')) {
+      return;
+    }
     const items: SeriePayload[] = [];
     for (const ej of this.ejercicios()) {
       for (const s of ej.series) {
@@ -580,12 +628,72 @@ export class AppComponent implements OnInit, OnDestroy {
     this.api.guardarEntreno(this.fecha, items).subscribe({
       next: (res) => {
         this.registrarRacha();
-        this.mensaje.set(`Entreno guardado: ${res.inserted} series. Racha: ${this.racha()} dias.`);
+        this.marcarGuardadoHoy();
+        this.mensaje.set(`✓ Entreno guardado: ${res.inserted} series. Racha: ${this.racha()} dias.`);
         this.guardando.set(false);
+        this.reenviarPendientes();
       },
       error: () => {
-        this.mensaje.set('No se pudo guardar. Revisa tu conexion e intenta de nuevo.');
+        // No se pierde nada: queda en el telefono y se reenvia solo
+        this.encolar(this.fecha, items);
+        this.mensaje.set(`📥 Sin conexion: tu entreno (${items.length} series) quedo guardado en el telefono. Se reenviara solo al volver internet, o toca "Reintentar".`);
         this.guardando.set(false);
+      }
+    });
+  }
+
+  private marcarGuardadoHoy(): void {
+    this.yaGuardadoHoy.set(true);
+    try {
+      localStorage.setItem('ultimoGuardado', this.fecha);
+    } catch {
+      /* noop */
+    }
+  }
+
+  // ----- Cola offline (localStorage) -----
+  private leerCola(): Array<{ fecha: string; items: SeriePayload[] }> {
+    try {
+      const cola = JSON.parse(localStorage.getItem('colaEntrenos') ?? '[]');
+      return Array.isArray(cola) ? cola : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private escribirCola(cola: Array<{ fecha: string; items: SeriePayload[] }>): void {
+    try {
+      localStorage.setItem('colaEntrenos', JSON.stringify(cola));
+    } catch {
+      /* noop */
+    }
+    this.pendientes.set(cola.length);
+  }
+
+  private encolar(fecha: string, items: SeriePayload[]): void {
+    // un solo pendiente por fecha: reenviar el mismo dia reemplaza, no duplica
+    const cola = this.leerCola().filter((e) => e.fecha !== fecha);
+    cola.push({ fecha, items });
+    this.escribirCola(cola);
+  }
+
+  /** Reenvia los entrenos pendientes, uno por uno y en orden. */
+  reenviarPendientes(): void {
+    const cola = this.leerCola();
+    this.pendientes.set(cola.length);
+    if (!cola.length || this.reintentando()) return;
+    this.reintentando.set(true);
+    const e = cola[0];
+    this.api.guardarEntreno(e.fecha, e.items).subscribe({
+      next: (res) => {
+        this.escribirCola(this.leerCola().filter((x) => x.fecha !== e.fecha));
+        if (e.fecha === this.fecha) this.marcarGuardadoHoy();
+        this.mensaje.set(`✓ Entreno pendiente del ${e.fecha} sincronizado (${res.inserted} series).`);
+        this.reintentando.set(false);
+        if (this.leerCola().length) this.reenviarPendientes();
+      },
+      error: () => {
+        this.reintentando.set(false); // se reintenta al volver online o manualmente
       }
     });
   }

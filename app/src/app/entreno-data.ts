@@ -306,6 +306,19 @@ export function rpeSignificado(rpe: number): string {
   return 'al fallo · 0 en reserva';
 }
 
+/** RPE objetivo de una serie segun su tecnica. El plan prescribe RIR 1-2 en
+ *  las series de trabajo; el fallo solo corresponde a la ultima serie de las
+ *  tecnicas de intensidad (AMRAP / Rest-Pause / Drop, semanas 3-4). */
+export function rpeObjetivoDe(tecnica: string | null, ultimaSerie: boolean): string {
+  const t = norm(tecnica ?? '');
+  if (ultimaSerie && (t.includes('amrap') || t.includes('rest') || t.includes('drop'))) {
+    return 'al fallo (RPE 10)';
+  }
+  if (t.includes('top set')) return 'RPE 8-9';
+  if (t.includes('back')) return 'RPE 7-8';
+  return 'RPE 8-9 · deja 1-2 reps';
+}
+
 /** Devuelve la explicacion de una tecnica, o null. */
 export function explicacionTecnica(tecnica: string | null): Tecnica | null {
   if (!tecnica) return null;
@@ -333,13 +346,13 @@ export function descansoPorTecnica(tecnica: string | null): number {
     case 'Top Set':
       return 180;
     case 'Back-off':
+    case 'AMRAP': // compuestos del Bloque B: >= 2 min entre series
       return 120;
     case 'Drop Set':
-    case 'Superserie':
-    case 'AMRAP':
-      return 90;
     case 'Rest-Pause':
       return 90;
+    case 'Superserie':
+      return 60;
     default:
       return 90;
   }
