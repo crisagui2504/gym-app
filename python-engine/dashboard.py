@@ -22,7 +22,7 @@ import plotly.graph_objects as go
 from dash import Dash, Input, Output, State, dash_table, dcc, html, callback
 
 from config_usuario import cargar_config, guardar_config
-from enfoques import ENFOQUES, SPLITS, MUSCULOS_PRIORIZABLES
+from enfoques import ENFOQUES, SPLITS, MUSCULOS_PRIORIZABLES, EQUIPOS_FILTRABLES
 from generador import generar_plan
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -329,12 +329,137 @@ def _fig_rpe(df: pd.DataFrame) -> go.Figure:
     ))
     fig.update_layout(
         **PLOTLY_THEME,
-        title=_titulo("Estado del SNC — RPE promedio semanal"),
+        title=_titulo("Fatiga percibida — RPE promedio semanal"),
         yaxis=dict(title="RPE", range=[6, 11], dtick=1, gridcolor=GRID),
         xaxis=dict(gridcolor="rgba(0,0,0,0)"),
         showlegend=False,
     )
     return fig
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Peso corporal — registro local + tendencia (la báscula pilota las kcal)
+# ─────────────────────────────────────────────────────────────────────────────
+PESO_CSV = pathlib.Path(__file__).resolve().parent / "peso_corporal.csv"
+
+
+def _cargar_peso() -> pd.DataFrame:
+    if not PESO_CSV.exists():
+        return pd.DataFrame(columns=["fecha", "peso"])
+    df = pd.read_csv(PESO_CSV)
+    df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
+    df["peso"] = pd.to_numeric(df["peso"], errors="coerce")
+    return df.dropna().sort_values("fecha").drop_duplicates("fecha", keep="last")
+
+
+def _registrar_peso(peso: float) -> None:
+    df = _cargar_peso()
+    hoy = pd.Timestamp(date.today())
+    df = df[df["fecha"] != hoy]
+    df = pd.concat([df, pd.DataFrame([{"fecha": hoy, "peso": float(peso)}])],
+                   ignore_index=True)
+    df.sort_values("fecha").to_csv(PESO_CSV, index=False, date_format="%Y-%m-%d")
+
+
+def _fig_peso(dfp: pd.DataFrame) -> go.Figure:
+    if dfp.empty:
+        return _fig_vacia("Registra tu primer peso para empezar")
+    ma = dfp.set_index("fecha")["peso"].rolling("7D", min_periods=3).mean()
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=dfp["fecha"], y=dfp["peso"], mode="markers",
+                             name="Pesaje diario",
+                             marker=dict(size=7, color=MUTED, opacity=0.55)))
+    fig.add_trace(go.Scatter(x=ma.index, y=ma.values, mode="lines",
+                             name="Tendencia (media 7 días)",
+                             line=dict(color=ACCENT, width=3, shape="spline")))
+    fig.update_layout(
+        **PLOTLY_THEME,
+        title=_titulo("Peso corporal — mira la tendencia, no el número de hoy"),
+        yaxis=dict(title="kg", gridcolor=GRID),
+        xaxis=dict(gridcolor="rgba(0,0,0,0)"),
+        legend=dict(orientation="h", y=1.12),
+    )
+    return fig
+
+
+def _tendencia_semanal(dfp: pd.DataFrame) -> float | None:
+    """Cambio de la media móvil de 7 días en la última semana, en % del peso."""
+    if len(dfp) < 8:
+        return None
+    s = dfp.set_index("fecha")["peso"].rolling("7D", min_periods=3).mean().dropna()
+    if s.empty:
+        return None
+    previo = s.asof(s.index[-1] - pd.Timedelta(days=7))
+    if pd.isna(previo):
+        return None
+    return float((s.iloc[-1] - previo) / s.iloc[-1] * 100)
+
+
+def _panel_peso() -> list:
+    cfg = cargar_config()
+    enf = ENFOQUES.get(cfg.get("enfoque"), ENFOQUES["recomposicion"])
+    dfp = _cargar_peso()
+    lo, hi = enf.tendencia_sem
+    objetivo_txt = (f"Objetivo para {enf.nombre}: entre {lo:+.2f}% y {hi:+.2f}% "
+                    f"de tu peso por semana.")
+    t = _tendencia_semanal(dfp)
+    if t is None:
+        estado = _card([html.P(
+            "Pésate (idealmente a diario, en ayunas) durante ~10 días para que la "
+            "tendencia semanal sea confiable. " + objetivo_txt,
+            style={"color": MUTED, "fontSize": "13px", "margin": "0"})])
+    else:
+        if t < lo:
+            color = WARN
+            msg = (f"Tendencia {t:+.2f}%/semana — por DEBAJO del objetivo ({lo:+.2f}% a {hi:+.2f}%). "
+                   "Sube ~100–200 kcal/día (mejor carbohidratos) y reevalúa en 2 semanas.")
+        elif t > hi:
+            color = WARN
+            msg = (f"Tendencia {t:+.2f}%/semana — por ENCIMA del objetivo ({lo:+.2f}% a {hi:+.2f}%). "
+                   "Baja ~100–200 kcal/día (o suma 1 día de cardio) y reevalúa en 2 semanas.")
+        else:
+            color = ACCENT
+            msg = (f"Tendencia {t:+.2f}%/semana — dentro del objetivo ({lo:+.2f}% a {hi:+.2f}%). "
+                   "No cambies nada: las kcal actuales están funcionando.")
+        estado = _card([
+            html.Div("Semáforo calórico", style={"color": color, "fontWeight": "700",
+                                                 "fontSize": "14px", "marginBottom": "6px"}),
+            html.P(msg, style={"color": TEXT, "fontSize": "13px", "margin": "0"}),
+        ])
+    return [
+        _card(dcc.Graph(figure=_fig_peso(dfp), config={"displayModeBar": False})),
+        html.Div(estado, style={"marginTop": "16px"}),
+    ]
+
+
+def _panel_nutricion(cfg: dict) -> html.Div:
+    """Macros del enfoque convertidos a gramos usando el peso corporal real."""
+    enf = ENFOQUES.get(cfg.get("enfoque"), ENFOQUES["recomposicion"])
+    peso = float(cfg.get("peso_corporal", 75) or 75)
+
+    def col(nombre: str, rango: tuple, emoji: str) -> html.Div:
+        lo, hi = rango
+        txt = f"{lo * peso:.0f} g" if lo == hi else f"{lo * peso:.0f}–{hi * peso:.0f} g"
+        return html.Div([
+            html.Div(f"{emoji} {nombre}", style={"color": MUTED, "fontSize": "12px"}),
+            html.Div(f"{txt}/día", style={"color": TEXT, "fontWeight": "700", "fontSize": "16px"}),
+        ], style={"minWidth": "140px"})
+
+    return _card([
+        html.Div(f"🥗 Tus macros de hoy ({peso:.0f} kg · {enf.nombre})",
+                 style={"color": TEXT, "fontWeight": "700", "fontSize": "15px",
+                        "marginBottom": "12px"}),
+        html.Div([
+            col("Proteína", enf.prot_g_kg, "🍗"),
+            col("Carbohidratos", enf.carb_g_kg, "🍚"),
+            col("Grasas", enf.grasa_g_kg, "🥑"),
+        ], style={"display": "flex", "gap": "28px", "flexWrap": "wrap"}),
+        html.P(f"Reparte la proteína en 3–5 comidas de ~{0.4 * peso:.0f}–{0.55 * peso:.0f} g, "
+               "con una en las ±2 h del entrenamiento. Creatina 3–5 g/día, a cualquier hora, "
+               "todos los días (también los de descanso).",
+               style={"color": MUTED, "fontSize": "12px", "marginTop": "12px",
+                      "marginBottom": "0"}),
+    ], {"marginTop": "16px"})
 
 
 def _fig_tonelaje_semana(df: pd.DataFrame) -> go.Figure:
@@ -604,9 +729,24 @@ def _tab_config_children(estado: str = "real") -> html.Div:
                             "display": "inline-flex", "alignItems": "center", "gap": "5px"},
             ),
 
+            html.Label("Equipo que tu gym NO tiene (usa alternativas del mismo patrón)",
+                       style={**_LABEL_STYLE, "marginTop": "18px", "display": "block"}),
+            dcc.Checklist(
+                id="cfg-equipo",
+                options=[{"label": f" 🚫 {lbl}", "value": eq} for eq, lbl in EQUIPOS_FILTRABLES],
+                value=cfg.get("equipo_excluido", []),
+                inline=True,
+                style={"fontSize": "14px", "marginTop": "10px",
+                       "display": "flex", "flexWrap": "wrap", "gap": "8px 4px"},
+                labelStyle={"color": TEXT, "marginRight": "16px", "cursor": "pointer",
+                            "display": "inline-flex", "alignItems": "center", "gap": "5px"},
+            ),
+
             html.Button("Generar y guardar plan", id="cfg-guardar", n_clicks=0,
                         className="gym-btn", style={"marginTop": "26px"}),
         ]),
+
+        _panel_nutricion(cfg),
 
         html.Div(id="cfg-resultado", style={"marginTop": "16px"}),
     ], style={"padding": "20px 0"})
@@ -723,8 +863,8 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
             ], style={"padding": "16px 0"}),
         ),
 
-        # ── Tab 4: Estado SNC ───────────────────────────────────────────────
-        dcc.Tab(label="Estado SNC", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
+        # ── Tab 4: Fatiga percibida (RPE) ───────────────────────────────────
+        dcc.Tab(label="Fatiga (RPE)", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
             children=html.Div([
                 _card(dcc.Graph(figure=_fig_rpe(df), config={"displayModeBar": False})),
                 html.Div([
@@ -739,9 +879,10 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
                     _card([
                         html.Div("Zona de alerta (RPE ≥ 9.0)",
                                  style={"color": DANGER, "fontWeight": "600", "marginBottom": "6px"}),
-                        html.P("RPE sostenido por encima de 9 indica que el sistema nervioso "
-                               "central está sobrecargado. Reducir intensidad o volumen un 40% "
-                               "durante una semana (Semana 4 del mesociclo).",
+                        html.P("RPE sostenido por encima de 9 indica fatiga acumulada que se "
+                               "come tu rendimiento y tu recuperación. Adelanta el deload: "
+                               "misma intensidad, la mitad de volumen y cero series al fallo "
+                               "durante una semana (es lo que hace la S5 del mesociclo).",
                                style={"color": MUTED, "fontSize": "13px"}),
                     ], {"flex": "1", "minWidth": "240px"}),
                 ], style={"display": "flex", "gap": "16px", "flexWrap": "wrap",
@@ -750,6 +891,31 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
         ),
 
         # ── Tab 5: Logbook ──────────────────────────────────────────────────
+        # ── Tab: Peso corporal (nutrición basada en la báscula) ─────────────
+        dcc.Tab(label="Peso corporal", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
+            children=html.Div([
+                _card([
+                    html.Label("Peso de hoy (kg)", style=_LABEL_STYLE),
+                    html.Div([
+                        dcc.Input(id="peso-input", type="number", min=30, max=250,
+                                  step=0.1, placeholder="p. ej. 74.6",
+                                  style={"padding": "9px 12px", "height": "42px",
+                                         "boxSizing": "border-box", "width": "160px"}),
+                        html.Button("Registrar", id="peso-guardar", n_clicks=0,
+                                    className="gym-btn"),
+                    ], style={"display": "flex", "gap": "12px", "alignItems": "center",
+                              "marginTop": "8px", "flexWrap": "wrap"}),
+                    html.P("Pésate en ayunas, después del baño y con la misma báscula. "
+                           "Un día alto o bajo no significa nada: lo que pilota las kcal "
+                           "es la media de 7 días.",
+                           style={"color": MUTED, "fontSize": "12px", "marginTop": "10px",
+                                  "marginBottom": "0"}),
+                ]),
+                html.Div(id="peso-panel", children=_panel_peso(),
+                         style={"marginTop": "16px"}),
+            ], style={"padding": "16px 0"}),
+        ),
+
         dcc.Tab(label="Logbook", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
             children=html.Div([
                 _card([
@@ -777,7 +943,15 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
                         html.Div("Generado por el motor de sobrecarga progresiva "
                                  "(planificar.py) usando tu historial real.",
                                  style={"color": MUTED, "fontSize": "12px",
-                                        "marginBottom": "16px"}),
+                                        "marginBottom": "12px"}),
+                        html.Button("⬆ Recalcular y subir plan al servidor",
+                                    id="btn-subir-plan", n_clicks=0, className="gym-btn",
+                                    style={"marginBottom": "8px"}),
+                        html.Div("Corre el motor completo (historial → progresión → "
+                                 "sube a MySQL). Tarda unos segundos.",
+                                 style={"color": MUTED, "fontSize": "11px",
+                                        "marginBottom": "12px"}),
+                        html.Div(id="subir-plan-status"),
                     ]),
                     _tabla_plan(df),
                 ]),
@@ -939,15 +1113,17 @@ app.clientside_callback(
     State("cfg-prioridades", "value"),
     State("cfg-peso", "value"),
     State("cfg-duracion", "value"),
+    State("cfg-equipo", "value"),
     prevent_initial_call=True,
 )
-def _guardar_enfoque(n_clicks, enfoque, split, prioridades, peso, duracion):
+def _guardar_enfoque(n_clicks, enfoque, split, prioridades, peso, duracion, equipo):
     cfg = {
         "enfoque": enfoque,
         "split": split,
         "prioridades": prioridades or [],
         "peso_corporal": peso or 75,
         "duracion_min": duracion or 90,
+        "equipo_excluido": equipo or [],
     }
     guardar_config(cfg)
     # validar que el plan se genera sin errores con la nueva config
@@ -964,6 +1140,51 @@ def _guardar_enfoque(n_clicks, enfoque, split, prioridades, peso, duracion):
                  style={"color": MUTED, "fontSize": "12px", "marginTop": "10px",
                         "textAlign": "center"}),
     ])
+
+
+@callback(
+    Output("subir-plan-status", "children"),
+    Input("btn-subir-plan", "n_clicks"),
+    prevent_initial_call=True,
+)
+def _subir_plan(n_clicks):
+    """Corre el motor completo (planificar.main) sin salir del dashboard."""
+    import contextlib
+    import io
+    try:
+        import planificar
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            planificar.main()
+        lineas = [ln for ln in buf.getvalue().strip().splitlines() if ln]
+        detalle = lineas[-1] if lineas else "Plan sincronizado."
+        extra = " · ".join(ln for ln in lineas if "DELOAD REACTIVO" in ln)
+        return html.Div(
+            [html.Div(f"✓ {detalle}", style={"fontWeight": "600"})] +
+            ([html.Div(extra, style={"fontSize": "12px", "marginTop": "4px"})] if extra else []),
+            style={"background": "rgba(0,224,181,0.12)", "color": ACCENT,
+                   "padding": "10px 16px", "borderRadius": "10px", "marginBottom": "12px",
+                   "fontSize": "13px", "border": "1px solid rgba(0,224,181,0.3)"})
+    except Exception as exc:  # noqa: BLE001
+        return html.Div(f"⚠ No se pudo subir el plan: {exc}. Revisá tu conexión y el .env.",
+                        style={"background": "rgba(255,93,122,0.12)", "color": DANGER,
+                               "padding": "10px 16px", "borderRadius": "10px",
+                               "marginBottom": "12px", "fontSize": "13px",
+                               "border": "1px solid rgba(255,93,122,0.3)"})
+
+
+@callback(
+    Output("peso-panel", "children"),
+    Input("peso-guardar", "n_clicks"),
+    State("peso-input", "value"),
+    prevent_initial_call=True,
+)
+def _guardar_peso_cb(n_clicks, peso):
+    if peso and 30 <= float(peso) <= 250:
+        _registrar_peso(float(peso))
+        # mantiene los macros (g/día) y el motor alineados con el peso real
+        guardar_config({"peso_corporal": float(peso)})
+    return _panel_peso()
 
 
 def _abrir_navegador(url: str = "http://127.0.0.1:8050", retraso: float = 1.5) -> None:

@@ -4,8 +4,14 @@
 > con arquitectura **Edge-to-Local** de tres capas (nube gratuita + cliente móvil +
 > motor local en la laptop).
 
-**Versión del documento:** 1.0 · **Última actualización:** Junio 2026
+**Versión del documento:** 1.1 · **Última actualización:** Julio 2026
 **Repositorio:** https://github.com/crisagui2504/gym-app
+
+> **v1.1 (Julio 2026)**: el motor de rutinas y progresión se ajustó a la
+> evidencia científica 2016–2025 (gestión del fallo por semana, PR de S4
+> condicionado al rendimiento, descansos de compuestos a 2 min, frecuencia 2×
+> real en Full Body, volumen de pecho, y varios bugs). Detalle completo y
+> referencias en [`docs/CAMBIOS_EVIDENCIA.md`](docs/CAMBIOS_EVIDENCIA.md).
 
 ---
 
@@ -80,7 +86,11 @@ laptop del usuario, comunicándose con el servidor por HTTP.
 ### Hasta dónde llegan las funcionalidades actuales
 
 - **Mesociclo de 5 semanas**: S1 base, S2 rotación del Bloque B, S3 superar S1,
-  S4 pico, S5 deload (volumen reducido).
+  S4 pico, S5 deload (volumen reducido). Las técnicas de intensidad
+  (AMRAP/Rest-Pause/Drop) solo se prescriben en S3–S4 y solo en la última
+  serie; S1–S2 se trabaja a RIR 1–2 y el deload es 100% libre de fallo.
+- **PR condicionado**: en S4 el motor solo propone superar el mejor peso del
+  mes si la última sesión completó el rango de reps con RPE ≤ 8.
 - **5 enfoques**: Recomposición, Volumen, Definición, Powerbuilding, Fuerza Pura.
 - **3 splits**: Upper/Lower (4 días), Push/Pull/Legs (6 días), Full Body (3 días).
 - **Duración objetivo por sesión** (60/75/90/120 min): recorta el Bloque C para
@@ -602,9 +612,13 @@ series_objetivo, reps_min, reps_max, peso_sugerido`.
 
 ## Apéndice — Glosario de técnicas
 
-- **Top Set**: la serie más pesada del día (1 serie), busca superar la semana anterior.
+- **Top Set**: la serie más pesada del día (1 serie), busca superar la semana anterior
+  (doble progresión: primero completar el rango de reps, luego subir carga).
 - **Back-off**: 2 series al ~80% del Top Set, más repeticiones.
-- **AMRAP**: la última serie al fallo (tantas reps como se pueda).
-- **Rest-Pause**: fallo → 10 s → fallo, con el mismo peso = 1 serie.
-- **Drop Set**: al fallo, bajar el peso 20–30% sin descanso y seguir al fallo.
-- **Deload (S5)**: semana de recuperación con volumen reducido al 50%.
+- **RIR (reps en reserva)**: cuántas reps quedaban antes del fallo. S1–S2 se
+  entrena a RIR 1–2; el RPE de la app es su inverso (RPE 8 = RIR 2).
+- **AMRAP**: la última serie al fallo (tantas reps como se pueda). Solo en S3–S4.
+- **Rest-Pause**: en la última serie, fallo → 10 s → fallo con el mismo peso. Solo en S3–S4.
+- **Drop Set**: en la última serie, fallo → −20% de peso sin descanso → fallo. Solo en S3–S4.
+- **Deload (S5)**: semana de recuperación: misma intensidad (peso), volumen al
+  50%, sin Bloque C y sin ninguna serie al fallo.
