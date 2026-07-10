@@ -283,6 +283,61 @@ activó el deload reactivo.
 lógica de rutinas y progresión. Se corre con
 `python tests/test_motor.py` desde `python-engine/`.
 
+---
+
+# Cuarta tanda — "tope de gama": autorregulación fina, e1RM, cintura, PWA
+
+## L. Check-in de readiness pre-sesión (app)
+
+Antes de entrenar, un toque: 😃 Bien / 😐 Normal / 😫 Cansada. En día "Cansada"
+la app mantiene el mismo entreno pero cambia todos los objetivos de RPE a
+7-8 **sin series al fallo** (RIR 3-4). Es la autorregulación diaria que la
+evidencia respalda como mejor modulador sesión a sesión: entrenar suave
+siempre gana a no entrenar. La elección persiste el día (localStorage).
+
+## M. e1RM estimado — la fuerza real (dashboard)
+
+Fórmula de Epley (`peso × (1 + reps/30)`, reps limitadas a 15):
+- **Progresión**: nueva línea de e1RM junto a peso máximo y tonelaje — detecta
+  PRs "invisibles" (mismos kg, más reps).
+- **Records**: ahora rankea por e1RM y muestra la serie que lo produjo
+  (`62.5 kg (50×8)`), no solo el peso más pesado.
+
+## N. Cintura en la pestaña de peso (dashboard)
+
+Campo opcional de cintura (1-2 veces/semana, a la altura del ombligo). Motivo:
+en recomposición la báscula puede quedarse plana mientras pierdes grasa y
+ganas músculo — solo el dúo peso+cintura lo distingue de un estancamiento.
+El semáforo ahora tiene un **detector de recomposición**: peso plano + cintura
+bajando ⇒ "no cambies nada, estás ganando".
+
+## O. Historial en la app + endpoint nuevo
+
+- `infinityfree/api/get_historial.php` (**hay que subirlo por FTP a `api/`**):
+  devuelve las series de los últimos N días (JSON, tope 90).
+- Botón 📓 en la app: últimas sesiones agrupadas por fecha con la mejor serie
+  de cada ejercicio (por e1RM) — tu logbook en el teléfono.
+
+## P. Confeti de PR 🎉 (app)
+
+Al guardar, la app calcula el e1RM de cada ejercicio y lo compara con tu
+récord local: si lo rompes, lluvia de confeti + vibración + mensaje con los
+PRs. La primera vez solo registra la línea base (sin celebrar aire). La
+gamificación de PRs tiene efecto medible en adherencia.
+
+## Q. PWA — app instalable
+
+`manifest.webmanifest` + `icon.svg` + `sw.js` (+3 archivos en el hosting):
+- Instalable como ícono en el teléfono (Chrome/Android: "Agregar a pantalla
+  de inicio").
+- Service worker: navegación red-primero (nunca un shell viejo), estáticos
+  caché-primero con refresco en segundo plano; `/api/` jamás se cachea.
+
+## Verificación (cuarta tanda)
+
+Suite completa en verde, smoke del dashboard con datos reales (e1RM, récords,
+panel de peso con cintura), build de producción de la app sin errores.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

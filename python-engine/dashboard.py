@@ -244,13 +244,24 @@ def _fig_vacia(titulo: str = "Sin datos todavía") -> go.Figure:
     return fig
 
 
+def _con_e1rm(df: pd.DataFrame) -> pd.DataFrame:
+    """Agrega la columna e1RM (Epley: peso × (1 + reps/30)), la medida real de
+    fuerza: 27.5 kg × 8 es más fuerza que 30 kg × 4 aunque pese menos."""
+    out = df.copy()
+    reps = out["reps_hechas"].clip(upper=15)  # Epley pierde precisión a reps altas
+    out["e1rm"] = out["peso_kg"] * (1 + reps / 30)
+    out.loc[out["peso_kg"] <= 0, "e1rm"] = 0.0  # peso corporal: sin e1RM
+    return out
+
+
 def _fig_progresion(df: pd.DataFrame, ejercicio: str) -> go.Figure:
     if df.empty or not ejercicio:
         return _fig_vacia("Elegí un ejercicio para ver su progresión")
-    sub = df[df["ejercicio"] == ejercicio].copy()
+    sub = _con_e1rm(df[df["ejercicio"] == ejercicio].copy())
     sub["semana"] = sub["fecha_entreno"].dt.to_period("W").dt.start_time
     ton  = sub.groupby("semana")["tonelaje_serie"].sum().reset_index()
     pmax = sub.groupby("semana")["peso_kg"].max().reset_index()
+    emax = sub.groupby("semana")["e1rm"].max().reset_index()
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
@@ -264,10 +275,17 @@ def _fig_progresion(df: pd.DataFrame, ejercicio: str) -> go.Figure:
         line=dict(color=ACCENT, width=3, shape="spline"),
         mode="lines+markers", marker=dict(size=9, color=ACCENT),
     ))
+    if emax["e1rm"].max() > 0:
+        fig.add_trace(go.Scatter(
+            x=emax["semana"], y=emax["e1rm"],
+            name="e1RM estimado (Epley)",
+            line=dict(color=WARN, width=2.5, dash="dot", shape="spline"),
+            mode="lines+markers", marker=dict(size=7, color=WARN),
+        ))
     fig.update_layout(
         **PLOTLY_THEME,
         title=_titulo(f"Progresión — {ejercicio}"),
-        yaxis=dict(title="Peso máximo (kg)", gridcolor=GRID, zeroline=False),
+        yaxis=dict(title="kg (peso máx / e1RM)", gridcolor=GRID, zeroline=False),
         yaxis2=dict(title="Tonelaje (kg)", overlaying="y", side="right",
                     gridcolor="rgba(0,0,0,0)", zeroline=False),
         legend=_LEGEND_BOTTOM,
@@ -279,20 +297,31 @@ def _fig_progresion(df: pd.DataFrame, ejercicio: str) -> go.Figure:
 def _fig_records(df: pd.DataFrame) -> go.Figure:
     if df.empty:
         return _fig_vacia()
-    prs = df.groupby("ejercicio")["peso_kg"].max().sort_values().tail(14)
+    de = _con_e1rm(df)
+    de = de[de["e1rm"] > 0]
+    if de.empty:
+        return _fig_vacia()
+    prs = de.groupby("ejercicio")["e1rm"].max().sort_values().tail(14)
+    # detalle de la mejor serie que produjo cada e1RM
+    idx = de.groupby("ejercicio")["e1rm"].idxmax()
+    detalle = de.loc[idx].set_index("ejercicio")
     maxv = prs.max() if len(prs) else 0
     colors = [ACCENT if v == maxv and maxv > 0 else "#2c6f6a" for v in prs.values]
+    textos = []
+    for ej, v in prs.items():
+        d = detalle.loc[ej]
+        textos.append(f"  {v:.1f} kg  ({d['peso_kg']:g}×{int(d['reps_hechas'])})")
     fig = go.Figure(go.Bar(
         x=prs.values, y=prs.index, orientation="h",
         marker_color=colors, marker_line_width=0,
-        text=[f"  {v:.1f} kg" for v in prs.values],
+        text=textos,
         textposition="outside", textfont=dict(color=TEXT),
     ))
-    theme_records = {**PLOTLY_THEME, "margin": dict(l=20, r=90, t=64, b=30)}
+    theme_records = {**PLOTLY_THEME, "margin": dict(l=20, r=140, t=64, b=30)}
     fig.update_layout(
         **theme_records,
-        title=_titulo("Records Personales (PR) — peso máximo por ejercicio"),
-        xaxis=dict(title="kg", gridcolor=GRID),
+        title=_titulo("Records Personales — e1RM estimado (fuerza real, no solo kg)"),
+        xaxis=dict(title="e1RM (kg)", gridcolor=GRID),
         yaxis=dict(gridcolor="rgba(0,0,0,0)"),
     )
     return fig
@@ -345,19 +374,26 @@ PESO_CSV = pathlib.Path(__file__).resolve().parent / "peso_corporal.csv"
 
 def _cargar_peso() -> pd.DataFrame:
     if not PESO_CSV.exists():
-        return pd.DataFrame(columns=["fecha", "peso"])
+        return pd.DataFrame(columns=["fecha", "peso", "cintura"])
     df = pd.read_csv(PESO_CSV)
     df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
     df["peso"] = pd.to_numeric(df["peso"], errors="coerce")
-    return df.dropna().sort_values("fecha").drop_duplicates("fecha", keep="last")
+    if "cintura" not in df:
+        df["cintura"] = pd.NA
+    df["cintura"] = pd.to_numeric(df["cintura"], errors="coerce")
+    return (df.dropna(subset=["fecha", "peso"])
+              .sort_values("fecha").drop_duplicates("fecha", keep="last"))
 
 
-def _registrar_peso(peso: float) -> None:
+def _registrar_peso(peso: float, cintura: float | None = None) -> None:
     df = _cargar_peso()
     hoy = pd.Timestamp(date.today())
+    previa = df.loc[df["fecha"] == hoy, "cintura"]
+    if cintura is None and len(previa):
+        cintura = previa.iloc[0]  # conserva la cintura ya registrada hoy
     df = df[df["fecha"] != hoy]
-    df = pd.concat([df, pd.DataFrame([{"fecha": hoy, "peso": float(peso)}])],
-                   ignore_index=True)
+    df = pd.concat([df, pd.DataFrame([{"fecha": hoy, "peso": float(peso),
+                                       "cintura": cintura}])], ignore_index=True)
     df.sort_values("fecha").to_csv(PESO_CSV, index=False, date_format="%Y-%m-%d")
 
 
@@ -372,14 +408,36 @@ def _fig_peso(dfp: pd.DataFrame) -> go.Figure:
     fig.add_trace(go.Scatter(x=ma.index, y=ma.values, mode="lines",
                              name="Tendencia (media 7 días)",
                              line=dict(color=ACCENT, width=3, shape="spline")))
+    cin = dfp.dropna(subset=["cintura"]) if "cintura" in dfp else dfp.iloc[0:0]
+    if len(cin):
+        fig.add_trace(go.Scatter(x=cin["fecha"], y=cin["cintura"],
+                                 mode="lines+markers", name="Cintura (cm)",
+                                 yaxis="y2", line=dict(color=ACCENT2, width=2, dash="dot"),
+                                 marker=dict(size=6, color=ACCENT2)))
     fig.update_layout(
         **PLOTLY_THEME,
-        title=_titulo("Peso corporal — mira la tendencia, no el número de hoy"),
+        title=_titulo("Peso y cintura — la pareja que detecta la recomposición"),
         yaxis=dict(title="kg", gridcolor=GRID),
+        yaxis2=dict(title="cintura (cm)", overlaying="y", side="right",
+                    gridcolor="rgba(0,0,0,0)", zeroline=False),
         xaxis=dict(gridcolor="rgba(0,0,0,0)"),
         legend=dict(orientation="h", y=1.12),
     )
     return fig
+
+
+def _tendencia_cintura(dfp: pd.DataFrame) -> float | None:
+    """Cambio de cintura (cm/semana) sobre los registros de los últimos 21 días."""
+    cin = dfp.dropna(subset=["cintura"]) if "cintura" in dfp else dfp.iloc[0:0]
+    if len(cin) < 3:
+        return None
+    cin = cin[cin["fecha"] >= cin["fecha"].max() - pd.Timedelta(days=21)]
+    if len(cin) < 3:
+        return None
+    dias = (cin["fecha"].max() - cin["fecha"].min()).days
+    if dias < 7:
+        return None
+    return float((cin["cintura"].iloc[-1] - cin["cintura"].iloc[0]) / dias * 7)
 
 
 def _tendencia_semanal(dfp: pd.DataFrame) -> float | None:
@@ -403,10 +461,13 @@ def _panel_peso() -> list:
     objetivo_txt = (f"Objetivo para {enf.nombre}: entre {lo:+.2f}% y {hi:+.2f}% "
                     f"de tu peso por semana.")
     t = _tendencia_semanal(dfp)
+    tc = _tendencia_cintura(dfp)
     if t is None:
         estado = _card([html.P(
             "Pésate (idealmente a diario, en ayunas) durante ~10 días para que la "
-            "tendencia semanal sea confiable. " + objetivo_txt,
+            "tendencia semanal sea confiable. " + objetivo_txt +
+            " La cintura (opcional, 1-2 veces por semana) detecta la recomposición "
+            "cuando la báscula se queda quieta.",
             style={"color": MUTED, "fontSize": "13px", "margin": "0"})])
     else:
         if t < lo:
@@ -421,6 +482,16 @@ def _panel_peso() -> list:
             color = ACCENT
             msg = (f"Tendencia {t:+.2f}%/semana — dentro del objetivo ({lo:+.2f}% a {hi:+.2f}%). "
                    "No cambies nada: las kcal actuales están funcionando.")
+        # Detector de recomposición: báscula plana + cintura bajando = ganando
+        # músculo y perdiendo grasa a la vez (el mejor escenario posible).
+        if (tc is not None and tc <= -0.2 and abs(t) <= 0.3
+                and enf.clave in ("recomposicion", "powerbuilding", "fuerza")):
+            color = ACCENT
+            msg = (f"RECOMPOSICIÓN EN MARCHA 🎯: peso casi plano ({t:+.2f}%/sem) pero la "
+                   f"cintura baja {tc:+.1f} cm/sem — estás perdiendo grasa y ganando músculo "
+                   "a la vez. No cambies nada.")
+        elif tc is not None:
+            msg += f" Cintura: {tc:+.1f} cm/semana."
         estado = _card([
             html.Div("Semáforo calórico", style={"color": color, "fontWeight": "700",
                                                  "fontSize": "14px", "marginBottom": "6px"}),
@@ -895,19 +966,31 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
         dcc.Tab(label="Peso corporal", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
             children=html.Div([
                 _card([
-                    html.Label("Peso de hoy (kg)", style=_LABEL_STYLE),
                     html.Div([
-                        dcc.Input(id="peso-input", type="number", min=30, max=250,
-                                  step=0.1, placeholder="p. ej. 74.6",
-                                  style={"padding": "9px 12px", "height": "42px",
-                                         "boxSizing": "border-box", "width": "160px"}),
+                        html.Div([
+                            html.Label("Peso de hoy (kg)", style=_LABEL_STYLE),
+                            dcc.Input(id="peso-input", type="number", min=30, max=250,
+                                      step=0.1, placeholder="p. ej. 74.6",
+                                      style={"padding": "9px 12px", "height": "42px",
+                                             "boxSizing": "border-box", "width": "150px",
+                                             "display": "block", "marginTop": "6px"}),
+                        ]),
+                        html.Div([
+                            html.Label("Cintura (cm, opcional)", style=_LABEL_STYLE),
+                            dcc.Input(id="cintura-input", type="number", min=40, max=200,
+                                      step=0.5, placeholder="a la altura del ombligo",
+                                      style={"padding": "9px 12px", "height": "42px",
+                                             "boxSizing": "border-box", "width": "190px",
+                                             "display": "block", "marginTop": "6px"}),
+                        ]),
                         html.Button("Registrar", id="peso-guardar", n_clicks=0,
-                                    className="gym-btn"),
-                    ], style={"display": "flex", "gap": "12px", "alignItems": "center",
-                              "marginTop": "8px", "flexWrap": "wrap"}),
-                    html.P("Pésate en ayunas, después del baño y con la misma báscula. "
-                           "Un día alto o bajo no significa nada: lo que pilota las kcal "
-                           "es la media de 7 días.",
+                                    className="gym-btn", style={"alignSelf": "flex-end"}),
+                    ], style={"display": "flex", "gap": "14px", "alignItems": "flex-end",
+                              "flexWrap": "wrap"}),
+                    html.P("Pésate en ayunas, después del baño y con la misma báscula; "
+                           "la cintura 1-2 veces por semana, a la altura del ombligo y sin "
+                           "apretar. En recomposición la báscula puede quedarse plana "
+                           "mientras la cintura baja: eso es GANAR, no estancarte.",
                            style={"color": MUTED, "fontSize": "12px", "marginTop": "10px",
                                   "marginBottom": "0"}),
                 ]),
@@ -1177,11 +1260,13 @@ def _subir_plan(n_clicks):
     Output("peso-panel", "children"),
     Input("peso-guardar", "n_clicks"),
     State("peso-input", "value"),
+    State("cintura-input", "value"),
     prevent_initial_call=True,
 )
-def _guardar_peso_cb(n_clicks, peso):
+def _guardar_peso_cb(n_clicks, peso, cintura):
     if peso and 30 <= float(peso) <= 250:
-        _registrar_peso(float(peso))
+        cin = float(cintura) if cintura and 40 <= float(cintura) <= 200 else None
+        _registrar_peso(float(peso), cin)
         # mantiene los macros (g/día) y el motor alineados con el peso real
         guardar_config({"peso_corporal": float(peso)})
     return _panel_peso()
