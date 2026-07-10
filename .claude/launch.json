@@ -4,7 +4,10 @@
     {
       "name": "dashboard",
       "runtimeExecutable": "python-engine/.venv/Scripts/python.exe",
-      "runtimeArgs": ["python-engine/dashboard.py"],
+      "runtimeArgs": [
+        "-c",
+        "import sys, os; os.chdir('python-engine'); sys.path.insert(0, '.'); import dashboard; dashboard.app.run(host='127.0.0.1', port=8050)"
+      ],
       "port": 8050
     }
   ]
