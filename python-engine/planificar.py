@@ -402,7 +402,8 @@ def main() -> None:
               "Se adelanta la semana de descarga.")
         semana = 5
 
-    filas = generar_filas(historial, semana_inicio, semana)
+    # el mesociclo de la semana OBJETIVO define la rotacion de ejercicios
+    filas = generar_filas(historial, semana_inicio, semana, plan=obtener_plan(objetivo))
 
     tipo = "DELOAD" if semana == 5 else f"S{semana}/4"
     print(f"Semana objetivo {semana_inicio} | Mesociclo: {tipo} | {len(filas)} filas")

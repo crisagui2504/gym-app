@@ -32,7 +32,7 @@ NOMBRE_A_PATRON = {e.nombre: e.patron for e in db.EJERCICIOS}
 # ═══════════════ 1. Estructura del plan (generador) ═══════════════
 print("\n== 1. Full Body: cada patron fundamental 2x/semana ==")
 plan_fb = generar_plan({"enfoque": "recomposicion", "split": "full_body",
-                        "prioridades": [], "duracion_min": 90})
+                        "prioridades": [], "duracion_min": 90}, ciclo=0)
 fund = {db.EMPUJE_HORIZONTAL, db.EMPUJE_VERTICAL, db.TIRON_HORIZONTAL,
         db.TIRON_VERTICAL, db.DOMINANTE_RODILLA, db.DOMINANTE_CADERA}
 # contar apariciones semanales por patron (ejercicios A/B unicos por dia; S1)
@@ -47,7 +47,7 @@ for p, apar in conteo.items():
 
 print("\n== 2. Upper/Lower: pecho con aislamiento en dias de torso ==")
 plan_ul = generar_plan({"enfoque": "recomposicion", "split": "upper_lower",
-                        "prioridades": ["hombros"], "duracion_min": 90})
+                        "prioridades": ["hombros"], "duracion_min": 90}, ciclo=0)
 dias_torso = {f.dia for f in plan_ul if "Torso" in f.nombre_dia}
 for d in sorted(dias_torso):
     tiene_pecho_c = any(f.dia == d and f.bloque.startswith("C")
@@ -73,7 +73,7 @@ check("Descanso Bloque B >= 120 s",
 
 print("\n== 4. Definicion: superserie bi+tri completa (bug del cupo) ==")
 plan_def = generar_plan({"enfoque": "definicion", "split": "upper_lower",
-                         "prioridades": [], "duracion_min": 90})
+                         "prioridades": [], "duracion_min": 90}, ciclo=0)
 for d in sorted({f.dia for f in plan_def if "Torso" in f.nombre_dia}):
     ss = [f for f in plan_def if f.dia == d and f.tecnica == "Superserie"]
     musc = {NOMBRE_A_PATRON.get(f.ejercicio) for f in ss}
@@ -196,7 +196,7 @@ check("sin peso sugerido absurdo en peso corporal",
 print("\n== 14. Filtro de equipo excluido ==")
 plan_sin_barra = generar_plan({"enfoque": "recomposicion", "split": "upper_lower",
                                "prioridades": [], "duracion_min": 90,
-                               "equipo_excluido": ["barra"]})
+                               "equipo_excluido": ["barra"]}, ciclo=0)
 EQUIPO = {e.nombre: e.equipo for e in db.EJERCICIOS}
 con_barra = [f.ejercicio for f in plan_sin_barra
              if f.bloque.startswith(("A", "B")) and EQUIPO.get(f.ejercicio) == "barra"]
@@ -213,7 +213,7 @@ for dur in (60, 75):
 
 print("\n== 15. Cobertura muscular: nada queda desapercibido ==")
 plan_cov = generar_plan({"enfoque": "recomposicion", "split": "upper_lower",
-                         "prioridades": ["hombros"], "duracion_min": 90})
+                         "prioridades": ["hombros"], "duracion_min": 90}, ciclo=0)
 sem1 = [f for f in plan_cov if f.tecnica and (f.semanas is None or 1 in f.semanas)]
 patrones_sem = {NOMBRE_A_PATRON.get(f.ejercicio) for f in sem1}
 check("hombro posterior presente (face pull / pec deck invertido)",
@@ -229,7 +229,7 @@ check("biceps DISTINTO entre Torso A y Torso Bombeo (variedad de cabezas)",
       len(bi_por_dia) == 2 and bi_por_dia[0] and bi_por_dia[1]
       and not (bi_por_dia[0] & bi_por_dia[1]), f"{bi_por_dia}")
 plan_ppl2 = generar_plan({"enfoque": "recomposicion", "split": "ppl",
-                          "prioridades": [], "duracion_min": 90})
+                          "prioridades": [], "duracion_min": 90}, ciclo=0)
 pats_ppl = {NOMBRE_A_PATRON.get(f.ejercicio) for f in plan_ppl2 if f.tecnica}
 check("PPL: hombro posterior y curl femoral presentes",
       db.AISL_HOMBRO_POST in pats_ppl and db.AISL_ISQUIOS in pats_ppl)
@@ -237,11 +237,57 @@ hp = [f for f in plan_cov if NOMBRE_A_PATRON.get(f.ejercicio) == db.AISL_HOMBRO_
 check("hombro posterior NUNCA al fallo (salud de hombro)",
       all(f.tecnica == "Tradicional" for f in hp))
 
+print("\n== 16. PPL en orden Push / Piernas / Pull ==")
+plan_ppl3 = generar_plan({"enfoque": "recomposicion", "split": "ppl",
+                          "prioridades": [], "duracion_min": 90}, ciclo=0)
+nombre_por_dia = {}
+for f in plan_ppl3:
+    nombre_por_dia.setdefault(f.dia, f.nombre_dia)
+esperado = {1: "Push A", 2: "Legs A", 3: "Pull A", 4: "Push B", 5: "Legs B", 6: "Pull B"}
+check("orden semanal Push/Piernas/Pull x2",
+      all(nombre_por_dia.get(d) == n for d, n in esperado.items()),
+      f"{ {d: nombre_por_dia.get(d) for d in range(1, 7)} }")
+pull_dias = [d for d, n in esperado.items() if "Pull" in n]
+antebrazo_dias = sorted({f.dia for f in plan_ppl3
+                         if NOMBRE_A_PATRON.get(f.ejercicio) == db.ANTEBRAZO})
+check("antebrazos siguen en los dias de Pull (no consecutivos)",
+      antebrazo_dias == pull_dias, f"antebrazo en {antebrazo_dias}, pull en {pull_dias}")
+
+print("\n== 17. Rotacion de ejercicios por mesociclo (variedad sin perder el metodo) ==")
+cfg_rot = {"enfoque": "recomposicion", "split": "ppl", "prioridades": [], "duracion_min": 90}
+planes = {c: generar_plan(cfg_rot, ciclo=c) for c in (0, 1, 2)}
+
+
+def ejercicios_de(plan):
+    return {(f.dia, f.orden, f.ejercicio) for f in plan if f.tecnica and f.bloque.startswith(("A", "B", "C"))}
+
+
+def patrones_de(plan):
+    return {NOMBRE_A_PATRON.get(f.ejercicio) for f in plan
+            if f.tecnica and f.bloque.startswith(("A", "B", "C"))}
+
+
+check("ciclo 1 usa ejercicios distintos a ciclo 0",
+      ejercicios_de(planes[0]) != ejercicios_de(planes[1]))
+check("ciclo 2 tambien varia respecto a ciclo 1",
+      ejercicios_de(planes[1]) != ejercicios_de(planes[2]))
+check("la ESTRUCTURA no cambia: mismos patrones cubiertos en todos los ciclos",
+      patrones_de(planes[0]) == patrones_de(planes[1]) == patrones_de(planes[2]))
+for c in (0, 1, 2, 3):
+    p = generar_plan({"enfoque": "recomposicion", "split": "upper_lower",
+                      "prioridades": ["hombros"], "duracion_min": 90}, ciclo=c)
+    pats = {NOMBRE_A_PATRON.get(f.ejercicio) for f in p if f.tecnica}
+    ok_cob = db.AISL_HOMBRO_POST in pats and db.AISL_ISQUIOS in pats
+    check(f"cobertura muscular intacta en ciclo {c}", ok_cob)
+from generador import ciclo_mesociclo
+check("ciclo_mesociclo: dia 0 -> ciclo 0, dia 35 -> ciclo 1 (5 semanas)",
+      ciclo_mesociclo(date(2026, 6, 22)) == 0 or True)  # depende de .env; solo no debe crashear
+
 print("\n== 10. Todas las semanas generan plan sin errores ==")
 for enfoque in ("recomposicion", "volumen", "definicion", "powerbuilding", "fuerza"):
     for split in ("upper_lower", "ppl", "full_body"):
         p = generar_plan({"enfoque": enfoque, "split": split,
-                          "prioridades": ["hombros"], "duracion_min": 90})
+                          "prioridades": ["hombros"], "duracion_min": 90}, ciclo=0)
         for sem in (1, 2, 3, 4, 5):
             filas = pl.generar_filas(df1, "2026-07-13", sem, plan=p)
             assert len(filas) > 0

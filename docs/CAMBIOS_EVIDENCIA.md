@@ -410,6 +410,33 @@ femoral presentes cada semana (U/L y PPL), bíceps distinto entre los dos días
 de torso, hombro posterior nunca al fallo, y brazos directos conservados
 incluso con recorte a 60 y 75 minutos.
 
+---
+
+# Sexta tanda — orden Push/Piernas/Pull y rotación por mesociclo
+
+## W. PPL en orden Push · Piernas · Pull
+
+A petición del usuario, el split PPL pasa de Push/Pull/Legs a
+**Push/Piernas/Pull** (×2, domingo libre): el día de pierna separa las dos
+sesiones de torso, de modo que hombros, codos y agarre llegan más recuperados
+a cada sesión de empuje/tirón. Los antebrazos siguen anclados a los días de
+Pull (miércoles y sábado, no consecutivos).
+
+## X. Rotación de ejercicios por mesociclo (anti-tedio con método)
+
+Cada mesociclo de 5 semanas el generador **rota al siguiente ejercicio
+preferido** de cada patrón (press militar → Arnold → militar con barra → …,
+con envoltura circular). El algoritmo, los patrones, los bloques y la
+progresión no cambian — solo el ejercicio concreto que ocupa cada hueco.
+
+**Fundamento**: la variación de ejercicios produce un desarrollo más uniforme
+de la musculatura que repetir siempre el mismo movimiento (Fonseca 2014,
+ref. 16), y la adherencia — el mejor predictor de resultados — mejora cuando
+el plan no es tedioso. La progresión no se pierde: el historial es por
+ejercicio, así que al volver un ejercicio 5 semanas después el motor retoma
+su última marca. Verificado con pruebas: los ciclos 0–3 generan selecciones
+distintas pero **la cobertura muscular y los patrones son idénticos**.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

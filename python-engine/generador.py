@@ -36,7 +36,7 @@ LAYOUTS: dict[str, dict] = {
 # Dias de pesas (indice 0-based) que reciben trabajo de antebrazo (no consecutivos)
 ANTEBRAZO_EN_DIAS = {
     "upper_lower": [1, 2],      # Pierna A (Mar) y Torso Bombeo (Vie)
-    "ppl":         [1, 4],      # Pull A y Pull B
+    "ppl":         [2, 5],      # Pull A (Mie) y Pull B (Sab) en orden Push/Piernas/Pull
     "full_body":   [0, 2],      # FB A y FB C
 }
 
@@ -69,10 +69,38 @@ def _nota_pc(ej, nota: str) -> str:
     return nota
 
 
+def ciclo_mesociclo(fecha=None) -> int:
+    """Numero de mesociclo (0, 1, 2...) transcurrido desde MES_INICIO.
+
+    Cada ciclo dura 5 semanas (35 dias). Se usa para ROTAR la seleccion de
+    ejercicios entre mesociclos: mismo algoritmo y mismos patrones, pero el
+    siguiente ejercicio preferido de cada grupo (variacion con intencion,
+    Fonseca 2014) para que el plan no sea tedioso. La progresion no se pierde:
+    el historial es por ejercicio y se retoma donde quedo."""
+    import os
+
+    from datetime import date as _date
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        pass
+    ini = os.getenv("MES_INICIO")
+    if not ini:
+        return 0
+    try:
+        inicio = _date.fromisoformat(ini)
+    except ValueError:
+        return 0
+    hoy = fecha or _date.today()
+    return max(0, (hoy - inicio).days // 35)
+
+
 def _elegir(patron: str, bloque: str, usados: set[str], orden_pref: int = 0,
             excluidos: frozenset[str] = frozenset()):
-    """Devuelve el ejercicio mas preferido de un patron/bloque que no este usado.
-    orden_pref=1 devuelve el segundo mas preferido (para rotacion del Bloque B).
+    """Devuelve el ejercicio preferido n.º `orden_pref` de un patron/bloque que
+    no este usado (con envoltura circular: si orden_pref supera las opciones,
+    vuelve al principio — asi la rotacion por mesociclo recorre todo el pool).
     excluidos = equipo que el gym no tiene; si no queda opcion, el filtro se
     ignora antes que dejar el patron sin ejercicio."""
     todos = db.por_patron(patron, bloque)
@@ -82,12 +110,12 @@ def _elegir(patron: str, bloque: str, usados: set[str], orden_pref: int = 0,
         opciones = disponibles  # permite repetir si no hay alternativa
     if not opciones:
         return None
-    return opciones[min(orden_pref, len(opciones) - 1)]
+    return opciones[orden_pref % len(opciones)]
 
 
 def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
                con_antebrazo: bool, variante: int = 0,
-               excluidos: frozenset[str] = frozenset()) -> list[Fila]:
+               excluidos: frozenset[str] = frozenset(), ciclo: int = 0) -> list[Fila]:
     b = enf.bloque
     filas: list[Fila] = []
     usados: set[str] = set()
@@ -103,7 +131,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
     # ── BLOQUE A — Top Set + Back-off (musculo prioritario primero) ──────────
     for patron in patrones_a:
         # el 2do dia del mismo foco usa el ejercicio alternativo (variedad)
-        ej = _elegir(patron, "A", usados, orden_pref=variante, excluidos=excluidos)
+        ej = _elegir(patron, "A", usados, orden_pref=variante + ciclo, excluidos=excluidos)
         if not ej:
             continue
         usados.add(ej.nombre)
@@ -127,7 +155,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
     tecnica_b = "Drop Set" if es_bombeo and enf.clave in ("recomposicion", "volumen") else b.tecnica_b
     patrones_b = (dia.patrones_b * b.n_ejercicios_b)[:b.n_ejercicios_b]
     for patron in patrones_b:
-        ej = _elegir(patron, "B", usados, excluidos=excluidos)
+        ej = _elegir(patron, "B", usados, orden_pref=ciclo, excluidos=excluidos)
         if ej:
             usados.add(ej.nombre)
             nota_fallo = ("Ultima serie al fallo (AMRAP)." if "AMRAP" in tecnica_b else
@@ -185,7 +213,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
         # orden_pref=variante: el 2do dia del mismo foco usa el aislamiento
         # alternativo (curl EZ vs mancuernas, laterales mancuerna vs polea...)
         # para cubrir cabezas/angulos distintos, no repetir el mismo estimulo.
-        ej = _elegir(patron, "C", usados, orden_pref=variante, excluidos=excluidos)
+        ej = _elegir(patron, "C", usados, orden_pref=variante + ciclo, excluidos=excluidos)
         if not ej:
             continue
         usados.add(ej.nombre)
@@ -268,9 +296,14 @@ def _dia_descanso(dia_sem: int) -> list[Fila]:
                  "Camina 10-12k pasos. 2.5-3 L agua. Proteina. Dormir 7-9h.")]
 
 
-def generar_plan(config: dict | None = None) -> list[Fila]:
-    """Construye el plan semanal completo a partir de la config del usuario."""
+def generar_plan(config: dict | None = None, ciclo: int | None = None) -> list[Fila]:
+    """Construye el plan semanal completo a partir de la config del usuario.
+
+    ciclo = numero de mesociclo (rota la seleccion de ejercicios entre ciclos
+    de 5 semanas). None = calcularlo automaticamente desde MES_INICIO."""
     cfg = config or cargar_config()
+    if ciclo is None:
+        ciclo = ciclo_mesociclo()
     enf = ENFOQUES.get(cfg["enfoque"], ENFOQUES["recomposicion"])
     split = SPLITS.get(cfg["split"], SPLITS["upper_lower"])
     prioridades = cfg.get("prioridades", [])
@@ -287,7 +320,7 @@ def generar_plan(config: dict | None = None) -> list[Fila]:
         foco_visto[dia_plan.foco] = variante + 1
         filas += _dia_pesas(dia_plan, dia_sem, enf, prioridades,
                             con_antebrazo=i in antebrazo_dias, variante=variante,
-                            excluidos=excluidos)
+                            excluidos=excluidos, ciclo=ciclo)
 
     # Dias libres -> cardio (hasta enf.cardio_dias) y luego descanso
     for j, dia_sem in enumerate(layout["libres"]):
@@ -301,9 +334,10 @@ def generar_plan(config: dict | None = None) -> list[Fila]:
     return filas
 
 
-def obtener_plan() -> list[Fila]:
-    """Plan actual segun la config guardada. Punto de entrada para planificar.py."""
-    return generar_plan(cargar_config())
+def obtener_plan(fecha=None) -> list[Fila]:
+    """Plan actual segun la config guardada. Punto de entrada para planificar.py.
+    fecha = fecha de la semana objetivo (define que mesociclo toca)."""
+    return generar_plan(cargar_config(), ciclo=ciclo_mesociclo(fecha))
 
 
 if __name__ == "__main__":
