@@ -113,6 +113,21 @@ export class AppComponent implements OnInit, OnDestroy {
 
   readonly tecnicaActiva = signal<Tecnica | null>(null);
 
+  // Progreso de la sesion (series completadas / totales) para la barra superior
+  readonly progreso = signal<{ hechas: number; total: number; pct: number }>({ hechas: 0, total: 0, pct: 0 });
+
+  private recalcularProgreso(): void {
+    let hechas = 0;
+    let total = 0;
+    for (const e of this.ejercicios()) {
+      for (const s of e.series) {
+        total++;
+        if (s.hecho) hechas++;
+      }
+    }
+    this.progreso.set({ hechas, total, pct: total ? Math.round((hechas / total) * 100) : 0 });
+  }
+
   // Cronometro de descanso
   readonly tmrActivo = signal(false);
   readonly tmrSeg = signal(0);
@@ -166,6 +181,7 @@ export class AppComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.nombreDia.set(res.rutina.length ? res.rutina[0].nombre_dia : 'Descanso');
         this.ejercicios.set(this.agrupar(res.rutina));
+        this.recalcularProgreso();
         this.cargando.set(false);
         try {
           localStorage.setItem(cacheKey, JSON.stringify(res.rutina));
@@ -180,6 +196,7 @@ export class AppComponent implements OnInit, OnDestroy {
             const rutina = JSON.parse(cache) as EjercicioPlan[];
             this.nombreDia.set(rutina.length ? rutina[0].nombre_dia : 'Descanso');
             this.ejercicios.set(this.agrupar(rutina));
+            this.recalcularProgreso();
             this.modoOffline.set(true);
             this.mensaje.set('📡 Sin conexion: mostrando la rutina guardada en el telefono. Puedes entrenar normal; el entreno se sincronizara despues.');
             this.cargando.set(false);
@@ -603,6 +620,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   toggleSerie(ej: EjercicioVM, serie: SerieVM): void {
     serie.hecho = !serie.hecho;
+    this.recalcularProgreso();
     if (serie.hecho) this.iniciarDescanso(serie, ej.ejercicio);
   }
 

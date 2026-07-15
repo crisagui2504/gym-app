@@ -9,6 +9,12 @@
         "import sys, os; os.chdir('python-engine'); sys.path.insert(0, '.'); import dashboard; dashboard.app.run(host='127.0.0.1', port=8050)"
       ],
       "port": 8050
+    },
+    {
+      "name": "gym-angular",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd app && npx ng serve --port 4200"],
+      "port": 4200
     }
   ]
 }

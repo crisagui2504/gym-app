@@ -437,6 +437,41 @@ ejercicio, así que al volver un ejercicio 5 semanas después el motor retoma
 su última marca. Verificado con pruebas: los ciclos 0–3 generan selecciones
 distintas pero **la cobertura muscular y los patrones son idénticos**.
 
+---
+
+# Séptima tanda — rediseño mobile-first del front (iPhone)
+
+> Auditoría de UX móvil con referencias de las apps mejor valoradas (Hevy,
+> Strong) y las guías de iOS. El diagnóstico: el header apilaba 5 controles
+> —difíciles de tocar en un iPhone— y la acción más importante (Guardar) estaba
+> en la esquina superior derecha, el punto más incómodo para el pulgar.
+
+## Y. Barra de acciones inferior (zona del pulgar)
+
+Las apps líderes ponen las acciones en la mitad inferior de la pantalla, donde
+el pulgar alcanza con una mano. Ahora hay una **barra fija al fondo** con los
+toggles (Historial, Semana, Tema) y un botón grande **«Guardar entreno»**
+(52 px de alto, muy por encima del mínimo de 44 px recomendado por Apple).
+Respeta el `safe-area-inset-bottom` del iPhone. El cronómetro de descanso
+flota justo encima de ella.
+
+## Z. Barra de progreso de la sesión
+
+Bajo el header, una barra muestra **«N/M series»** completadas con relleno
+animado — patrón directo de Hevy. Da orientación (cuánto falta) y motivación;
+al llegar al 100 % muestra «¡completo! 🎉».
+
+## AA. Header simplificado + pulido táctil
+
+El header se reduce a marca + día + racha. Se añadió `touch-action:
+manipulation` (elimina el zoom por doble toque en iOS), estados `:active` con
+micro-escala en los botones, y objetivos táctiles de 52 px. Verificado en
+viewport de iPhone (375 × 812) vía dev server: barra fija anclada al fondo,
+progreso reactivo al completar series, y cronómetro por encima de la barra.
+
+**Referencias de diseño**: Hevy y Strong (apps de registro mejor valoradas en
+la App Store) y las guías de área segura y objetivos táctiles de iOS.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

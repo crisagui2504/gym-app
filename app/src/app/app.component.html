@@ -5,22 +5,19 @@
         <span class="logo">Gym<strong>Tracker</strong></span>
         <p class="eyebrow">{{ nombreDia() }}</p>
       </div>
-      <div class="top-actions">
-        <span class="streak" *ngIf="racha() > 0" title="Racha de dias">🔥 {{ racha() }}</span>
-        <button class="theme-toggle" type="button" (click)="toggleHistorial()" aria-label="Ver historial" title="Tus ultimas sesiones">
-          📓
-        </button>
-        <button class="theme-toggle" type="button" (click)="toggleSemana()" aria-label="Reprogramar la semana" title="Mover el dia de descanso">
-          📅
-        </button>
-        <button class="theme-toggle" type="button" (click)="toggleTema()" aria-label="Cambiar tema">
-          {{ tema() === 'dark' ? '☀️' : '🌙' }}
-        </button>
-        <button class="btn-primary save" type="button" (click)="guardar()" [disabled]="guardando() || ejercicios().length === 0">
-          {{ guardando() ? '...' : yaGuardadoHoy() ? 'Guardado ✓' : 'Guardar' }}
-        </button>
-      </div>
+      <span class="streak" *ngIf="racha() > 0" title="Racha de dias">🔥 {{ racha() }}</span>
     </header>
+
+    <!-- Barra de progreso de la sesion -->
+    <div class="progress-wrap" *ngIf="!cargando() && progreso().total > 0 && !esDiaDescanso()">
+      <div class="progress-track">
+        <div class="progress-fill" [style.width.%]="progreso().pct"></div>
+      </div>
+      <span class="progress-label">
+        {{ progreso().hechas }}/{{ progreso().total }} series
+        <span *ngIf="progreso().pct === 100">· ¡completo! 🎉</span>
+      </span>
+    </div>
 
     <p class="status" *ngIf="mensaje()">{{ mensaje() }}</p>
     <p class="status pendientes" *ngIf="pendientes() > 0">
@@ -210,6 +207,23 @@
       </article>
     </section>
   </div>
+
+  <!-- ===== BARRA DE ACCIONES INFERIOR (zona del pulgar) ===== -->
+  <nav class="actionbar">
+    <button class="ab-icon" type="button" (click)="toggleHistorial()" [class.on]="mostrarHistorial()" aria-label="Historial">
+      <span>📓</span><small>Historial</small>
+    </button>
+    <button class="ab-icon" type="button" (click)="toggleSemana()" [class.on]="mostrarSemana()" aria-label="Semana">
+      <span>📅</span><small>Semana</small>
+    </button>
+    <button class="ab-icon" type="button" (click)="toggleTema()" aria-label="Tema">
+      <span>{{ tema() === 'dark' ? '☀️' : '🌙' }}</span><small>Tema</small>
+    </button>
+    <button class="ab-save" type="button" (click)="guardar()" [class.done]="yaGuardadoHoy()"
+            [disabled]="guardando() || ejercicios().length === 0">
+      {{ guardando() ? 'Guardando…' : yaGuardadoHoy() ? 'Guardado ✓' : 'Guardar entreno' }}
+    </button>
+  </nav>
 
   <!-- ===== CRONOMETRO ===== -->
   <div class="timer" *ngIf="tmrActivo() || tmrSeg() > 0" [class.fin]="tmrSeg() === 0">
