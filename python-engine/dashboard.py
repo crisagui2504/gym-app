@@ -675,6 +675,7 @@ def _tabla_plan(df: pd.DataFrame) -> dash_table.DataTable | html.Div:
     df_plan = pd.DataFrame(filas)[cols]
 
     return dash_table.DataTable(
+        id="tabla-plan",
         data=df_plan.to_dict("records"),
         columns=[{"name": c.replace("_", " ").title(), "id": c} for c in cols],
         filter_action="native",
@@ -1027,11 +1028,21 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
                                  "(planificar.py) usando tu historial real.",
                                  style={"color": MUTED, "fontSize": "12px",
                                         "marginBottom": "12px"}),
-                        html.Button("⬆ Recalcular y subir plan al servidor",
-                                    id="btn-subir-plan", n_clicks=0, className="gym-btn",
-                                    style={"marginBottom": "8px"}),
+                        html.Div([
+                            html.Button("⬆ Recalcular y subir plan al servidor",
+                                        id="btn-subir-plan", n_clicks=0, className="gym-btn",
+                                        style={"marginBottom": "8px", "marginRight": "10px"}),
+                            html.Button("📋 Copiar tabla",
+                                        id="btn-copiar-plan", n_clicks=0, className="gym-btn-ghost",
+                                        style={"marginBottom": "8px"}),
+                            html.Span(id="copiar-plan-status",
+                                      style={"marginLeft": "10px", "fontSize": "13px",
+                                             "color": ACCENT, "fontWeight": "600"}),
+                        ], style={"display": "flex", "alignItems": "center", "flexWrap": "wrap"}),
                         html.Div("Corre el motor completo (historial → progresión → "
-                                 "sube a MySQL). Tarda unos segundos.",
+                                 "sube a MySQL). Tarda unos segundos. «Copiar tabla» "
+                                 "copia todo el plan al portapapeles (pégalo en Notas, "
+                                 "WhatsApp o Excel).",
                                  style={"color": MUTED, "fontSize": "11px",
                                         "marginBottom": "12px"}),
                         html.Div(id="subir-plan-status"),
@@ -1254,6 +1265,43 @@ def _subir_plan(n_clicks):
                                "padding": "10px 16px", "borderRadius": "10px",
                                "marginBottom": "12px", "fontSize": "13px",
                                "border": "1px solid rgba(255,93,122,0.3)"})
+
+
+# Copiar toda la tabla del plan al portapapeles como texto tabulado (TSV).
+# Respeta el filtro/orden activos: usa derived_virtual_data (lo que se ve).
+app.clientside_callback(
+    """
+    function(n, cols, filas) {
+        if (!n) { return ""; }
+        if (!cols || !filas || !filas.length) { return "Sin datos para copiar"; }
+        var encabezados = cols.map(function(c){ return c.name; });
+        var ids = cols.map(function(c){ return c.id; });
+        var lineas = [encabezados.join("\\t")];
+        filas.forEach(function(fila){
+            lineas.push(ids.map(function(id){
+                var v = fila[id];
+                return (v === null || v === undefined) ? "" : String(v);
+            }).join("\\t"));
+        });
+        var texto = lineas.join("\\n");
+        function ok(){ return "✓ Copiado (" + filas.length + " filas)"; }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(texto);
+            return ok();
+        }
+        var ta = document.createElement("textarea");
+        ta.value = texto; document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); } catch (e) {}
+        document.body.removeChild(ta);
+        return ok();
+    }
+    """,
+    Output("copiar-plan-status", "children"),
+    Input("btn-copiar-plan", "n_clicks"),
+    State("tabla-plan", "columns"),
+    State("tabla-plan", "derived_virtual_data"),
+    prevent_initial_call=True,
+)
 
 
 @callback(
