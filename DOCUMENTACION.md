@@ -66,7 +66,8 @@ laptop del usuario, comunicándose con el servidor por HTTP.
   datos de ejercicios y un enfoque configurable, y aplica la sobrecarga progresiva
   leyendo el historial real.
 - **Dashboard local (Dash/Plotly)**: panel de inteligencia deportiva (reemplaza Power
-  BI) con KPIs, progresión, records, estado del SNC y configuración del enfoque.
+  BI) con KPIs, progresión (con 1RM estimado), records, fatiga (RPE), peso
+  corporal + cintura, mesociclo completo y configuración del enfoque.
 - **Backend PHP + MySQL**: API REST mínima alojada en InfinityFree.
 - **Ejecutable de un clic** y scripts de build para no depender de la terminal.
 
