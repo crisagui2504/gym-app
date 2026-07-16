@@ -697,6 +697,87 @@ def _tabla_plan(df: pd.DataFrame) -> dash_table.DataTable | html.Div:
     )
 
 
+_MESO_NOMBRE = {
+    1: "S1 · Base", 2: "S2 · Rotación", 3: "S3 · Superar S1",
+    4: "S4 · Pico", 5: "S5 · Deload",
+}
+
+
+def _tabla_mesociclo(df: pd.DataFrame):
+    """Las 5 semanas del mesociclo actual, una tras otra. La ESTRUCTURA
+    (ejercicios, series, reps, tecnicas) es exacta; los PESOS son la
+    proyeccion del motor con tu historial de hoy y se reajustan cada semana
+    con tu rendimiento real."""
+    try:
+        from datetime import timedelta
+        from planificar import generar_filas, lunes_objetivo
+        from generador import ciclo_mesociclo
+        from dotenv import load_dotenv
+
+        load_dotenv()
+        inicio_env = os.getenv("MES_INICIO")
+        objetivo = (
+            date.fromisoformat(os.environ["SEMANA_SIGUIENTE"])
+            if os.getenv("SEMANA_SIGUIENTE") else lunes_objetivo()
+        )
+        inicio = date.fromisoformat(inicio_env) if inicio_env else objetivo
+        ciclo = ciclo_mesociclo(objetivo)
+        cycle_start = inicio + timedelta(days=ciclo * 35)
+
+        filas_all: list[dict] = []
+        for sem in (1, 2, 3, 4, 5):
+            fecha = cycle_start + timedelta(days=(sem - 1) * 7)
+            for f in generar_filas(df, fecha.isoformat(), sem):
+                if not f.get("tecnica"):
+                    continue
+                filas_all.append({
+                    "semana": _MESO_NOMBRE[sem],
+                    "dia_semana": f["dia_semana"],
+                    "nombre_dia": f["nombre_dia"],
+                    "bloque": f["bloque"],
+                    "ejercicio": f["ejercicio"],
+                    "tecnica": f["tecnica"],
+                    "series_objetivo": f["series_objetivo"],
+                    "reps": f'{f["reps_min"] or ""}-{f["reps_max"] or ""}'.strip("-"),
+                    "peso_sugerido": f["peso_sugerido"],
+                })
+    except Exception as exc:  # noqa: BLE001
+        return html.Div([
+            html.P(f"No se pudo calcular el mesociclo: {exc}",
+                   style={"color": WARN, "marginBottom": "8px"}),
+            html.P("Revisá que .env tenga MES_INICIO y que historial.csv tenga datos.",
+                   style={"color": MUTED, "fontSize": "13px"}),
+        ])
+
+    cols = ["semana", "dia_semana", "nombre_dia", "bloque", "ejercicio",
+            "tecnica", "series_objetivo", "reps", "peso_sugerido"]
+    df_meso = pd.DataFrame(filas_all)[cols]
+
+    return dash_table.DataTable(
+        id="tabla-meso",
+        data=df_meso.to_dict("records"),
+        columns=[{"name": c.replace("_", " ").title(), "id": c} for c in cols],
+        filter_action="native",
+        sort_action="native",
+        page_action="native",
+        page_size=30,
+        style_table={"overflowX": "auto"},
+        style_header={"backgroundColor": CARD2, "color": ACCENT,
+                      "fontWeight": "600", "border": "1px solid #2a2d3e"},
+        style_cell={"backgroundColor": CARD, "color": TEXT,
+                    "border": "1px solid #2a2d3e", "fontSize": "13px",
+                    "padding": "8px 12px"},
+        style_data_conditional=[
+            {"if": {"filter_query": '{semana} contains "Deload"'},
+             "backgroundColor": "rgba(24,179,255,0.10)"},
+            {"if": {"filter_query": '{semana} contains "Pico"'},
+             "backgroundColor": "rgba(255,192,67,0.10)"},
+            {"if": {"filter_query": '{tecnica} contains "Top Set"'},
+             "color": ACCENT, "fontWeight": "600"},
+        ],
+    )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Componentes de layout reutilizables
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1051,6 +1132,36 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
                 ]),
             ], style={"padding": "16px 0"}),
         ),
+
+        # ── Tab: Mesociclo completo (5 semanas) ─────────────────────────────
+        dcc.Tab(label="Mesociclo (5 sem)", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
+            children=html.Div([
+                _card([
+                    html.Div("El mesociclo completo — las 5 semanas de un vistazo",
+                             style={"color": TEXT, "fontWeight": "600",
+                                    "fontSize": "15px", "marginBottom": "4px"}),
+                    html.Div([
+                        html.Span("La ", style={"color": MUTED}),
+                        html.Span("estructura", style={"color": TEXT, "fontWeight": "600"}),
+                        html.Span(" (ejercicios, series, reps, técnicas) es exacta. Los ",
+                                  style={"color": MUTED}),
+                        html.Span("pesos", style={"color": TEXT, "fontWeight": "600"}),
+                        html.Span(" son la proyección con tu historial de hoy y se "
+                                  "reajustan cada semana con tu rendimiento real "
+                                  "(sobrecarga progresiva). Filtrá por «Semana» para "
+                                  "ver una sola.", style={"color": MUTED}),
+                    ], style={"fontSize": "12px", "marginBottom": "10px"}),
+                    html.Div([
+                        html.Button("📋 Copiar mesociclo",
+                                    id="btn-copiar-meso", n_clicks=0, className="gym-btn-ghost"),
+                        html.Span(id="copiar-meso-status",
+                                  style={"marginLeft": "10px", "fontSize": "13px",
+                                         "color": ACCENT, "fontWeight": "600"}),
+                    ], style={"marginBottom": "12px"}),
+                    _tabla_mesociclo(df),
+                ]),
+            ], style={"padding": "16px 0"}),
+        ),
     ], style={"display": "flex", "flexWrap": "wrap", "gap": "2px",
               "borderBottom": f"1px solid {LINE}", "marginBottom": "4px"})
 
@@ -1300,6 +1411,40 @@ app.clientside_callback(
     Input("btn-copiar-plan", "n_clicks"),
     State("tabla-plan", "columns"),
     State("tabla-plan", "derived_virtual_data"),
+    prevent_initial_call=True,
+)
+
+# Mismo copiado para la tabla del mesociclo completo.
+app.clientside_callback(
+    """
+    function(n, cols, filas) {
+        if (!n) { return ""; }
+        if (!cols || !filas || !filas.length) { return "Sin datos para copiar"; }
+        var ids = cols.map(function(c){ return c.id; });
+        var lineas = [cols.map(function(c){ return c.name; }).join("\\t")];
+        filas.forEach(function(fila){
+            lineas.push(ids.map(function(id){
+                var v = fila[id];
+                return (v === null || v === undefined) ? "" : String(v);
+            }).join("\\t"));
+        });
+        var texto = lineas.join("\\n");
+        function ok(){ return "✓ Copiado (" + filas.length + " filas)"; }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(texto);
+            return ok();
+        }
+        var ta = document.createElement("textarea");
+        ta.value = texto; document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); } catch (e) {}
+        document.body.removeChild(ta);
+        return ok();
+    }
+    """,
+    Output("copiar-meso-status", "children"),
+    Input("btn-copiar-meso", "n_clicks"),
+    State("tabla-meso", "columns"),
+    State("tabla-meso", "derived_virtual_data"),
     prevent_initial_call=True,
 )
 

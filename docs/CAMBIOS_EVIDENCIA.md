@@ -614,6 +614,40 @@ accesorio seguro (extensión lumbar en máquina). Verificado en los 3 ciclos y
 en las 45 combinaciones de la simulación: ninguna sesión apila más de 2
 bisagras axiales, sin introducir huecos ni bajar el volumen fuera de rango.
 
+---
+
+# Undécima tanda — vista del mesociclo completo + automatización semanal
+
+## AL. Pestaña «Mesociclo (5 sem)» en el dashboard
+
+Nueva vista que muestra las **5 semanas del mesociclo actual** de un vistazo
+(S1 base · S2 rotación · S3 superar S1 · S4 pico · S5 deload), con día,
+bloque, ejercicio, técnica, series, reps y peso. La **estructura es exacta**;
+los **pesos son la proyección** con el historial de hoy y se reajustan cada
+semana con el rendimiento real. Se puede filtrar por «Semana» y copiar toda la
+tabla al portapapeles. Las filas de Deload y Pico van resaltadas.
+
+Aclara la duda de por qué el plan se calcula semana a semana: la sobrecarga
+progresiva y el deload reactivo dependen del rendimiento REAL de cada semana,
+así que los pesos no se pueden fijar el mes entero por adelantado — pero la
+estructura sí es previsible, y ahora se puede ver completa.
+
+## AM. Automatización semanal (`motor_semanal.bat` + tarea programada)
+
+- **`motor_semanal.bat`**: lanzador que se sitúa en `python-engine/` y corre
+  `motor_semanal.py` con el Python del venv (descarga historial → recalcula →
+  sube el plan). Sirve también para probar con doble clic.
+- **Tarea programada de Windows** «GymTracker Semanal»: corre el .bat los
+  **domingos a las 20:00** (en la sesión del usuario, sin admin). El domingo el
+  motor calcula la semana que arranca el lunes con el rendimiento real de la
+  semana que termina.
+
+Para cambiar la hora o quitarla:
+```
+schtasks /Change /TN "GymTracker Semanal" /ST 21:30   (nueva hora)
+schtasks /Delete /TN "GymTracker Semanal" /F          (eliminarla)
+```
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
