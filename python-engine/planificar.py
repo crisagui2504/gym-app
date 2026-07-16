@@ -148,6 +148,15 @@ def ultimas_y_records(df: pd.DataFrame) -> tuple[dict, dict, set]:
     return ultima, record, estancados
 
 
+def dias_desde_ultimo(df: pd.DataFrame, objetivo: date) -> int | None:
+    """Días entre el último entreno registrado y el lunes de la semana objetivo.
+    None si no hay historial."""
+    if df.empty or "fecha_entreno" not in df or df["fecha_entreno"].notna().sum() == 0:
+        return None
+    ultimo = df["fecha_entreno"].max().date()
+    return (objetivo - ultimo).days
+
+
 def fatiga_global(df: pd.DataFrame) -> bool:
     """Deload reactivo global: RPE promedio semanal >= 9 en las ultimas 2
     semanas con datos. Es la misma senal que muestra el dashboard en la
@@ -225,7 +234,7 @@ def nota_semana(semana: int) -> str:
 
 
 def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
-                  plan: list[Fila] | None = None) -> list[dict]:
+                  plan: list[Fila] | None = None, reingreso: bool = False) -> list[dict]:
     ultima, record, estancados = ultimas_y_records(df)
     filas: list[dict] = []
     top_del_dia: dict[tuple[int, str], float | None] = {}
@@ -295,6 +304,12 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                 reps_min_out = (f.reps_min or 0) + delta
                 reps_max_out = f.reps_max + delta
                 nota = f"Sube el objetivo: {reps_min_out}-{reps_max_out} reps. {nota or ''}".strip()
+
+        # ── Deload de REINGRESO: tras >10 dias de pausa, la vuelta es suave.
+        # Reduce la carga ~10% para reacostumbrar tejidos y SNC sin lesionarte.
+        if reingreso and peso and peso > 0:
+            peso = redondear(peso * 0.9)
+            nota = f"REINGRESO: -10% de carga tras la pausa. Sube la proxima semana. {nota or ''}".strip()[:255]
 
         # ── S5 Deload: reducir a 1 serie en Bloque A y B ────────────────────
         series_real = 1 if semana == 5 and "C -" not in f.bloque and f.tecnica else f.series
@@ -395,6 +410,17 @@ def main() -> None:
     sesion = sesion_infinityfree(base_url)
     historial = descargar_historial(sesion, base_url, token)
 
+    # Deload de REINGRESO: si pasaron mas de 10 dias sin entrenar (enfermedad,
+    # viaje, faltas), la primera semana de vuelta es deload con carga reducida.
+    # Es el escenario mas probable de lesion: volver con el peso de antes.
+    reingreso = False
+    gap = dias_desde_ultimo(historial, objetivo)
+    if gap is not None and gap > 10:
+        print(f"DELOAD DE REINGRESO: {gap} dias desde el ultimo entreno. "
+              "Semana de vuelta suave (volumen de deload + carga -10%).")
+        semana = 5
+        reingreso = True
+
     # Deload reactivo global: si la fatiga acumulada es alta (RPE semanal >= 9
     # dos semanas seguidas), se adelanta la descarga sin esperar a la S5.
     if semana != 5 and fatiga_global(historial):
@@ -403,7 +429,8 @@ def main() -> None:
         semana = 5
 
     # el mesociclo de la semana OBJETIVO define la rotacion de ejercicios
-    filas = generar_filas(historial, semana_inicio, semana, plan=obtener_plan(objetivo))
+    filas = generar_filas(historial, semana_inicio, semana,
+                          plan=obtener_plan(objetivo), reingreso=reingreso)
 
     tipo = "DELOAD" if semana == 5 else f"S{semana}/4"
     print(f"Semana objetivo {semana_inicio} | Mesociclo: {tipo} | {len(filas)} filas")

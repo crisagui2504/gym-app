@@ -533,6 +533,57 @@ def _panel_nutricion(cfg: dict) -> html.Div:
     ], {"marginTop": "16px"})
 
 
+def _mensaje_calibracion(df: pd.DataFrame):
+    """Chequeo simple de calibracion del RPE en el tiempo (unico usuario).
+    Cruza la tendencia del e1RM con el RPE reportado para detectar si te estas
+    subestimando (RPE bajo pero sin progreso) o sobre-entrenando (RPE alto sin
+    progreso). Devuelve (color, texto) o None."""
+    if df.empty or "rpe" not in df or df["rpe"].notna().sum() == 0:
+        return None
+    de = _con_e1rm(df)
+    de = de[de["e1rm"] > 0].copy()
+    if de.empty:
+        return None
+    de["semana"] = de["fecha_entreno"].dt.to_period("W").dt.start_time
+    sem_e1 = de.groupby("semana")["e1rm"].max()
+    if len(sem_e1) < 3:
+        return None
+    ult3 = sem_e1.tail(3)
+    subio = ult3.iloc[-1] > ult3.iloc[0] * 1.01  # >1% de mejora en 3 semanas
+    rpe_reciente = float(de[de["semana"] >= ult3.index[0]]["rpe"].mean())
+    if subio:
+        return None
+    if rpe_reciente < 8:
+        return (WARN, "Tu fuerza estimada (e1RM) lleva ~3 semanas sin subir pero reportás "
+                f"RPE bajo (~{rpe_reciente:.1f}). Puede que estés subestimando el esfuerzo: "
+                "si te quedan más reps de las que marcás, el motor no sube el peso. "
+                "Sé honesto con el RPE o empujá un poco más cerca del límite.")
+    if rpe_reciente >= 9:
+        return (DANGER, f"Entrenás muy duro (RPE ~{rpe_reciente:.1f}) pero la fuerza no sube en "
+                "~3 semanas: señal de fatiga acumulada. Considerá un deload, dormir más o "
+                "comer un poco más.")
+    return None
+
+
+# Prioridades que comparten patron de Bloque A (se fatigan entre si)
+_GRUPO_PATRON = {"pecho": "empuje", "hombros": "empuje",
+                 "dorsales": "tiron", "espalda": "tiron"}
+
+
+def _aviso_sinergia(prioridades: list[str]) -> str | None:
+    """Aviso si dos prioridades comparten patron biomecanico (p. ej. pecho y
+    hombros, ambos de empuje): no se pueden dar al 100% el mismo dia."""
+    grupos = [g for m in prioridades if (g := _GRUPO_PATRON.get(m))]
+    for g in set(grupos):
+        share = [m for m in prioridades if _GRUPO_PATRON.get(m) == g]
+        if len(share) >= 2:
+            return (f"⚠ Marcaste {' y '.join(share)}, que comparten el patrón de {g}. "
+                    "No podés dar el 100% a los dos el mismo día (uno fatiga al otro). "
+                    "El motor alterna cuál va primero entre los días A y B, pero si uno es "
+                    "tu verdadero punto débil, priorizá solo ese para mejores resultados.")
+    return None
+
+
 def _fig_tonelaje_semana(df: pd.DataFrame) -> go.Figure:
     if df.empty:
         return _fig_vacia()
@@ -924,6 +975,10 @@ def _resumen_enfoque(cfg: dict) -> html.Div:
                   "borderRadius": "6px"}),
         html.P(f"💡 {enf.nota}", style={"color": MUTED, "fontSize": "12px", "marginTop": "10px",
                "fontStyle": "italic"}),
+        *([html.P(aviso, style={"color": WARN, "fontSize": "12px", "marginTop": "10px",
+                                "padding": "8px 10px", "background": "rgba(255,192,67,0.10)",
+                                "borderRadius": "6px", "border": "1px solid rgba(255,192,67,0.3)"})]
+          if (aviso := _aviso_sinergia(cfg.get("prioridades", []))) else []),
         html.P("El nuevo plan ya está activo. Mirá la pestaña «Plan semana» para verlo completo. "
                "La próxima vez que corras el motor (planificar.py) usará este enfoque.",
                style={"color": MUTED, "fontSize": "12px", "marginTop": "12px"}),
@@ -1019,6 +1074,12 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
         # ── Tab 4: Fatiga percibida (RPE) ───────────────────────────────────
         dcc.Tab(label="Fatiga (RPE)", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
             children=html.Div([
+                *([_card([
+                    html.Div("🎯 Calibración de tu RPE", style={"color": _cal[0], "fontWeight": "700",
+                             "fontSize": "14px", "marginBottom": "6px"}),
+                    html.P(_cal[1], style={"color": TEXT, "fontSize": "13px", "margin": "0"}),
+                  ], {"marginBottom": "16px", "border": f"1px solid {_cal[0]}"})]
+                  if (_cal := _mensaje_calibracion(df)) else []),
                 _card(dcc.Graph(figure=_fig_rpe(df), config={"displayModeBar": False})),
                 html.Div([
                     _card([

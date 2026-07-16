@@ -449,12 +449,29 @@ function redondear(valor: number, paso = 2.5): number {
   return Math.max(paso, Math.round(valor / paso) * paso);
 }
 
-/** Series de aproximacion progresivas a partir del peso objetivo. */
+/** Series de aproximacion progresivas a partir del peso objetivo.
+ *  En cargas altas (>80 kg) inserta escalones extra para que ningun salto
+ *  supere ~15 kg: acercarse al maximo debe ser gradual, no un salto brusco
+ *  que asuste al sistema nervioso antes del Top Set. */
 export function seriesAproximacion(peso: number): Array<{ label: string; peso: number; reps: number }> {
   if (!peso || peso < 10) return [];
-  return [
-    { porcentaje: 0.5, reps: 10, label: '50%' },
-    { porcentaje: 0.7, reps: 5, label: '70%' },
-    { porcentaje: 0.9, reps: 1, label: '90%' }
-  ].map((s) => ({ label: s.label, reps: s.reps, peso: redondear(peso * s.porcentaje) }));
+  // Cargas moderadas: rampa clasica 50 / 70 / 90 %.
+  if (peso <= 80) {
+    return [
+      { frac: 0.5, reps: 10 },
+      { frac: 0.7, reps: 5 },
+      { frac: 0.9, reps: 2 }
+    ].map((s) => ({ label: Math.round(s.frac * 100) + '%', reps: s.reps, peso: redondear(peso * s.frac) }));
+  }
+  // Cargas altas: tantos escalones como haga falta para que el salto entre
+  // series (incluido el ultimo hacia el peso objetivo) no pase de ~15 kg.
+  const saltoMax = 15;
+  const n = Math.min(6, Math.max(3, Math.ceil((peso * 0.5) / saltoMax)));
+  const reps = [10, 6, 4, 3, 2, 2];
+  const sets: Array<{ label: string; peso: number; reps: number }> = [];
+  for (let i = 0; i < n; i++) {
+    const frac = 0.5 + (0.5 * i) / n; // 50 % .. justo por debajo de 100 %
+    sets.push({ label: Math.round(frac * 100) + '%', reps: reps[i], peso: redondear(peso * frac) });
+  }
+  return sets;
 }

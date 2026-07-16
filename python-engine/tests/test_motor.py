@@ -60,8 +60,20 @@ b_s1 = [f for f in plan_ul if f.bloque.startswith("B") and f.semanas == (1,)]
 b_s34 = [f for f in plan_ul if f.bloque.startswith("B") and f.semanas == (3, 4)]
 check("Bloque B tiene filas S1 sin fallo", len(b_s1) > 0 and
       all(f.tecnica == "Tradicional" for f in b_s1))
-check("Bloque B tiene filas S3-S4 con intensidad", len(b_s34) > 0 and
-      all(("AMRAP" in f.tecnica) or ("Drop" in f.tecnica) for f in b_s34))
+# S3-S4: maquina/polea -> AMRAP/Drop; peso libre (barra/mancuerna) -> RPE 9
+# tecnico (tecnica "Tradicional" con nota de fallo tecnico). Ver _intensidad_s34.
+EQ_S34 = {e.nombre: e.equipo for e in db.EJERCICIOS}
+def _intensidad_ok(f):
+    eq = EQ_S34.get(f.ejercicio, "")
+    if eq in ("barra", "mancuerna"):
+        return f.tecnica == "Tradicional" and "RPE 9" in (f.notas or "")
+    return ("AMRAP" in f.tecnica) or ("Drop" in f.tecnica)
+check("Bloque B S3-S4: AMRAP en maquina, RPE 9 tecnico en peso libre",
+      len(b_s34) > 0 and all(_intensidad_ok(f) for f in b_s34),
+      f"{[(f.ejercicio, f.tecnica) for f in b_s34 if not _intensidad_ok(f)]}")
+check("peso libre NUNCA lleva AMRAP en S3-S4 (fallo tecnico, no muscular)",
+      not any(EQ_S34.get(f.ejercicio) in ("barra","mancuerna") and "AMRAP" in f.tecnica
+              for f in b_s34))
 c_s12 = [f for f in plan_ul if f.bloque.startswith("C") and f.semanas == (1, 2)]
 c_s34 = [f for f in plan_ul if f.bloque.startswith("C") and f.semanas == (3, 4)]
 check("Bloque C: aislamiento tradicional en S1-S2", len(c_s12) > 0 and
@@ -399,6 +411,46 @@ check("ningun submusculo clave queda sin estimulo semanal",
       "; ".join(v for v in violaciones if v.startswith("HUECO"))[:300])
 print("   picos por submusculo:",
       {k: round(v, 1) for k, v in sorted(picos.items(), key=lambda x: -x[1])[:8]})
+
+print("\n== 21. Periodizacion ondulante del Top Set por mesociclo ==")
+from generador import _ondular_reps
+check("recomp 6-8 ondula: c0(6,8) c1(4,6) c2(8,10)",
+      _ondular_reps((6,8),0)==(6,8) and _ondular_reps((6,8),1)==(4,6) and _ondular_reps((6,8),2)==(8,10))
+check("fuerza 1-3 NO ondula (rango de fuerza estable)",
+      all(_ondular_reps((1,3),c)==(1,3) for c in (0,1,2)))
+rangos_ts = {}
+for c in (0,1,2):
+    p = generar_plan({"enfoque":"recomposicion","split":"ppl","prioridades":[],"duracion_min":90}, ciclo=c)
+    ts = next(f for f in p if f.bloque.startswith("A") and "Top" in (f.tecnica or ""))
+    rangos_ts[c] = (ts.reps_min, ts.reps_max)
+check("el Top Set real cambia de rango entre ciclos", len(set(rangos_ts.values())) >= 2, f"{rangos_ts}")
+
+print("\n== 22. Deload de reingreso tras >10 dias de pausa ==")
+hoy2 = date.today()
+def df_gap(dias):
+    d = pd.Timestamp(hoy2 - timedelta(days=dias))
+    df = pd.DataFrame([{"fecha_entreno": d, "ejercicio":"Press de Banca con Barra",
+                        "tecnica":"Top Set","numero_serie":1,"peso_kg":40.0,"reps_hechas":8,"rpe":8,
+                        "tonelaje_serie":320}])
+    df["fecha_entreno"]=pd.to_datetime(df["fecha_entreno"]); return df
+check("gap >10 dias se detecta", pl.dias_desde_ultimo(df_gap(15), hoy2) == 15)
+filas_re = pl.generar_filas(df_gap(15), hoy2.isoformat(), 5, reingreso=True)
+banca_re = [f for f in filas_re if f["ejercicio"]=="Press de Banca con Barra" and "top" in (f["tecnica"] or "").lower()]
+check("reingreso reduce la carga ~10%", banca_re and banca_re[0]["peso_sugerido"] == pl.redondear(40*0.9),
+      f"{banca_re[0]['peso_sugerido'] if banca_re else 'sin fila'}")
+check("reingreso avisa en la nota", banca_re and "REINGRESO" in (banca_re[0]["notas"] or ""))
+
+print("\n== 23. Sinergia: prioridades del mismo patron alternan entre dias A/B ==")
+plan_syn = generar_plan({"enfoque":"recomposicion","split":"ppl",
+                         "prioridades":["pecho","hombros"],"duracion_min":90}, ciclo=0)
+def primer_ej(dia):
+    return next((f.ejercicio for f in plan_syn if f.dia==dia and f.bloque.startswith("A")
+                 and "Top" in (f.tecnica or "")), None)
+push_a, push_b = primer_ej(1), primer_ej(4)
+pat_a = NOMBRE_A_PATRON.get(push_a); pat_b = NOMBRE_A_PATRON.get(push_b)
+check("Push A y Push B priorizan patrones DISTINTOS (no se fatigan igual)",
+      pat_a != pat_b and pat_a in (db.EMPUJE_HORIZONTAL, db.EMPUJE_VERTICAL)
+      and pat_b in (db.EMPUJE_HORIZONTAL, db.EMPUJE_VERTICAL), f"A={push_a} B={push_b}")
 
 print("\n== 10. Todas las semanas generan plan sin errores ==")
 for enfoque in ("recomposicion", "volumen", "definicion", "powerbuilding", "fuerza"):

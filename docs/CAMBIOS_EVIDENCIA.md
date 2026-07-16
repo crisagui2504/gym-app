@@ -691,6 +691,60 @@ rota a búlgara en S2) + curl femoral (C) + pantorrilla (C). **1 bisagra axial**
 sin Sumo ni extensiones lumbares. Verificado en las 45 combinaciones; volúmenes
 semanales dentro de rango (espalda alta 17, cuádriceps 14.8, glúteo 12.8).
 
+---
+
+# Decimotercera tanda — 6 puntos ciegos fisiológicos pulidos
+
+> Observaciones expertas (todas implementadas): fallo técnico vs muscular,
+> periodización ondulante, calentamiento por carga, sinergia de prioridades,
+> deload de reingreso y calibración de RPE.
+
+## AP. Fallo técnico vs muscular en el Bloque B (peso libre → RPE 9)
+
+En S3-S4, el AMRAP (RPE 10) solo se prescribe en **máquina, polea o peso
+corporal**, donde ir al fallo es seguro. En **peso libre (barra/mancuerna)** la
+última serie se topa en **RPE 9 (fallo técnico)**: en un peso muerto, sentadilla
+o remo, la postura (erectores, core) falla antes que el músculo objetivo, y
+empujar al fallo real es la vía directa a la lesión (`_intensidad_s34`).
+
+## AQ. Periodización ondulante entre mesociclos
+
+El rango del Top Set ondula por ciclo para evitar la acomodación del SNC:
+ciclo 0 base (6-8), ciclo 1 más pesado (4-6), ciclo 2 más ligero (8-10), y
+vuelve. Solo en rangos de hipertrofia (≥4 reps); fuerza pura (1-3) y
+powerbuilding (3-5) se mantienen estables (`_ondular_reps`). El ejercicio-ancla
+no cambia; solo la zona de intensidad.
+
+## AR. Calentamiento con saltos dinámicos según la carga
+
+`seriesAproximacion` (app) es ahora adaptativa: hasta 80 kg mantiene la rampa
+50/70/90 %; por encima inserta tantos escalones como haga falta para que **ningún
+salto supere ~15 kg** (una sentadilla de 140 kg calienta en 70→84→98→112→126→140,
+no en saltos de 28 kg que asustan al SNC antes del Top Set).
+
+## AS. Sinergia de prioridades (patrones que se fatigan entre sí)
+
+Si se marcan dos prioridades del mismo patrón (p. ej. pecho y hombros, ambos de
+empuje), el motor **alterna cuál va primero** entre los días A y B (Push A
+prioriza pecho, Push B prioriza hombros) — no se puede dar el 100 % a las dos el
+mismo día. El dashboard **avisa** al configurarlas (`_aviso_sinergia`,
+`_patron_prioritario` con `variante`).
+
+## AT. Deload de reingreso tras interrupción (el más útil)
+
+Si pasaron **más de 10 días** sin entrenar (enfermedad, viaje, faltas), la
+primera semana de vuelta es **deload automático**: volumen de descarga +
+**carga −10 %**. Es el escenario más probable de lesión —volver con el peso de
+antes tras 2-3 semanas parado— y ahora el sistema lo cubre solo, sin que tengas
+que acordarte de nada (`dias_desde_ultimo`, `generar_filas(reingreso=True)`).
+
+## AU. Calibración de RPE en el tiempo (dashboard)
+
+Chequeo en la pestaña Fatiga: si tu **e1RM lleva ~3 semanas sin subir** y
+reportás **RPE bajo (<8)**, avisa que podrías estar subestimando el esfuerzo
+(y por eso el motor no sube el peso). Si el e1RM está plano con **RPE ≥9**,
+señala fatiga acumulada (deload / dormir / comer más) — `_mensaje_calibracion`.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

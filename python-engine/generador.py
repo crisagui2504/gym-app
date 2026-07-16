@@ -49,15 +49,20 @@ ANTEBRAZO_SEMANA = {
 }
 
 
-def _patron_prioritario(dia: DiaPlan, prioridades: list[str]) -> list[str]:
-    """Reordena los patrones del Bloque A para que el musculo debil vaya primero."""
+def _patron_prioritario(dia: DiaPlan, prioridades: list[str], variante: int = 0) -> list[str]:
+    """Reordena los patrones del Bloque A para que el musculo debil vaya primero.
+
+    Sinergia: si DOS prioridades comparten el mismo dia (p. ej. pecho y hombros,
+    ambos de empuje), no se pueden dar al 100% juntas — una fatiga a la otra.
+    Se alterna cual va primero entre los dias del mismo foco (Push A prioriza
+    una, Push B la otra) via `variante`."""
     patrones = list(dia.patrones_a)
-    for musculo in prioridades:
-        patron = db.MUSCULO_A_PATRON.get(musculo)
-        if patron in patrones:
-            patrones.remove(patron)
-            patrones.insert(0, patron)
-            break
+    aplicables = [m for m in prioridades if db.MUSCULO_A_PATRON.get(m) in patrones]
+    if not aplicables:
+        return patrones
+    elegido = db.MUSCULO_A_PATRON[aplicables[variante % len(aplicables)]]
+    patrones.remove(elegido)
+    patrones.insert(0, elegido)
     return patrones
 
 
@@ -67,6 +72,34 @@ def _nota_pc(ej, nota: str) -> str:
     if ej.equipo == "peso_corporal":
         return f"{nota} Peso corporal: si superas el rango en todas las series, agrega lastre (+2.5 kg).".strip()
     return nota
+
+
+def _intensidad_s34(ej, tecnica_b: str, nota_fallo: str) -> tuple[str, str]:
+    """Técnica y nota de la última serie en S3-S4 según el equipo del ejercicio.
+
+    Fallo técnico vs muscular: en peso LIBRE (barra/mancuerna), llevar un
+    compuesto al RPE 10 real es peligroso — la postura (erectores, core) falla
+    antes que el músculo objetivo. Por eso el peso libre se topa en RPE 9
+    (fallo técnico). El AMRAP/Drop al fallo total solo se prescribe en máquina,
+    polea o peso corporal, donde ir al fallo es seguro."""
+    if ej.equipo in ("barra", "mancuerna"):
+        return "Tradicional", ("Series previas RIR 1-2. Última serie a RPE 9 "
+                               "(fallo TÉCNICO: pará si la postura se rompe, NO al fallo muscular).")
+    return tecnica_b, f"Series previas RIR 1-2. {nota_fallo}"
+
+
+def _ondular_reps(rango: tuple[int, int], ciclo: int) -> tuple[int, int]:
+    """Periodización ONDULANTE entre mesociclos: para que el mismo patrón no se
+    estanque por acomodación del SNC, el rango del Top Set ondula por ciclo —
+    ciclo%3==0 base, ==1 más pesado (-2 reps), ==2 más ligero (+2 reps).
+    Solo aplica a rangos de hipertrofia (mínimo >=4); los de fuerza pura
+    (1-3) y powerbuilding (3-5) se dejan estables."""
+    lo, hi = rango
+    if lo is None or lo < 4:
+        return rango
+    delta = {0: 0, 1: -2, 2: +2}[ciclo % 3]
+    nlo = max(3, lo + delta)
+    return (nlo, max(nlo + 1, hi + delta))
 
 
 def ciclo_mesociclo(fecha=None) -> int:
@@ -219,7 +252,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
     if dia.foco == "pierna" and variante > 0:
         patrones_a = list(dia.patrones_a)
     else:
-        patrones_a = _patron_prioritario(dia, prioridades)
+        patrones_a = _patron_prioritario(dia, prioridades, variante)
 
     # ── BLOQUE A — Top Set + Back-off (musculo prioritario primero) ──────────
     for patron in patrones_a:
@@ -229,12 +262,16 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
             continue
         usados.add(ej.nombre)
         _acumular(ej, 3, compuesto=True)  # top set (1) + back-off (2)
-        es_prio = db.MUSCULO_A_PATRON.get(prioridades[0] if prioridades else "") == patron
+        es_prio = (patron == patrones_a[0]
+                   and any(db.MUSCULO_A_PATRON.get(m) == patron for m in prioridades))
         nota_prio = f"{ej.musculo.upper()} PRIMERO. " if es_prio else ""
+        # Top Set con periodizacion ondulante por mesociclo (anti-acomodacion)
+        rt_lo, rt_hi = _ondular_reps(b.reps_top, ciclo)
+        fase = {0: "", 1: " (ciclo pesado)", 2: " (ciclo ligero)"}[ciclo % 3]
         filas.append(Fila(dia_sem, dia.nombre, "A - Fuerza maxima", orden, ej.nombre,
-                          b.tecnica_a, 1, b.reps_top[0], b.reps_top[1], DESC["top_set"],
+                          b.tecnica_a, 1, rt_lo, rt_hi, DESC["top_set"],
                           ej.peso_base,
-                          _nota_pc(ej, f"{nota_prio}Supera el Top Set de la semana pasada.")))
+                          _nota_pc(ej, f"{nota_prio}Supera el Top Set de la semana pasada.{fase}")))
         orden += 1
         filas.append(Fila(dia_sem, dia.nombre, "A - Fuerza maxima", orden, ej.nombre,
                           "Back-off", 2, b.reps_backoff[0], b.reps_backoff[1],
@@ -278,16 +315,18 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
             nota_fallo = ("Ultima serie al fallo (AMRAP)." if "AMRAP" in tecnica_b else
                           "Ultima serie Drop: fallo -> -20% -> fallo." if "Drop" in tecnica_b else "")
             if nota_fallo:
-                # S1: base sin fallo; S3-S4: se agrega la tecnica de intensidad
+                # S1: base sin fallo; S3-S4: tecnica de intensidad, pero con
+                # fallo TECNICO (RPE 9) si es peso libre — ver _intensidad_s34
+                tec_s34, nota_s34 = _intensidad_s34(ej, tecnica_b, nota_fallo)
                 filas.append(Fila(dia_sem, dia.nombre, "B - Volumen", orden, ej.nombre,
                                   "Tradicional", b.series_b, b.reps_b[0], b.reps_b[1],
                                   DESC["volumen"], ej.peso_base,
                                   _nota_pc(ej, "Deja 1-2 reps en reserva (RIR 1-2)."),
                                   semanas=(1,)))
                 filas.append(Fila(dia_sem, dia.nombre, "B - Volumen", orden, ej.nombre,
-                                  tecnica_b, b.series_b, b.reps_b[0], b.reps_b[1],
+                                  tec_s34, b.series_b, b.reps_b[0], b.reps_b[1],
                                   DESC["volumen"], ej.peso_base,
-                                  _nota_pc(ej, f"Series previas RIR 1-2. {nota_fallo}"),
+                                  _nota_pc(ej, nota_s34),
                                   semanas=(3, 4)))
             else:
                 filas.append(Fila(dia_sem, dia.nombre, "B - Volumen", orden, ej.nombre,
