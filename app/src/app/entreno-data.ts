@@ -47,6 +47,15 @@ export function norm(texto: string): string {
     .replace(/[̀-ͯ]/g, '');
 }
 
+/** Matching de clave con limite de palabra: evita falsos positivos como
+ *  'lateral' dentro de 'unilateral' (que clasificaba un jalon como hombro
+ *  y ofrecia elevaciones laterales de alternativa). La clave puede ser
+ *  multi-palabra; se exige que empiece y termine en frontera de palabra. */
+export function contieneClave(texto: string, clave: string): boolean {
+  const esc = clave.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${esc}([^a-z0-9]|$)`).test(texto);
+}
+
 /** Musculos principales de un ejercicio segun su nombre. El primero es el primario. */
 export function musculosDe(nombre: string): MuscleId[] {
   const n = norm(nombre);
@@ -54,7 +63,7 @@ export function musculosDe(nombre: string): MuscleId[] {
   const add = (m: MuscleId) => {
     if (!s.includes(m)) s.push(m);
   };
-  const tiene = (...claves: string[]) => claves.some((k) => n.includes(k));
+  const tiene = (...claves: string[]) => claves.some((k) => contieneClave(n, k));
 
   if (tiene('curl de isquios', 'curl femoral')) {
     add('isquios');
@@ -184,7 +193,7 @@ export interface Alternativa {
 function grupoDe(nombre: string): GrupoFn | null {
   const n = norm(nombre);
   for (const c of CATALOGO) {
-    if (c.claves.some((k) => n.includes(k))) return c.grupo;
+    if (c.claves.some((k) => contieneClave(n, k))) return c.grupo;
   }
   return null;
 }

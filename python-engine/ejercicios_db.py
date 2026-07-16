@@ -74,7 +74,7 @@ EJERCICIOS: list[Ejercicio] = [
     Ejercicio("Remo en Punta (T-Bar)",             TIRON_HORIZONTAL, "dorsales", "barra",     ("B",), None, 5),
 
     # ===================== TIRON VERTICAL (dorsal ancho) ======================
-    Ejercicio("Jalon al Pecho Agarre Amplio",      TIRON_VERTICAL, "dorsales", "polea",     ("B",), None, 1),
+    Ejercicio("Jalon al Pecho Agarre Amplio",      TIRON_VERTICAL, "dorsales", "polea",     ("A", "B"), None, 1),
     Ejercicio("Dominadas",                         TIRON_VERTICAL, "dorsales", "peso_corporal", ("A", "B"), None, 2),
     Ejercicio("Jalon Unilateral en Polea",         TIRON_VERTICAL, "dorsales", "polea",     ("B",), None, 3),
     Ejercicio("Jalon Agarre Neutro",               TIRON_VERTICAL, "dorsales", "polea",     ("B",), None, 4),
@@ -173,6 +173,123 @@ MUSCULO_A_PATRON = {
     "gluteos":    DOMINANTE_CADERA,
     "isquios":    DOMINANTE_CADERA,
 }
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ESTIMULO POR SUBMUSCULO — la ponderacion fina que pide el balance del plan.
+#
+# Cada nodo muscular (espalda, hombro, pecho, pierna...) se divide en las
+# subregiones que la anatomia funcional distingue, y cada ejercicio declara
+# CUANTO estimula cada una, en "series efectivas" por serie realizada:
+#   1.0  = motor primario (el ejercicio existe para ese submusculo)
+#   0.75 = motor fuerte
+#   0.5  = secundario claro (sinergista con carga significativa)
+#   0.25 = accesorio (isometrico o rango parcial)
+# Criterio: anatomia funcional + literatura EMG (p. ej. remos = trapecio
+# medio/romboides con dorsal fuerte; jalones/dominadas = dorsal ancho puro;
+# press inclinado = pecho clavicular; RDL = isquios sin flexion de rodilla).
+#
+# El generador usa esto para (1) elegir el ejercicio que aporta el estimulo
+# MENOS repetido del dia (rendimientos decrecientes: dosis-respuesta) y
+# (2) simular que ninguna subregion se sobrecargue ni quede en cero.
+# ═════════════════════════════════════════════════════════════════════════════
+
+SUBMUSCULOS = {
+    "espalda": ["dorsal", "espalda_alta", "trapecio_sup", "lumbar"],
+    "hombro":  ["delt_ant", "delt_lat", "delt_post"],
+    "pecho":   ["pecho_sup", "pecho_inf"],
+    "brazo":   ["biceps", "triceps", "antebrazo"],
+    "pierna":  ["cuadriceps", "isquios", "gluteo", "aductor", "gemelo"],
+    "core":    ["abdomen"],
+}
+
+ESTIMULOS: dict[str, dict[str, float]] = {
+    # ── Empuje horizontal ────────────────────────────────────────────────────
+    "Press de Banca con Barra":           {"pecho_inf": 1.0, "delt_ant": 0.5, "triceps": 0.5},
+    "Press Inclinado con Mancuernas":     {"pecho_sup": 1.0, "delt_ant": 0.5, "triceps": 0.5},
+    "Press de Banca con Mancuernas":      {"pecho_inf": 1.0, "pecho_sup": 0.25, "delt_ant": 0.5, "triceps": 0.5},
+    "Press Inclinado con Barra":          {"pecho_sup": 1.0, "delt_ant": 0.5, "triceps": 0.5},
+    "Fondos en Paralelas":                {"pecho_inf": 1.0, "triceps": 0.75, "delt_ant": 0.5},
+    "Press Pecho en Maquina":             {"pecho_inf": 1.0, "delt_ant": 0.5, "triceps": 0.5},
+    "Pec Deck (Aperturas Maquina)":       {"pecho_inf": 1.0, "pecho_sup": 0.25},
+    "Aperturas con Mancuernas":           {"pecho_inf": 1.0, "pecho_sup": 0.25},
+    "Cruce de Poleas":                    {"pecho_inf": 1.0, "pecho_sup": 0.25},
+    # ── Empuje vertical ──────────────────────────────────────────────────────
+    "Press Militar Mancuernas (Sentado)": {"delt_ant": 1.0, "delt_lat": 0.5, "triceps": 0.5, "pecho_sup": 0.25},
+    "Press Arnold con Mancuernas":        {"delt_ant": 1.0, "delt_lat": 0.5, "triceps": 0.5},
+    "Press Militar con Barra":            {"delt_ant": 1.0, "delt_lat": 0.5, "triceps": 0.5, "trapecio_sup": 0.25},
+    "Press Hombro en Maquina":            {"delt_ant": 1.0, "delt_lat": 0.5, "triceps": 0.5},
+    # ── Tiron horizontal (remos: espalda alta con dorsal fuerte) ────────────
+    "Remo con Mancuerna a 1 Mano":        {"espalda_alta": 1.0, "dorsal": 0.75, "biceps": 0.5, "delt_post": 0.25},
+    "Remo con Barra Agarre Prono":        {"espalda_alta": 1.0, "dorsal": 0.75, "biceps": 0.5, "lumbar": 0.25},
+    "Remo en Polea Baja Agarre Neutro":   {"dorsal": 1.0, "espalda_alta": 0.75, "biceps": 0.5},
+    "Remo en Maquina Martillo":           {"espalda_alta": 1.0, "dorsal": 0.75, "biceps": 0.5},
+    "Remo en Punta (T-Bar)":              {"espalda_alta": 1.0, "dorsal": 0.75, "biceps": 0.5, "lumbar": 0.25},
+    # ── Tiron vertical (dorsal ancho casi puro) ──────────────────────────────
+    "Jalon al Pecho Agarre Amplio":       {"dorsal": 1.0, "espalda_alta": 0.25, "biceps": 0.5},
+    "Dominadas":                          {"dorsal": 1.0, "espalda_alta": 0.5, "biceps": 0.5, "abdomen": 0.25},
+    "Jalon Unilateral en Polea":          {"dorsal": 1.0, "espalda_alta": 0.25, "biceps": 0.5},
+    "Jalon Agarre Neutro":                {"dorsal": 1.0, "biceps": 0.5},
+    # ── Dominante de rodilla ─────────────────────────────────────────────────
+    "Sentadilla Libre con Barra":         {"cuadriceps": 1.0, "gluteo": 0.75, "aductor": 0.5, "lumbar": 0.25},
+    "Prensa de Piernas 45 grados":        {"cuadriceps": 1.0, "gluteo": 0.5, "aductor": 0.25},
+    "Hack Squat (Maquina)":               {"cuadriceps": 1.0, "gluteo": 0.5},
+    "Sentadilla Bulgara con Mancuernas":  {"cuadriceps": 1.0, "gluteo": 0.75, "aductor": 0.25},
+    "Zancadas con Mancuernas":            {"cuadriceps": 1.0, "gluteo": 0.75},
+    "Sentadilla con Mancuernas (Goblet)": {"cuadriceps": 1.0, "gluteo": 0.5, "abdomen": 0.25},
+    "Step Up con Mancuernas":             {"cuadriceps": 1.0, "gluteo": 0.75},
+    "Extensiones de Cuadriceps (Maquina)": {"cuadriceps": 1.0},
+    # ── Dominante de cadera ──────────────────────────────────────────────────
+    "Hip Thrust con Barra":               {"gluteo": 1.0, "isquios": 0.5, "cuadriceps": 0.25},
+    "Peso Muerto Rumano con Barra":       {"isquios": 1.0, "gluteo": 0.75, "lumbar": 0.5, "antebrazo": 0.25, "espalda_alta": 0.25},
+    "Peso Muerto Rumano con Mancuernas":  {"isquios": 1.0, "gluteo": 0.75, "lumbar": 0.5, "antebrazo": 0.25},
+    "Peso Muerto Convencional":           {"gluteo": 1.0, "isquios": 0.75, "lumbar": 0.75, "cuadriceps": 0.25, "antebrazo": 0.5},
+    "Peso Muerto Sumo con Barra":         {"gluteo": 1.0, "aductor": 0.75, "isquios": 0.5, "cuadriceps": 0.5, "lumbar": 0.5},
+    "Extensiones Lumbares en Maquina":    {"lumbar": 1.0, "gluteo": 0.5, "isquios": 0.5},
+    # ── Isquios (flexion de rodilla) ─────────────────────────────────────────
+    "Curl de Isquios Tumbado (Maquina)":  {"isquios": 1.0, "gemelo": 0.25},
+    "Curl de Isquios Sentado (Maquina)":  {"isquios": 1.0},
+    # ── Hombro lateral ───────────────────────────────────────────────────────
+    "Elevaciones Laterales Mancuernas":   {"delt_lat": 1.0, "trapecio_sup": 0.25},
+    "Elevaciones Laterales Polea Baja":   {"delt_lat": 1.0, "trapecio_sup": 0.25},
+    "Elevaciones Laterales en Maquina":   {"delt_lat": 1.0, "trapecio_sup": 0.25},
+    # ── Hombro posterior / manguito ──────────────────────────────────────────
+    "Face Pull Polea Alta":               {"delt_post": 1.0, "espalda_alta": 0.5, "trapecio_sup": 0.25},
+    "Pec Deck Invertido":                 {"delt_post": 1.0, "espalda_alta": 0.5},
+    # ── Biceps ───────────────────────────────────────────────────────────────
+    "Curl con Barra EZ":                  {"biceps": 1.0, "antebrazo": 0.25},
+    "Curl con Mancuernas":                {"biceps": 1.0, "antebrazo": 0.25},
+    "Curl Martillo con Mancuernas":       {"biceps": 0.75, "antebrazo": 0.75},
+    "Curl Polea Baja Cuerda":             {"biceps": 1.0, "antebrazo": 0.25},
+    "Curl Concentrado":                   {"biceps": 1.0},
+    # ── Triceps ──────────────────────────────────────────────────────────────
+    "Extension Triceps Polea Cuerda":     {"triceps": 1.0},
+    "Extension Triceps Polea Barra":      {"triceps": 1.0},
+    "Press Frances con Barra EZ":         {"triceps": 1.0},
+    "Extension Triceps sobre Cabeza":     {"triceps": 1.0},
+    "Fondos en Banco":                    {"triceps": 1.0, "pecho_inf": 0.25, "delt_ant": 0.25},
+    # ── Pantorrilla ──────────────────────────────────────────────────────────
+    "Elevaciones de Pantorrilla De Pie":  {"gemelo": 1.0},
+    "Elevaciones de Pantorrilla Sentado": {"gemelo": 1.0},
+    # ── Antebrazo ────────────────────────────────────────────────────────────
+    "Curl Invertido con Barra EZ":        {"antebrazo": 1.0, "biceps": 0.5},
+    "Farmer's Carry":                     {"antebrazo": 1.0, "trapecio_sup": 0.5, "abdomen": 0.25},
+    "Curl de Muneca con Barra (Flexores)": {"antebrazo": 1.0},
+    "Curl de Muneca Inverso (Extensores)": {"antebrazo": 1.0},
+    "Pinzamiento de Disco":               {"antebrazo": 1.0},
+    "Rodillo de Muneca (Wrist Roller)":   {"antebrazo": 1.0},
+    # ── Core ─────────────────────────────────────────────────────────────────
+    "Plancha Frontal":                    {"abdomen": 1.0},
+    "Elevaciones de Piernas Colgado":     {"abdomen": 1.0, "antebrazo": 0.25},
+    "Crunch en Polea Alta":               {"abdomen": 1.0},
+    "Rueda Abdominal":                    {"abdomen": 1.0, "dorsal": 0.25},
+}
+
+
+def estimulo_de(e: Ejercicio) -> dict[str, float]:
+    """Perfil de estimulo por submusculo de un ejercicio (con fallback seguro
+    al musculo primario si un ejercicio nuevo aun no esta ponderado)."""
+    return ESTIMULOS.get(e.nombre, {e.musculo: 1.0})
+
 
 # Etiquetas legibles de patrones (para el dashboard)
 PATRON_LABEL = {

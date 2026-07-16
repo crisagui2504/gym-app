@@ -221,11 +221,18 @@ SPLITS: dict[str, Split] = {
             DiaPlan("Legs A", "pierna",
                     [P.DOMINANTE_RODILLA, P.DOMINANTE_CADERA], [P.DOMINANTE_RODILLA],
                     [P.AISL_ISQUIOS, P.PANTORRILLA, P.DOMINANTE_RODILLA]),
+            # B = tiron HORIZONTAL, no vertical: repetir el vertical producia
+            # dominadas + jalon el mismo dia (mismo dorsal ancho, estimulo casi
+            # identico). Los remos tienen mas variedad interna (espalda alta /
+            # dorsal segun agarre) y el vertical ya tiene su top set pesado.
             DiaPlan("Pull A", "pull",
-                    [P.TIRON_HORIZONTAL, P.TIRON_VERTICAL], [P.TIRON_VERTICAL],
+                    [P.TIRON_HORIZONTAL, P.TIRON_VERTICAL], [P.TIRON_HORIZONTAL],
                     [P.AISL_BICEPS, P.AISL_HOMBRO_POST]),
+            # B = empuje HORIZONTAL: repetir el vertical duplicaba el deltoides
+            # anterior (2 presses de hombro seguidos); el pecho, en cambio, es
+            # el musculo con menos volumen del plan y tiene angulos distintos.
             DiaPlan("Push B", "push",
-                    [P.EMPUJE_HORIZONTAL, P.EMPUJE_VERTICAL], [P.EMPUJE_VERTICAL],
+                    [P.EMPUJE_HORIZONTAL, P.EMPUJE_VERTICAL], [P.EMPUJE_HORIZONTAL],
                     [P.AISL_HOMBRO, P.AISL_TRICEPS]),
             DiaPlan("Legs B", "pierna",
                     [P.DOMINANTE_CADERA, P.DOMINANTE_RODILLA], [P.DOMINANTE_CADERA],

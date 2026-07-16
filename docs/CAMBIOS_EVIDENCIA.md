@@ -472,6 +472,68 @@ progreso reactivo al completar series, y cronómetro por encima de la barra.
 **Referencias de diseño**: Hevy y Strong (apps de registro mejor valoradas en
 la App Store) y las guías de área segura y objetivos táctiles de iOS.
 
+---
+
+# Octava tanda — ponderación por submúsculos y selección anti-redundancia
+
+> Reporte de la usuaria: "hoy me pedía dominadas y el siguiente ejercicio
+> jalón al pecho" (mismo dorsal ancho, estímulo casi idéntico) y "jalón
+> unilateral con alternativa elevaciones laterales" (absurdo funcional).
+> Ambos confirmados en el código y corregidos de raíz.
+
+## AB. Taxonomía de submúsculos con ponderación (`ejercicios_db.py`)
+
+Cada nodo muscular se divide en sus subregiones funcionales (espalda →
+dorsal / espalda alta / trapecio superior / lumbar; hombro → anterior /
+lateral / posterior; pecho → clavicular / esternal; pierna → cuádriceps /
+isquios / glúteo / aductor / gemelo…) y **cada ejercicio declara cuánto
+estimula cada una** en series efectivas (1.0 primario · 0.75 fuerte ·
+0.5 secundario · 0.25 accesorio), según anatomía funcional y literatura EMG.
+Ya no existe "espalda y ya": las dominadas son dorsal 1.0 + espalda alta 0.5
++ bíceps 0.5; un remo es espalda alta 1.0 + dorsal 0.75.
+
+## AC. Selección por ganancia marginal (anti-redundancia)
+
+Los bloques B y C ya no eligen "el preferido del patrón" a ciegas: cada día
+lleva un **acumulador de estímulo por submúsculo**, y el candidato elegido es
+el que más estímulo aporta donde MENOS se ha acumulado (retornos decrecientes,
+la forma matemática de la dosis-respuesta). El peso del músculo objetivo
+manda (v²) y los casi-empates los resuelve el orden canónico + rotación del
+mesociclo. El Bloque A mantiene selección estable (progresión comparable).
+
+## AD. Tope de saturación por sesión (anti-sobrecarga)
+
+Si añadir un ejercicio dejaría TODOS sus submúsculos primarios por encima de
+~10 series efectivas en la sesión, el slot se omite: era volumen basura.
+Las simulaciones lo confirmaron: los picos bajaron de 14.0 (cuádriceps y
+espalda alta en los combos de Volumen y Fuerza) a ≤12.
+
+## AE. Rediseño de los días Pull/Push del PPL
+
+La causa raíz de "dominadas + jalón": el día Pull llevaba tirón vertical en
+el Bloque A **y** en el B. Ahora el B acumula en el patrón con más variedad
+interna (remos: espalda alta/dorsal según agarre; presses de pecho: ángulos),
+el jalón pesado es top set del segundo día de pull, y en días de Drop Set se
+excluye el peso corporal (no se puede bajar −20 % a unas dominadas). Además
+los aislamientos del Bloque C **no se repiten en la semana**.
+
+## AF. Fix del clasificador del front ("unilateral" ≠ "lateral")
+
+Las claves se buscaban por subcadena: "jalón **unilateral**" contenía
+"lateral" → la app lo clasificaba como hombro y ofrecía elevaciones laterales
+como alternativa. Ahora el matching exige **límites de palabra**. Verificado
+en navegador: el Jalón Unilateral ofrece "Jalón al Pecho / Dominadas" y su
+mapa muscular pinta dorsales/trapecios/bíceps.
+
+## AG. Simulaciones automáticas (el "que no vuelva a pasar")
+
+30 combinaciones (5 enfoques × 3 splits × 2 ciclos) se simulan en cada corrida
+de tests: (1) ningún submúsculo supera 12.5 series efectivas por sesión,
+(2) ningún submúsculo clave queda sin estímulo semanal, (3) máximo un tirón
+vertical y un empuje vertical por día, (4) ningún aislamiento se repite
+idéntico en la semana. Los picos reales quedaron en: isquios 12.0,
+cuádriceps 11.8, espalda alta 11.5 — dentro del techo útil.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

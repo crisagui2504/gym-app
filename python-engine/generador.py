@@ -96,11 +96,46 @@ def ciclo_mesociclo(fecha=None) -> int:
     return max(0, (hoy - inicio).days // 35)
 
 
+# Techo util de series efectivas por submusculo y sesion (~8-10 duras; margen
+# para el estimulo indirecto). Pasado esto, mas series son volumen basura:
+# fatiga sin estimulo adicional (dosis-respuesta con techo por sesion).
+PROYECCION_MAX = 10.0
+
+
+def _saturado(ej, acumulado: dict[str, float], series: float) -> bool:
+    """True si anadir este ejercicio dejaria TODOS sus submusculos primarios
+    por encima del techo de la sesion — seria sobrecargar sin ganancia."""
+    primarios = [(s, v) for s, v in db.estimulo_de(ej).items() if v >= 0.75]
+    return bool(primarios) and all(
+        acumulado.get(s, 0.0) + v * series > PROYECCION_MAX for s, v in primarios)
+
+
+def _ganancia(ej, acumulado: dict[str, float]) -> float:
+    """Estimulo marginal que aporta un candidato dado lo YA acumulado en el dia.
+
+    Cada submusculo rinde con retornos decrecientes (dosis-respuesta): una
+    serie sobre un musculo fresco vale mas que sobre uno ya castigado. Asi,
+    tras unas dominadas (dorsal), un remo (espalda alta) gana a otro jalon
+    (dorsal de nuevo) — el problema real que reporto la usuaria.
+
+    v al cuadrado: manda el musculo OBJETIVO del ejercicio; las etiquetas
+    accesorias (0.25) casi no puntuan. Redondeo a 0.1: los casi-empates los
+    resuelve el orden canonico de preferencia + rotacion del mesociclo."""
+    return round(sum(v * v / (1.0 + acumulado.get(s, 0.0))
+                     for s, v in db.estimulo_de(ej).items()), 1)
+
+
 def _elegir(patron: str, bloque: str, usados: set[str], orden_pref: int = 0,
-            excluidos: frozenset[str] = frozenset()):
-    """Devuelve el ejercicio preferido n.º `orden_pref` de un patron/bloque que
-    no este usado (con envoltura circular: si orden_pref supera las opciones,
-    vuelve al principio — asi la rotacion por mesociclo recorre todo el pool).
+            excluidos: frozenset[str] = frozenset(),
+            acumulado: dict[str, float] | None = None):
+    """Devuelve el mejor ejercicio de un patron/bloque que no este usado.
+
+    - Sin `acumulado`: rotacion pura por preferencia (orden_pref, circular) —
+      se usa en el Bloque A para que los basicos pesados sean estables y la
+      progresion sea comparable semana a semana.
+    - Con `acumulado`: se elige el candidato con MAYOR ganancia marginal de
+      estimulo por submusculo (evita redundancia tipo dominadas + jalon);
+      los empates se resuelven por el orden de rotacion del mesociclo.
     excluidos = equipo que el gym no tiene; si no queda opcion, el filtro se
     ignora antes que dejar el patron sin ejercicio."""
     todos = db.por_patron(patron, bloque)
@@ -110,16 +145,31 @@ def _elegir(patron: str, bloque: str, usados: set[str], orden_pref: int = 0,
         opciones = disponibles  # permite repetir si no hay alternativa
     if not opciones:
         return None
-    return opciones[orden_pref % len(opciones)]
+    idx = orden_pref % len(opciones)
+    if acumulado is None:
+        return opciones[idx]
+    # orden rotado como desempate estable (max devuelve el primero que empata)
+    rotadas = opciones[idx:] + opciones[:idx]
+    return max(rotadas, key=lambda e: _ganancia(e, acumulado))
 
 
 def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
                con_antebrazo: bool, variante: int = 0,
-               excluidos: frozenset[str] = frozenset(), ciclo: int = 0) -> list[Fila]:
+               excluidos: frozenset[str] = frozenset(), ciclo: int = 0,
+               usados_c_semana: set[str] | None = None) -> list[Fila]:
     b = enf.bloque
     filas: list[Fila] = []
     usados: set[str] = set()
     orden = 1
+
+    # Estimulo acumulado del dia por submusculo (en series efectivas):
+    # cada ejercicio elegido lo alimenta y los bloques B/C lo usan para
+    # elegir el candidato que MENOS repita lo ya trabajado.
+    est_dia: dict[str, float] = {}
+
+    def _acumular(ej, series: float) -> None:
+        for sub, v in db.estimulo_de(ej).items():
+            est_dia[sub] = est_dia.get(sub, 0.0) + v * series
 
     # En piernas, el 2do dia del foco respeta el orden de diseno del split
     # (Pierna A = rodilla primero; Pierna Bombeo = cadera primero).
@@ -135,6 +185,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
         if not ej:
             continue
         usados.add(ej.nombre)
+        _acumular(ej, 3)  # top set (1) + back-off (2)
         es_prio = db.MUSCULO_A_PATRON.get(prioridades[0] if prioridades else "") == patron
         nota_prio = f"{ej.musculo.upper()} PRIMERO. " if es_prio else ""
         filas.append(Fila(dia_sem, dia.nombre, "A - Fuerza maxima", orden, ej.nombre,
@@ -154,10 +205,19 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
     es_bombeo = "Bombeo" in dia.nombre or "B" == dia.nombre[-1:]
     tecnica_b = "Drop Set" if es_bombeo and enf.clave in ("recomposicion", "volumen") else b.tecnica_b
     patrones_b = (dia.patrones_b * b.n_ejercicios_b)[:b.n_ejercicios_b]
+    # en dias de Drop Set el candidato debe permitir bajar el peso -20%:
+    # los ejercicios de peso corporal (dominadas, fondos) quedan fuera
+    excl_b = excluidos | frozenset({"peso_corporal"}) if "Drop" in tecnica_b else excluidos
     for patron in patrones_b:
-        ej = _elegir(patron, "B", usados, orden_pref=ciclo, excluidos=excluidos)
+        ej = _elegir(patron, "B", usados, orden_pref=ciclo, excluidos=excl_b,
+                     acumulado=est_dia)
+        if ej and _saturado(ej, est_dia, b.series_b):
+            # todo candidato util ya esta al tope de la sesion: mas series de
+            # esto seria volumen basura -> el slot se omite (anti-sobrecarga)
+            continue
         if ej:
             usados.add(ej.nombre)
+            _acumular(ej, b.series_b)
             nota_fallo = ("Ultima serie al fallo (AMRAP)." if "AMRAP" in tecnica_b else
                           "Ultima serie Drop: fallo -> -20% -> fallo." if "Drop" in tecnica_b else "")
             if nota_fallo:
@@ -213,10 +273,15 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
         # orden_pref=variante: el 2do dia del mismo foco usa el aislamiento
         # alternativo (curl EZ vs mancuernas, laterales mancuerna vs polea...)
         # para cubrir cabezas/angulos distintos, no repetir el mismo estimulo.
-        ej = _elegir(patron, "C", usados, orden_pref=variante + ciclo, excluidos=excluidos)
+        ej = _elegir(patron, "C", usados | (usados_c_semana or set()),
+                     orden_pref=variante + ciclo, excluidos=excluidos,
+                     acumulado=est_dia)
         if not ej:
             continue
         usados.add(ej.nombre)
+        if usados_c_semana is not None:
+            usados_c_semana.add(ej.nombre)  # variedad: no repetir el aislamiento en la semana
+        _acumular(ej, b.series_c)
         extra = " Extra hombro (frecuencia 4x/sem)." if patron == db.AISL_HOMBRO and "hombros" in prioridades else ""
         reps_lo, reps_hi = (15, 20) if patron in (db.PANTORRILLA, db.AISL_HOMBRO_POST) else b.reps_c
 
@@ -313,6 +378,10 @@ def generar_plan(config: dict | None = None, ciclo: int | None = None) -> list[F
 
     filas: list[Fila] = []
 
+    # Aislamientos ya usados en la semana: el Bloque C no repite el mismo
+    # ejercicio entre dias (variedad real de angulos/cabezas dentro de la semana)
+    usados_c_semana: set[str] = set()
+
     # Dias de pesas (variante = cuantas veces ya aparecio ese foco -> variedad de ejercicio)
     foco_visto: dict[str, int] = {}
     for i, (dia_plan, dia_sem) in enumerate(zip(split.dias_pesas, layout["pesas"])):
@@ -320,7 +389,8 @@ def generar_plan(config: dict | None = None, ciclo: int | None = None) -> list[F
         foco_visto[dia_plan.foco] = variante + 1
         filas += _dia_pesas(dia_plan, dia_sem, enf, prioridades,
                             con_antebrazo=i in antebrazo_dias, variante=variante,
-                            excluidos=excluidos, ciclo=ciclo)
+                            excluidos=excluidos, ciclo=ciclo,
+                            usados_c_semana=usados_c_semana)
 
     # Dias libres -> cardio (hasta enf.cardio_dias) y luego descanso
     for j, dia_sem in enumerate(layout["libres"]):

@@ -283,6 +283,79 @@ from generador import ciclo_mesociclo
 check("ciclo_mesociclo: dia 0 -> ciclo 0, dia 35 -> ciclo 1 (5 semanas)",
       ciclo_mesociclo(date(2026, 6, 22)) == 0 or True)  # depende de .env; solo no debe crashear
 
+print("\n== 18. Anti-redundancia (reporte: dominadas + jalon el mismo dia) ==")
+for c in (0, 1, 2):
+    plan_p = generar_plan({"enfoque": "recomposicion", "split": "ppl",
+                           "prioridades": [], "duracion_min": 90}, ciclo=c)
+    sem1p = [f for f in plan_p if f.tecnica and f.bloque.startswith(("A", "B"))
+             and (f.semanas is None or 1 in f.semanas)]
+    ok_dup = True
+    detalle_dup = ""
+    for d in sorted({f.dia for f in sem1p}):
+        ejs = {f.ejercicio for f in sem1p if f.dia == d}
+        n_tv = sum(1 for e in ejs if NOMBRE_A_PATRON.get(e) == db.TIRON_VERTICAL)
+        n_ev = sum(1 for e in ejs if NOMBRE_A_PATRON.get(e) == db.EMPUJE_VERTICAL)
+        if n_tv > 1 or n_ev > 1:
+            ok_dup = False
+            detalle_dup = f"dia {d}: {ejs}"
+    check(f"ciclo {c}: max 1 tiron vertical y 1 empuje vertical por dia (A+B)",
+          ok_dup, detalle_dup)
+
+print("\n== 19. Aislamientos SIN repetirse en la semana (variedad real) ==")
+plan_v = generar_plan({"enfoque": "recomposicion", "split": "ppl",
+                       "prioridades": [], "duracion_min": 90}, ciclo=0)
+vistos_c: dict[str, list] = {}
+for f in plan_v:
+    if f.bloque.startswith("C -") and f.tecnica and (f.semanas is None or 1 in f.semanas):
+        if NOMBRE_A_PATRON.get(f.ejercicio) == db.ANTEBRAZO:
+            continue  # el antebrazo rota por semana del mesociclo, no por dia
+        vistos_c.setdefault(f.ejercicio, []).append(f.dia)
+repetidos = {e: ds for e, ds in vistos_c.items() if len(set(ds)) > 1}
+check("ningun aislamiento identico en 2 dias de la semana", not repetidos, f"{repetidos}")
+
+print("\n== 20. SIMULACION: sobrecarga y cobertura por submusculo (30 combos) ==")
+EJ_MAP = {e.nombre: e for e in db.EJERCICIOS}
+CLAVE_COBERTURA = ["dorsal", "espalda_alta", "delt_lat", "delt_post", "biceps",
+                   "triceps", "cuadriceps", "isquios", "gluteo", "gemelo", "abdomen"]
+violaciones: list[str] = []
+picos: dict[str, float] = {}
+for enfoque_s in ("recomposicion", "volumen", "definicion", "powerbuilding", "fuerza"):
+    for split_s in ("upper_lower", "ppl", "full_body"):
+        for c in (0, 1):
+            p = generar_plan({"enfoque": enfoque_s, "split": split_s,
+                              "prioridades": [], "duracion_min": 90}, ciclo=c)
+            sem = [f for f in p if f.tecnica and f.bloque.startswith(("A", "B", "C"))
+                   and (f.semanas is None or 1 in f.semanas)]
+            por_dia: dict = {}
+            semana_tot: dict = {}
+            for f in sem:
+                e = EJ_MAP.get(f.ejercicio)
+                if not e:
+                    continue
+                for sub, v in db.estimulo_de(e).items():
+                    por_dia.setdefault(f.dia, {}).setdefault(sub, 0.0)
+                    por_dia[f.dia][sub] += v * float(f.series)
+                    semana_tot[sub] = semana_tot.get(sub, 0.0) + v * float(f.series)
+            for d, subs in por_dia.items():
+                for sub, tot in subs.items():
+                    picos[sub] = max(picos.get(sub, 0.0), tot)
+                    if tot > 12.5:
+                        violaciones.append(f"SOBRECARGA {enfoque_s}/{split_s}/c{c} dia {d}: {sub}={tot:.1f}")
+            for sub in CLAVE_COBERTURA:
+                if semana_tot.get(sub, 0.0) < 1.5:
+                    violaciones.append(f"HUECO {enfoque_s}/{split_s}/c{c}: {sub}={semana_tot.get(sub, 0.0):.1f}")
+            pecho_tot = semana_tot.get("pecho_inf", 0.0) + semana_tot.get("pecho_sup", 0.0)
+            if pecho_tot < 2.0:
+                violaciones.append(f"HUECO {enfoque_s}/{split_s}/c{c}: pecho={pecho_tot:.1f}")
+check("ningun submusculo pasa de 12.5 series efectivas por sesion",
+      not any(v.startswith("SOBRECARGA") for v in violaciones),
+      "; ".join(v for v in violaciones if v.startswith("SOBRECARGA"))[:300])
+check("ningun submusculo clave queda sin estimulo semanal",
+      not any(v.startswith("HUECO") for v in violaciones),
+      "; ".join(v for v in violaciones if v.startswith("HUECO"))[:300])
+print("   picos por submusculo:",
+      {k: round(v, 1) for k, v in sorted(picos.items(), key=lambda x: -x[1])[:8]})
+
 print("\n== 10. Todas las semanas generan plan sin errores ==")
 for enfoque in ("recomposicion", "volumen", "definicion", "powerbuilding", "fuerza"):
     for split in ("upper_lower", "ppl", "full_body"):
