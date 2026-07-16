@@ -101,6 +101,32 @@ def ciclo_mesociclo(fecha=None) -> int:
 # fatiga sin estimulo adicional (dosis-respuesta con techo por sesion).
 PROYECCION_MAX = 10.0
 
+# Tope de ejercicios COMPUESTOS (Bloque A+B) por region en una misma sesion.
+# Evita el problema que reporto la usuaria: 3 presses de pecho el mismo dia
+# (2 de ellos planos = estimulo casi identico). Cada region grande tiene un
+# maximo de compuestos utiles por sesion segun su tamano y n de subregiones:
+#   pecho     -> 2 presses (uno plano + uno inclinado, no tres)
+#   press_hombro -> 1 (no hacen falta 2 press verticales)
+#   espalda   -> 3 (jalon + 2 remos; tiene mas subregiones)
+#   cuadriceps-> 2  |  cadera -> 3 (gluteo+isquios+aductor)
+_REGION_SUB = {
+    "pecho_inf": "pecho", "pecho_sup": "pecho",
+    "delt_ant": "press_hombro",
+    "dorsal": "espalda", "espalda_alta": "espalda", "trapecio_sup": "espalda",
+    "cuadriceps": "cuadriceps",
+    "gluteo": "cadera", "isquios": "cadera", "aductor": "cadera", "lumbar": "cadera",
+}
+REGION_CAP = {"pecho": 2, "press_hombro": 1, "espalda": 3, "cuadriceps": 2, "cadera": 3}
+
+
+def _region_de(ej) -> str | None:
+    """Region de un ejercicio segun su submusculo PRIMARIO (el de mayor peso)."""
+    est = db.estimulo_de(ej)
+    if not est:
+        return None
+    primario = max(est, key=est.get)
+    return _REGION_SUB.get(primario)
+
 
 def _saturado(ej, acumulado: dict[str, float], series: float) -> bool:
     """True si anadir este ejercicio dejaria TODOS sus submusculos primarios
@@ -166,10 +192,16 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
     # cada ejercicio elegido lo alimenta y los bloques B/C lo usan para
     # elegir el candidato que MENOS repita lo ya trabajado.
     est_dia: dict[str, float] = {}
+    # compuestos por region en la sesion (para el tope anti-redundancia)
+    comp_region: dict[str, int] = {}
 
-    def _acumular(ej, series: float) -> None:
+    def _acumular(ej, series: float, compuesto: bool = False) -> None:
         for sub, v in db.estimulo_de(ej).items():
             est_dia[sub] = est_dia.get(sub, 0.0) + v * series
+        if compuesto:
+            reg = _region_de(ej)
+            if reg:
+                comp_region[reg] = comp_region.get(reg, 0) + 1
 
     # En piernas, el 2do dia del foco respeta el orden de diseno del split
     # (Pierna A = rodilla primero; Pierna Bombeo = cadera primero).
@@ -185,7 +217,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
         if not ej:
             continue
         usados.add(ej.nombre)
-        _acumular(ej, 3)  # top set (1) + back-off (2)
+        _acumular(ej, 3, compuesto=True)  # top set (1) + back-off (2)
         es_prio = db.MUSCULO_A_PATRON.get(prioridades[0] if prioridades else "") == patron
         nota_prio = f"{ej.musculo.upper()} PRIMERO. " if es_prio else ""
         filas.append(Fila(dia_sem, dia.nombre, "A - Fuerza maxima", orden, ej.nombre,
@@ -215,9 +247,14 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
             # todo candidato util ya esta al tope de la sesion: mas series de
             # esto seria volumen basura -> el slot se omite (anti-sobrecarga)
             continue
+        reg = _region_de(ej) if ej else None
+        if reg and comp_region.get(reg, 0) >= REGION_CAP.get(reg, 99):
+            # la region ya tiene sus compuestos utiles del dia (p.ej. 2 presses
+            # de pecho): un 3ro seria redundante -> se omite el slot
+            continue
         if ej:
             usados.add(ej.nombre)
-            _acumular(ej, b.series_b)
+            _acumular(ej, b.series_b, compuesto=True)
             nota_fallo = ("Ultima serie al fallo (AMRAP)." if "AMRAP" in tecnica_b else
                           "Ultima serie Drop: fallo -> -20% -> fallo." if "Drop" in tecnica_b else "")
             if nota_fallo:

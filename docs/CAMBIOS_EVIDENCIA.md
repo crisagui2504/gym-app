@@ -534,6 +534,54 @@ vertical y un empuje vertical por día, (4) ningún aislamiento se repite
 idéntico en la semana. Los picos reales quedaron en: isquios 12.0,
 cuádriceps 11.8, espalda alta 11.5 — dentro del techo útil.
 
+---
+
+# Novena tanda — tope de compuestos por región (no 3 presses el mismo día)
+
+> Observación de la usuaria (validada): su Push B tenía **Press de Banca Barra
+> + Press de Banca Mancuernas** en el Bloque B — dos press planos = estímulo
+> casi idéntico ("volumen basura", como lo describió su análisis). El sistema
+> de submúsculos evitaba la *sobrecarga* (pecho en 10.2, bajo el techo) pero no
+> esta *redundancia de variedad*. También se detectó espalda alta en **23
+> series efectivas/semana**, por encima del rango productivo (10-20).
+
+## AH. Tope de ejercicios compuestos por región y sesión
+
+Cada región muscular tiene ahora un máximo de compuestos (Bloque A+B) por
+sesión, según su tamaño y número de subregiones:
+
+| Región | Tope/sesión | Razón |
+|---|---|---|
+| Pecho | 2 | Un plano + un inclinado, no tres presses |
+| Press de hombro | 1 | No hacen falta dos press verticales |
+| Espalda | 3 | Jalón + 2 remos (más subregiones: dorsal / espalda alta) |
+| Cuádriceps | 2 | Sentadilla + prensa |
+| Cadera | 3 | Glúteo + isquios + aductor |
+
+Si un slot del Bloque B añadiría un compuesto por encima del tope de su
+región, se omite (era redundante). Resultado en el Push B real: pasó de
+**3 presses de pecho** (incline + 2 flat) a **2** (incline + 1 flat) + hombro
++ laterales + tríceps — exactamente la corrección que pedía el análisis.
+
+## AI. Efecto en el volumen semanal (todo en rango productivo)
+
+| Submúsculo | Antes | Ahora |
+|---|---|---|
+| Espalda alta | 23.0 (exceso) | 17.0 ✓ |
+| Dorsal | 19.5 | 15.0 ✓ |
+| Pico por sesión (espalda alta) | 11.5 | 10.0 |
+
+Ningún grande queda fuera del rango 10-20 y ningún submúsculo supera ~12
+series efectivas en una sesión. La regla se verifica sobre las 45
+combinaciones (5 enfoques × 3 splits × 3 ciclos) en cada corrida de tests.
+
+## Nota sobre "¿es un día de Push o falta la espalda?"
+
+El análisis preguntaba si faltaban los patrones de tirón. **No faltan**: en un
+split Push/Piernas/Pull, el día de empuje entrena a propósito solo pecho,
+hombro y tríceps; la espalda tiene sus dos días de Pull dedicados. Es la
+estructura del split, no un hueco.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

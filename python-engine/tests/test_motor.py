@@ -350,6 +350,27 @@ for enfoque_s in ("recomposicion", "volumen", "definicion", "powerbuilding", "fu
 check("ningun submusculo pasa de 12.5 series efectivas por sesion",
       not any(v.startswith("SOBRECARGA") for v in violaciones),
       "; ".join(v for v in violaciones if v.startswith("SOBRECARGA"))[:300])
+
+# tope de compuestos por region (no 3 presses de pecho el mismo dia)
+from generador import _region_de, REGION_CAP
+viol_reg = []
+for enf_r in ("recomposicion", "volumen", "definicion", "powerbuilding", "fuerza"):
+    for spl_r in ("upper_lower", "ppl", "full_body"):
+        for c in (0, 1, 2):
+            pr = generar_plan({"enfoque": enf_r, "split": spl_r,
+                               "prioridades": [], "duracion_min": 90}, ciclo=c)
+            comp = {}
+            for f in pr:
+                if f.tecnica and f.bloque.startswith(("A", "B")) and (f.semanas is None or 1 in f.semanas):
+                    e = EJ_MAP.get(f.ejercicio)
+                    reg = _region_de(e) if e else None
+                    if reg:
+                        comp.setdefault((f.dia, reg), set()).add(f.ejercicio)
+            for (d, reg), ejs in comp.items():
+                if len(ejs) > REGION_CAP.get(reg, 99):
+                    viol_reg.append(f"{enf_r}/{spl_r}/c{c} d{d}: {reg}={len(ejs)}")
+check("ninguna region supera su tope de compuestos por sesion (no 3 presses de pecho)",
+      not viol_reg, "; ".join(viol_reg)[:200])
 check("ningun submusculo clave queda sin estimulo semanal",
       not any(v.startswith("HUECO") for v in violaciones),
       "; ".join(v for v in violaciones if v.startswith("HUECO"))[:300])
