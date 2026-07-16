@@ -125,6 +125,11 @@ def ultimas_y_records(df: pd.DataFrame) -> tuple[dict, dict, set]:
         g = g.sort_values("fecha_entreno")
         ult_fecha = g["fecha_entreno"].max()
         sesion = g[g["fecha_entreno"] == ult_fecha]
+        # descartar series con datos numericos invalidos (historial corrupto:
+        # peso_kg o reps no numericos -> NaN). Si no queda ninguna, se omite.
+        sesion = sesion[sesion["peso_kg"].notna() & sesion["reps_hechas"].notna()]
+        if sesion.empty:
+            continue
         peso = float(sesion["peso_kg"].max())
         reps = int(sesion.loc[sesion["peso_kg"] == peso, "reps_hechas"].max())
         # RPE de trabajo: si la ultima serie fue prescrita al fallo (AMRAP,

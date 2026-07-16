@@ -260,10 +260,14 @@ SPLITS: dict[str, Split] = {
                     [P.DOMINANTE_RODILLA, P.EMPUJE_HORIZONTAL],
                     [P.TIRON_HORIZONTAL, P.DOMINANTE_CADERA],
                     [P.AISL_HOMBRO, P.AISL_BICEPS]),
+            # curl femoral en C: la flexion de rodilla no la cubre ningun
+            # compuesto (el RDL de A entrena el isquio por la cadera, no por
+            # la rodilla). Va primero para no ser recortado en enfoques de
+            # menos volumen (definicion, n_ejercicios_c=2).
             DiaPlan("Full Body B", "full",
                     [P.DOMINANTE_CADERA, P.EMPUJE_VERTICAL],
                     [P.TIRON_VERTICAL, P.DOMINANTE_RODILLA],
-                    [P.AISL_HOMBRO_POST, P.AISL_TRICEPS]),
+                    [P.AISL_ISQUIOS, P.AISL_HOMBRO_POST, P.AISL_TRICEPS]),
             DiaPlan("Full Body C", "full",
                     [P.EMPUJE_VERTICAL, P.TIRON_HORIZONTAL],
                     [P.EMPUJE_HORIZONTAL, P.TIRON_VERTICAL],

@@ -254,6 +254,22 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
     else:
         patrones_a = _patron_prioritario(dia, prioridades, variante)
 
+    # Prioridad en el Bloque B: si un musculo prioritario tiene su patron en el
+    # Bloque B de este dia (p. ej. pecho en Upper/Lower, cuyo torso lleva empuje
+    # VERTICAL en A y HORIZONTAL en B), se sube a A intercambiandolo con un
+    # patron NO prioritario, para darle el trato de compuesto pesado y fresco.
+    patrones_b_dia = list(dia.patrones_b)
+    for musculo in prioridades:
+        pat = db.MUSCULO_A_PATRON.get(musculo)
+        if pat and pat in patrones_b_dia and pat not in patrones_a:
+            cede = next((x for x in patrones_a
+                         if not any(db.MUSCULO_A_PATRON.get(m) == x for m in prioridades)), None)
+            if cede:
+                patrones_a[patrones_a.index(cede)] = pat
+                patrones_b_dia[patrones_b_dia.index(pat)] = cede
+                patrones_a.insert(0, patrones_a.pop(patrones_a.index(pat)))
+            break
+
     # ── BLOQUE A — Top Set + Back-off (musculo prioritario primero) ──────────
     for patron in patrones_a:
         # el 2do dia del mismo foco usa el ejercicio alternativo (variedad)
@@ -284,7 +300,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
     # fallo se reserva para la mitad final del mesociclo, cuando el pico lo pide.
     es_bombeo = "Bombeo" in dia.nombre or "B" == dia.nombre[-1:]
     tecnica_b = "Drop Set" if es_bombeo and enf.clave in ("recomposicion", "volumen") else b.tecnica_b
-    patrones_b = (dia.patrones_b * b.n_ejercicios_b)[:b.n_ejercicios_b]
+    patrones_b = (patrones_b_dia * b.n_ejercicios_b)[:b.n_ejercicios_b]
     # en dias de Drop Set el candidato debe permitir bajar el peso -20%:
     # los ejercicios de peso corporal (dominadas, fondos) quedan fuera
     excl_b = excluidos | frozenset({"peso_corporal"}) if "Drop" in tecnica_b else excluidos
