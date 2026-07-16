@@ -4,8 +4,13 @@
 > con arquitectura **Edge-to-Local** de tres capas (nube gratuita + cliente móvil +
 > motor local en la laptop).
 
-**Versión del documento:** 1.2 · **Última actualización:** Julio 2026
+**Versión del documento:** 1.3 · **Última actualización:** Julio 2026
 **Repositorio:** https://github.com/crisagui2504/gym-app
+
+> **v1.3**: QA exhaustivo de 80 casos (72 PASA), 3 bugs corregidos y coherencia
+> lógica↔evidencia verificada. Tesis técnica completa en
+> [`docs/Tesis_GymTracker.pdf`](docs/Tesis_GymTracker.pdf). Reporte de pruebas
+> en [`docs/RESULTADOS_PRUEBAS_QA.json`](docs/RESULTADOS_PRUEBAS_QA.json).
 
 > **v1.2 (Julio 2026)**: el motor de rutinas y progresión se ajustó a la
 > evidencia científica 2016–2025 y se sumó una capa de **inteligencia por

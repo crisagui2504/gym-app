@@ -745,6 +745,35 @@ reportás **RPE bajo (<8)**, avisa que podrías estar subestimando el esfuerzo
 (y por eso el motor no sube el peso). Si el e1RM está plano con **RPE ≥9**,
 señala fatiga acumulada (deload / dormir / comer más) — `_mensaje_calibracion`.
 
+---
+
+# Decimocuarta tanda — QA exhaustivo (80 casos) y pulido final
+
+> Plan de pruebas de 80 casos (motor, API, frontend, dashboard, límites).
+> Resultado: 72 PASA · 4 FALLA (2 de seguridad de credenciales, 1 legacy PHP,
+> 1 CSV vacío menor) · 4 BLOQUEADO (necesitan MySQL en vivo). Reporte completo
+> en [`RESULTADOS_PRUEBAS_QA.json`](RESULTADOS_PRUEBAS_QA.json).
+
+**3 bugs reales detectados y corregidos por el testeo:**
+- **Historial corrupto** (`peso_kg` no numérico → NaN) crasheaba el motor. Ahora
+  se descartan las series con datos inválidos.
+- **Full Body sin curl femoral**: la flexión de rodilla no se entrenaba en ese
+  split. Se añadió el patrón de isquios a su Bloque C.
+- **Prioridad de pecho en Upper/Lower**: no aplicaba (el pecho es Bloque B ahí).
+  Ahora una prioridad con patrón en B se sube al Bloque A.
+
+**Funciones antes sin probar, ahora verificadas:** e1RM (Epley), semáforo de
+peso + detector de recomposición, macros en gramos, calibración de RPE (ambas
+ramas), rotación de antebrazo por semana, backups fechados.
+
+**Mejora encontrada y aplicada:** el calentamiento dinámico topaba en 6
+escalones, dejando saltos de 17.5 kg en cargas muy altas (200 kg). Tope subido
+a 8; saltos ≤15 kg verificados hasta 240 kg.
+
+**Coherencia final lógica ↔ evidencia:** verificada por script — descansos,
+topes de volumen/región, bisagras axiales, rangos de reps por enfoque y guías
+de proteína/creatina, todas alineadas con la literatura citada.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
