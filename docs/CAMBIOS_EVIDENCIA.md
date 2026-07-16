@@ -582,6 +582,38 @@ split Push/Piernas/Pull, el día de empuje entrena a propósito solo pecho,
 hombro y tríceps; la espalda tiene sus dos días de Pull dedicados. Es la
 estructura del split, no un hueco.
 
+---
+
+# Décima tanda — protección lumbar (tope de bisagras axiales por sesión)
+
+> Observación de la usuaria (validada): su Legs B apilaba **3 bisagras
+> axiales** — Peso Muerto Rumano barra (A) + Peso Muerto Sumo (B) + Peso
+> Muerto Rumano mancuernas (B) = 9 series de peso muerto pesado en un día,
+> sobrecargando los erectores espinales con riesgo de lesión lumbar.
+
+## AJ. Por qué el tope de región no bastaba
+
+El tope de compuestos por región (tanda 9) permite hasta 3 en "cadera", pero
+trata igual un hip thrust (espalda apoyada, sin carga espinal) que un peso
+muerto (carga axial máxima sobre la columna). El volumen lumbar por submúsculo
+quedaba en 4.5 (bajo el techo), así que ni el techo de submúsculo ni el de
+región cazaban el problema real: la **fatiga sistémica y axial** de apilar
+varios pesos muertos.
+
+## AK. Tope de bisagras axiales (`ejercicios_db.py` + `generador.py`)
+
+Nuevo concepto **`BISAGRA_AXIAL`**: los pesos muertos y RDL (barra, mancuernas,
+convencional, sumo) cargan axialmente la columna; el hip thrust y el curl
+femoral NO. Límite de **2 bisagras axiales por sesión** (`MAX_AXIAL_SESION`).
+Al alcanzarlo, el Bloque B excluye las bisagras del pool, y el acumulador elige
+trabajo de cadena posterior sin carga espinal (hip thrust, extensión lumbar en
+máquina, curl femoral).
+
+Resultado en Legs B: de **3 pesos muertos pesados** a **2** (RDL + Sumo) + un
+accesorio seguro (extensión lumbar en máquina). Verificado en los 3 ciclos y
+en las 45 combinaciones de la simulación: ninguna sesión apila más de 2
+bisagras axiales, sin introducir huecos ni bajar el volumen fuera de rango.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

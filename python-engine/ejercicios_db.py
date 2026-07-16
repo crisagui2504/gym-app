@@ -291,6 +291,23 @@ def estimulo_de(e: Ejercicio) -> dict[str, float]:
     return ESTIMULOS.get(e.nombre, {e.musculo: 1.0})
 
 
+# Bisagras de cadera con carga AXIAL sobre la columna (erectores espinales muy
+# exigidos). Apilar varias el mismo dia es fatiga sistemica y riesgo lumbar,
+# aunque el volumen por submusculo no supere el techo. El Hip Thrust (espalda
+# apoyada) y el Curl Femoral (sin carga espinal) NO son axiales.
+BISAGRA_AXIAL: frozenset[str] = frozenset({
+    "Peso Muerto Rumano con Barra",
+    "Peso Muerto Rumano con Mancuernas",
+    "Peso Muerto Convencional",
+    "Peso Muerto Sumo con Barra",
+})
+
+
+def es_axial(e: Ejercicio) -> bool:
+    """True si el ejercicio carga axialmente la columna (peso muerto / RDL)."""
+    return e.nombre in BISAGRA_AXIAL
+
+
 # Etiquetas legibles de patrones (para el dashboard)
 PATRON_LABEL = {
     EMPUJE_HORIZONTAL: "Empuje Horizontal",

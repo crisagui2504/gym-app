@@ -371,6 +371,29 @@ for enf_r in ("recomposicion", "volumen", "definicion", "powerbuilding", "fuerza
                     viol_reg.append(f"{enf_r}/{spl_r}/c{c} d{d}: {reg}={len(ejs)}")
 check("ninguna region supera su tope de compuestos por sesion (no 3 presses de pecho)",
       not viol_reg, "; ".join(viol_reg)[:200])
+
+# tope de bisagras AXIALES por sesion (no 3 pesos muertos el mismo dia)
+from generador import MAX_AXIAL_SESION
+viol_ax = []
+for enf_a in ("recomposicion", "volumen", "definicion", "powerbuilding", "fuerza"):
+    for spl_a in ("upper_lower", "ppl", "full_body"):
+        for c in (0, 1, 2):
+            pa = generar_plan({"enfoque": enf_a, "split": spl_a,
+                               "prioridades": [], "duracion_min": 90}, ciclo=c)
+            ax_dia: dict = {}
+            for f in pa:
+                if f.tecnica and f.bloque.startswith(("A", "B")) and (f.semanas is None or 1 in f.semanas):
+                    e = EJ_MAP.get(f.ejercicio)
+                    # contar ejercicios distintos (top set marca el A; B una vez)
+                    if e and db.es_axial(e):
+                        if f.bloque.startswith("A") and "Top Set" not in (f.tecnica or ""):
+                            continue
+                        ax_dia.setdefault(f.dia, set()).add(f.ejercicio)
+            for d, ejs in ax_dia.items():
+                if len(ejs) > MAX_AXIAL_SESION:
+                    viol_ax.append(f"{enf_a}/{spl_a}/c{c} d{d}: {len(ejs)} axiales {ejs}")
+check("ninguna sesion apila mas de 2 bisagras axiales (proteccion lumbar)",
+      not viol_ax, "; ".join(viol_ax)[:200])
 check("ningun submusculo clave queda sin estimulo semanal",
       not any(v.startswith("HUECO") for v in violaciones),
       "; ".join(v for v in violaciones if v.startswith("HUECO"))[:300])

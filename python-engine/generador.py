@@ -118,6 +118,12 @@ _REGION_SUB = {
 }
 REGION_CAP = {"pecho": 2, "press_hombro": 1, "espalda": 3, "cuadriceps": 2, "cadera": 3}
 
+# Maximo de bisagras AXIALES (peso muerto / RDL) por sesion: mas de esto es
+# fatiga sistemica y riesgo lumbar aunque el volumen por submusculo cuadre.
+# El hip thrust y el curl femoral trabajan la cadena posterior SIN carga axial,
+# asi que un dia de cadena posterior sigue teniendo volumen de sobra.
+MAX_AXIAL_SESION = 2
+
 
 def _region_de(ej) -> str | None:
     """Region de un ejercicio segun su submusculo PRIMARIO (el de mayor peso)."""
@@ -194,6 +200,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
     est_dia: dict[str, float] = {}
     # compuestos por region en la sesion (para el tope anti-redundancia)
     comp_region: dict[str, int] = {}
+    axiales = {"n": 0}  # bisagras axiales usadas en la sesion (dict = mutable en closure)
 
     def _acumular(ej, series: float, compuesto: bool = False) -> None:
         for sub, v in db.estimulo_de(ej).items():
@@ -202,6 +209,8 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
             reg = _region_de(ej)
             if reg:
                 comp_region[reg] = comp_region.get(reg, 0) + 1
+            if db.es_axial(ej):
+                axiales["n"] += 1
 
     # En piernas, el 2do dia del foco respeta el orden de diseno del split
     # (Pierna A = rodilla primero; Pierna Bombeo = cadera primero).
@@ -241,7 +250,11 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
     # los ejercicios de peso corporal (dominadas, fondos) quedan fuera
     excl_b = excluidos | frozenset({"peso_corporal"}) if "Drop" in tecnica_b else excluidos
     for patron in patrones_b:
-        ej = _elegir(patron, "B", usados, orden_pref=ciclo, excluidos=excl_b,
+        # si ya se alcanzo el tope de bisagras axiales, se excluyen del pool:
+        # el acumulador elige entonces hip thrust / curl femoral (cadena
+        # posterior sin carga espinal) en vez de un 3er peso muerto pesado
+        bloq_axial = db.BISAGRA_AXIAL if axiales["n"] >= MAX_AXIAL_SESION else frozenset()
+        ej = _elegir(patron, "B", usados | bloq_axial, orden_pref=ciclo, excluidos=excl_b,
                      acumulado=est_dia)
         if ej and _saturado(ej, est_dia, b.series_b):
             # todo candidato util ya esta al tope de la sesion: mas series de
