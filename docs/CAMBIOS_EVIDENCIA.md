@@ -648,6 +648,49 @@ schtasks /Change /TN "GymTracker Semanal" /ST 21:30   (nueva hora)
 schtasks /Delete /TN "GymTracker Semanal" /F          (eliminarla)
 ```
 
+---
+
+# Duodécima tanda — "El Ancla y la Zona de Juego" + 1 sola bisagra axial
+
+> Observación experta (validada punto por punto): (1) preocupación de que la
+> rotación de la S2 rompiera la sobrecarga progresiva, y (2) el fantasma lumbar
+> en Legs B (la S2 duplicaba el peso muerto).
+
+## AN. Verificación: el modelo "Ancla y Zona de Juego" ya se cumplía
+
+Se auditó el mesociclo real y se confirmó que:
+
+- **El Bloque A es un ancla**: el mismo ejercicio pesado (Top Set + Back-off) se
+  mantiene idéntico en S1-S4 — solo cambia el peso, que es lo que permite medir
+  el 1RM estimado y los récords. La rotación **nunca** toca el Bloque A.
+- **La rotación de la S2 es por función**: `_elegir` usa el mismo patrón de
+  movimiento, así que un cambio Prensa → Búlgara conserva la función
+  biomecánica (Fonseca 2014). Es exactamente la "Zona de Juego" recomendada.
+
+Es decir, el sistema ya implementaba el modelo correcto; no hizo falta cambiar
+la rotación.
+
+## AO. Una sola bisagra axial por sesión + rediseño de la pierna de cadera
+
+El fantasma lumbar sí era real: el tope axial estaba en 2 y la rotación S2 no lo
+respetaba, así que Legs B llegaba a 2-3 pesos muertos. Cambios:
+
+- **`MAX_AXIAL_SESION = 2 → 1`**: un solo peso muerto pesado por sesión (en el
+  Bloque A). Con **corte duro** que ignora el fallback de selección: si el único
+  candidato que queda es axial, se omite el hueco antes que meter otra bisagra.
+  La rotación S2 también respeta el tope.
+- **Extensiones Lumbares → solo Bloque C**: deja de competir como compuesto de
+  volumen con los pesos muertos (la espalda baja ya trabaja estabilizando).
+- **Bloque B de la pierna de cadera = unilateral de cuádriceps/glúteo**
+  (Legs B del PPL y Pierna Bombeo del U/L): en vez de una 2ª bisagra, un
+  movimiento de rodilla (sentadilla/búlgara/zancada) que no carga la columna y
+  además da variedad real para la rotación S2.
+
+**Legs B resultante**: RDL pesado (A) + prensa (A) + cuádriceps/unilateral (B,
+rota a búlgara en S2) + curl femoral (C) + pantorrilla (C). **1 bisagra axial**,
+sin Sumo ni extensiones lumbares. Verificado en las 45 combinaciones; volúmenes
+semanales dentro de rango (espalda alta 17, cuádriceps 14.8, glúteo 12.8).
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

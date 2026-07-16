@@ -95,7 +95,9 @@ EJERCICIOS: list[Ejercicio] = [
     Ejercicio("Peso Muerto Rumano con Mancuernas", DOMINANTE_CADERA, "isquios", "mancuerna", ("A", "B"), None, 3),
     Ejercicio("Peso Muerto Convencional",          DOMINANTE_CADERA, "isquios", "barra",     ("A",), None, 4),
     Ejercicio("Peso Muerto Sumo con Barra",        DOMINANTE_CADERA, "gluteos", "barra",     ("A", "B"), None, 5),
-    Ejercicio("Extensiones Lumbares en Maquina",   DOMINANTE_CADERA, "lumbar",  "maquina",   ("B", "C"), None, 6),
+    # accesorio de lumbar, solo Bloque C: no debe competir como compuesto de
+    # volumen con los pesos muertos (la espalda baja ya trabaja estabilizando)
+    Ejercicio("Extensiones Lumbares en Maquina",   DOMINANTE_CADERA, "lumbar",  "maquina",   ("C",), None, 6),
 
     # ===================== AISLAMIENTO ISQUIOS (flexion de rodilla) ===========
     # El RDL/hip thrust NO cubre la flexion de rodilla: el curl femoral es el

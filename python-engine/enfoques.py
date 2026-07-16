@@ -203,10 +203,12 @@ SPLITS: dict[str, Split] = {
                     [P.EMPUJE_VERTICAL, P.TIRON_HORIZONTAL],
                     [P.EMPUJE_HORIZONTAL, P.TIRON_VERTICAL],
                     [P.AISL_BICEPS, P.AISL_TRICEPS, P.AISL_HOMBRO_POST, P.EMPUJE_HORIZONTAL]),
+            # igual que Legs B del PPL: Bloque B unilateral de cuadriceps/gluteo,
+            # no una 2da bisagra (proteccion lumbar + variedad para la rotacion)
             DiaPlan("Pierna Bombeo", "pierna",
                     [P.DOMINANTE_CADERA, P.DOMINANTE_RODILLA],
-                    [P.DOMINANTE_CADERA],
-                    [P.AISL_ISQUIOS, P.PANTORRILLA, P.DOMINANTE_RODILLA, P.AISL_HOMBRO]),
+                    [P.DOMINANTE_RODILLA],
+                    [P.AISL_ISQUIOS, P.PANTORRILLA, P.AISL_HOMBRO]),
         ],
     ),
     "ppl": Split(
@@ -234,8 +236,12 @@ SPLITS: dict[str, Split] = {
             DiaPlan("Push B", "push",
                     [P.EMPUJE_HORIZONTAL, P.EMPUJE_VERTICAL], [P.EMPUJE_HORIZONTAL],
                     [P.AISL_HOMBRO, P.AISL_TRICEPS]),
+            # Bloque B = unilateral de cuadriceps/gluteo (no otra bisagra): el
+            # peso muerto pesado del Bloque A ya cubre la cadena posterior, y la
+            # espalda baja no acumula carga axial redundante. Ademas da variedad
+            # real para la rotacion S2 (bulgara/zancada/step-up).
             DiaPlan("Legs B", "pierna",
-                    [P.DOMINANTE_CADERA, P.DOMINANTE_RODILLA], [P.DOMINANTE_CADERA],
+                    [P.DOMINANTE_CADERA, P.DOMINANTE_RODILLA], [P.DOMINANTE_RODILLA],
                     [P.AISL_ISQUIOS, P.PANTORRILLA]),
             DiaPlan("Pull B", "pull",
                     [P.TIRON_VERTICAL, P.TIRON_HORIZONTAL], [P.TIRON_HORIZONTAL],

@@ -118,11 +118,13 @@ _REGION_SUB = {
 }
 REGION_CAP = {"pecho": 2, "press_hombro": 1, "espalda": 3, "cuadriceps": 2, "cadera": 3}
 
-# Maximo de bisagras AXIALES (peso muerto / RDL) por sesion: mas de esto es
-# fatiga sistemica y riesgo lumbar aunque el volumen por submusculo cuadre.
-# El hip thrust y el curl femoral trabajan la cadena posterior SIN carga axial,
-# asi que un dia de cadena posterior sigue teniendo volumen de sobra.
-MAX_AXIAL_SESION = 2
+# Maximo de bisagras AXIALES (peso muerto / RDL) por sesion. Se fija en 1: UN
+# peso muerto pesado en el Bloque A (el ancla) basta; los demas huecos de cadena
+# posterior se llenan con hip thrust / curl femoral (gluteo e isquios SIN carga
+# espinal). Apilar 2-3 pesos muertos es fatiga sistemica y riesgo lumbar aunque
+# el volumen por submusculo cuadre. La espalda baja ya recibe carga estabilizando
+# la sentadilla y el peso muerto principal.
+MAX_AXIAL_SESION = 1
 
 
 def _region_de(ej) -> str | None:
@@ -256,6 +258,11 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
         bloq_axial = db.BISAGRA_AXIAL if axiales["n"] >= MAX_AXIAL_SESION else frozenset()
         ej = _elegir(patron, "B", usados | bloq_axial, orden_pref=ciclo, excluidos=excl_b,
                      acumulado=est_dia)
+        # corte DURO del tope axial: si el fallback de _elegir devolvio igual un
+        # peso muerto (no quedaban opciones no-axiales), se omite el hueco antes
+        # que meter una 2da bisagra pesada (riesgo lumbar)
+        if ej and db.es_axial(ej) and axiales["n"] >= MAX_AXIAL_SESION:
+            continue
         if ej and _saturado(ej, est_dia, b.series_b):
             # todo candidato util ya esta al tope de la sesion: mas series de
             # esto seria volumen basura -> el slot se omite (anti-sobrecarga)
@@ -288,9 +295,12 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
                                   DESC["volumen"], ej.peso_base,
                                   _nota_pc(ej, "Deja 1-2 reps en reserva (RIR 1-2)."),
                                   semanas=(1, 3, 4)))
-            # alternativo (S2) - rotacion de angulo: estimulo nuevo, sin fallo
-            alt = _elegir(patron, "B", usados, orden_pref=1, excluidos=excluidos)
-            if alt and alt.nombre != ej.nombre:
+            # alternativo (S2) - rotacion de angulo: estimulo nuevo, sin fallo.
+            # respeta el tope axial: la rotacion no debe meter un 2do peso muerto
+            bloq_axial_s2 = db.BISAGRA_AXIAL if axiales["n"] >= MAX_AXIAL_SESION else frozenset()
+            alt = _elegir(patron, "B", usados | bloq_axial_s2, orden_pref=1, excluidos=excl_b)
+            if (alt and alt.nombre != ej.nombre
+                    and not (db.es_axial(alt) and axiales["n"] >= MAX_AXIAL_SESION)):
                 filas.append(Fila(dia_sem, dia.nombre, "B - Volumen", orden, alt.nombre,
                                   "Tradicional", b.series_b, b.reps_b[0], b.reps_b[1],
                                   DESC["volumen"], alt.peso_base,

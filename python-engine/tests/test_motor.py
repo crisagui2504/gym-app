@@ -392,7 +392,7 @@ for enf_a in ("recomposicion", "volumen", "definicion", "powerbuilding", "fuerza
             for d, ejs in ax_dia.items():
                 if len(ejs) > MAX_AXIAL_SESION:
                     viol_ax.append(f"{enf_a}/{spl_a}/c{c} d{d}: {len(ejs)} axiales {ejs}")
-check("ninguna sesion apila mas de 2 bisagras axiales (proteccion lumbar)",
+check(f"ninguna sesion apila mas de {MAX_AXIAL_SESION} bisagra(s) axial(es) (proteccion lumbar)",
       not viol_ax, "; ".join(viol_ax)[:200])
 check("ningun submusculo clave queda sin estimulo semanal",
       not any(v.startswith("HUECO") for v in violaciones),
