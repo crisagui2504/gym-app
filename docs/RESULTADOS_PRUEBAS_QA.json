@@ -1,0 +1,166 @@
+{
+  "meta": {
+    "proyecto": "GymTracker",
+    "version_documento": "1.0-RESULTADOS",
+    "fecha_ejecucion": "2026-07-16",
+    "ejecutado_por": "Tester (agente) sobre el repo local; motor via scripts en python-engine/tests/test_plan_qa.py, API/frontend via revision estatica de codigo (sin MySQL en vivo).",
+    "artefactos": {
+      "script_qa_motor": "python-engine/tests/test_plan_qa.py  (35 casos GEN/PROG/MESO/LIM, reejecutable)",
+      "suite_base_1": "python-engine/tests/test_motor.py",
+      "suite_base_2": "python-engine/tests/test_funcional.py"
+    },
+    "resumen_final": {
+      "total_casos": 80,
+      "pasa": 72,
+      "falla": 4,
+      "bloqueado": 4,
+      "no_aplica": 0,
+      "fallas_criticas": [
+        "SEC-01 (CRITICA): infinityfree/api/config.php e infinityfree/conexion.php estan trackeados en git con DB_PASS, API_TOKEN, host, user y db REALES, en repo publico. No estan en .gitignore.",
+        "SEC-02 (ALTA): app/src/environments/environment.ts commiteado con el apiToken real y el dominio real."
+      ],
+      "fallas_no_criticas": [
+        "SEC-03 (MEDIA): 5 PHP legacy en infinityfree/ raiz con esquema viejo, sin marca clara de 'no subir'.",
+        "API-09 (BAJA): exportar_csv.php con historial vacio devuelve archivo vacio (sin cabeceras). El cliente (exportar_local.py) lo compensa con la constante CABECERAS."
+      ],
+      "bugs_detectados_y_corregidos_durante_el_testeo": [
+        "LIM-03: historial corrupto (peso_kg no numerico -> NaN) crasheaba ultimas_y_records ('cannot convert float NaN to integer'). CORREGIDO en planificar.py (se descartan series invalidas).",
+        "GEN-08: Full Body nunca incluia curl femoral (flexion de rodilla). CORREGIDO en enfoques.py (AISL_ISQUIOS en Bloque C del dia B).",
+        "GEN-03: la prioridad de pecho no aplicaba en Upper/Lower (pecho es patron de Bloque B alli). CORREGIDO en generador.py (una prioridad con patron en B se sube al Bloque A)."
+      ],
+      "nota_sobre_bloqueados": "Los 4 BLOQUEADO requieren un MySQL en vivo para confirmar el comportamiento en tiempo de ejecucion (conteo de filas real, cascada de FK real, round-trip de caracteres especiales, tiempo de query con historial grande). Su LOGICA quedo verificada por revision estatica del codigo y del esquema, pero no se ejecuto contra una BD."
+    }
+  },
+  "categorias": [
+    {
+      "id": "seguridad_y_configuracion",
+      "casos": [
+        {"id": "SEC-01", "prioridad": "CRITICA", "estado": "FALLA", "evidencia": "git ls-files muestra config.php y conexion.php TRACKEADOS. config.php contiene DB_HOST='sql308.infinityfree.com', DB_NAME='if0_41476828_gym_app', DB_USER='if0_41476828', DB_PASS real y API_TOKEN real.", "notas_tester": "Secretos publicos en GitHub. Remediar: rotar password MySQL + API_TOKEN en InfinityFree, sacar config.php/conexion.php del repo (gitignore + .example), y limpiar el historial de git."},
+        {"id": "SEC-02", "prioridad": "ALTA", "estado": "FALLA", "evidencia": "environment.ts trackeado con apiToken real y apiBaseUrl='https://aguilarmunoz.infinityfree.me/api'.", "notas_tester": "Mismo token que config.php expuesto. Reemplazar por environment.example.ts + gitignore."},
+        {"id": "SEC-03", "prioridad": "MEDIA", "estado": "FALLA", "evidencia": "Presentes en infinityfree/ raiz: conexion.php, get_rutina_hoy.php, guardar_entreno.php, upload_json_plan.php, generar_csv.php (esquema viejo). El build (Construir app para subir.bat) solo compila Angular y no los referencia; infinityfree/README indica subir solo api/.", "notas_tester": "No los sube el proceso documentado, pero no estan marcados como legacy/'no subir'. Recomendado eliminarlos o moverlos a una carpeta legacy/ ignorada."}
+      ]
+    },
+    {
+      "id": "generador_planes",
+      "casos": [
+        {"id": "GEN-01", "prioridad": "CRITICA", "estado": "PASA", "evidencia": "60/60 combinaciones (5 enfoques x 3 splits x 4 ciclos) generan plan con filas no nulas, sin excepcion.", "notas_tester": ""},
+        {"id": "GEN-02", "prioridad": "CRITICA", "estado": "PASA", "evidencia": "Los 6 patrones fundamentales aparecen >=2x/semana en los 3 splits (semana 1).", "notas_tester": ""},
+        {"id": "GEN-03", "prioridad": "ALTA", "estado": "PASA", "evidencia": "Tras el fix: prioridad va primero en Bloque A en los 7 musculos donde aplica. Biceps/triceps no tienen patron de Bloque A (son aislamiento) por diseno.", "notas_tester": "FALLABA en Upper/Lower para 'pecho' (patron de Bloque B). Corregido: prioridad con patron en B se sube a A (generador.py)."},
+        {"id": "GEN-04", "prioridad": "CRITICA", "estado": "PASA", "evidencia": "Sin barra en A/B al excluir barra; exclusion total (barra+mancuerna+polea+maquina) genera 72 filas via fallback de _elegir, sin crash ni lista vacia.", "notas_tester": ""},
+        {"id": "GEN-05", "prioridad": "ALTA", "estado": "PASA", "evidencia": "0 violaciones de REGION_CAP (pecho<=2, press_hombro<=1, espalda<=3, cuadriceps<=2, cadera<=3) en las 60 combinaciones.", "notas_tester": ""},
+        {"id": "GEN-06", "prioridad": "ALTA", "estado": "PASA", "evidencia": "0 sesiones apilan mas de MAX_AXIAL_SESION (=1) bisagras axiales en las 60 combinaciones. NOTA: la constante real ahora es 1 (no 2 como decia el plan), por la proteccion lumbar de la 12a tanda.", "notas_tester": "El plan asumia MAX_AXIAL=2; el codigo actual usa 1 (mas estricto). El test valida contra el valor real del codigo."},
+        {"id": "GEN-07", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "Pico maximo por sesion y submusculo = 10.0 series efectivas (techo tolerado 12.5).", "notas_tester": ""},
+        {"id": "GEN-08", "prioridad": "ALTA", "estado": "PASA", "evidencia": "Tras el fix: hombro posterior y curl femoral presentes cada semana en los 3 splits; hombro posterior siempre Tradicional (nunca fallo).", "notas_tester": "FALLABA: Full Body no incluia curl femoral. Corregido: AISL_ISQUIOS agregado al Bloque C de Full Body B (enfoques.py)."},
+        {"id": "GEN-09", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "ejercicios(ciclo0) != ejercicios(ciclo1); patrones(ciclo0)==patrones(ciclo1)==patrones(ciclo2).", "notas_tester": ""},
+        {"id": "GEN-10", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "Orden {1:Push A,2:Legs A,3:Pull A,4:Push B,5:Legs B,6:Pull B}; antebrazo en dias [3,6] (Pull A y Pull B).", "notas_tester": ""},
+        {"id": "GEN-11", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "0 aislamientos identicos repetidos entre dias de la misma semana (excluido antebrazo, que rota por semana del mesociclo).", "notas_tester": ""}
+      ]
+    },
+    {
+      "id": "motor_progresion",
+      "casos": [
+        {"id": "PROG-01", "prioridad": "CRITICA", "estado": "PASA", "evidencia": "RPE de trabajo = 8.0 (excluye la serie AMRAP a RPE 10); progresion consecuente = 42.5 kg (+2.5).", "notas_tester": ""},
+        {"id": "PROG-02", "prioridad": "ALTA", "estado": "PASA", "evidencia": "'Tradicional' y 'Tradicional + AMRAP' comparten la clave ('press de banca con barra','volumen').", "notas_tester": ""},
+        {"id": "PROG-03", "prioridad": "ALTA", "estado": "PASA", "evidencia": "peso_top_set(reps=7 en rango 6-8, RPE 7.5) = 27.5 (sin cambio, doble progresion).", "notas_tester": ""},
+        {"id": "PROG-04", "prioridad": "ALTA", "estado": "PASA", "evidencia": "peso_top_set(reps=8=max, RPE 8) = 30.0 (27.5 + microcarga 2.5).", "notas_tester": ""},
+        {"id": "PROG-05", "prioridad": "ALTA", "estado": "PASA", "evidencia": "peso_top_set(reps=4 < min 6, RPE 9) = redondear(27.5*0.95).", "notas_tester": ""},
+        {"id": "PROG-06", "prioridad": "CRITICA", "estado": "PASA", "evidencia": "S4 con reps=4/RPE9 y mes_best=30 -> redondear(27.5*0.95), NO 32.5. No fuerza PR con mal rendimiento.", "notas_tester": ""},
+        {"id": "PROG-07", "prioridad": "ALTA", "estado": "PASA", "evidencia": "S4 con reps=8/RPE8 y mes_best=30 -> 32.5 (supera el mes).", "notas_tester": ""},
+        {"id": "PROG-08", "prioridad": "ALTA", "estado": "PASA", "evidencia": "estancado=True + RPE9 -> redondear(27.5*0.9) (deload reactivo -10%).", "notas_tester": ""},
+        {"id": "PROG-09", "prioridad": "CRITICA", "estado": "PASA", "evidencia": "fatiga_global=True con 2 semanas RPE 9.5; =False con historial normal RPE~8.", "notas_tester": ""},
+        {"id": "PROG-10", "prioridad": "CRITICA", "estado": "PASA", "evidencia": "S5: sin AMRAP/Rest/Drop, 1 serie en A/B, 0 filas de 'C -' (Core/Cardio se mantienen).", "notas_tester": ""},
+        {"id": "PROG-11", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "Crunch en Polea Alta a 0kg x22: rango sube a 18-23, peso_sugerido vacio (sin numeros absurdos).", "notas_tester": ""},
+        {"id": "PROG-12", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "Nota incluye 'Anterior: 40 kg x 15'; ninguna nota supera 255 caracteres en la corrida completa.", "notas_tester": ""},
+        {"id": "PROG-13", "prioridad": "ALTA", "estado": "PASA", "evidencia": "Superserie completa o ausente en 60/75/90/120 min; 0 miembros huerfanos.", "notas_tester": ""},
+        {"id": "PROG-14", "prioridad": "ALTA", "estado": "PASA", "evidencia": "Biceps y triceps directos presentes en cada dia de torso tras recorte a 60 y 75 min.", "notas_tester": ""}
+      ]
+    },
+    {
+      "id": "mesociclo_y_deload",
+      "casos": [
+        {"id": "MESO-01", "prioridad": "CRITICA", "estado": "PASA", "evidencia": "Recomp+U/L, 5 semanas encadenadas: Top Set Press Militar = [25.0, 27.5, 30.0, 32.5, 32.5] (sube S1-S4, S5 mantiene peso con menos volumen). Sin excepcion.", "notas_tester": ""},
+        {"id": "MESO-02", "prioridad": "ALTA", "estado": "PASA", "evidencia": "Volumen+PPL, 5 semanas sin error; Bloque B con mas ejercicios que Recomposicion.", "notas_tester": ""},
+        {"id": "MESO-03", "prioridad": "ALTA", "estado": "PASA", "evidencia": "Definicion+FullBody con estancamiento simulado (RPE 9.5 fijo): estancado detectado=True, deload reactivo -> redondear(60*0.9)=53.75.", "notas_tester": ""},
+        {"id": "MESO-04", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "Powerbuilding+U/L (top set 3-5), 5 semanas coherentes sin RPE forzado a 10.", "notas_tester": ""},
+        {"id": "MESO-05", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "Fuerza+PPL (top set 1-3), 5 semanas; saltos de peso realistas (<=10kg/semana, acordes a microcarga).", "notas_tester": ""},
+        {"id": "MESO-06", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "ciclo_mesociclo: d0=0, d34=0, d35=1 (borde exacto), d70=2. Sin off-by-one.", "notas_tester": ""},
+        {"id": "MESO-07", "prioridad": "BAJA", "estado": "PASA", "evidencia": "lunes_objetivo: domingo 2026-07-19 -> 2026-07-20 (proximo lunes); miercoles 2026-07-15 -> 2026-07-13 (lunes de esa semana).", "notas_tester": ""}
+      ]
+    },
+    {
+      "id": "api_backend_php",
+      "casos": [
+        {"id": "API-01", "prioridad": "CRITICA", "estado": "PASA", "evidencia": "revision estatica: require_token() usa hash_equals(API_TOKEN, token) y responde 401 si no coincide; los 5 endpoints lo llaman tras bootstrap.", "notas_tester": "Sin MySQL no se ejecuto el 401 en vivo, pero la logica es conclusiva."},
+        {"id": "API-02", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "bootstrap.php responde 204 a OPTIONS y hace exit ANTES de que cualquier endpoint pida token.", "notas_tester": ""},
+        {"id": "API-03", "prioridad": "CRITICA", "estado": "PASA", "evidencia": "guardar_entreno.php valida $rpe<1 || $rpe>10 -> throw -> rollBack -> 400. rpe 0/11/-1 caen en el rechazo.", "notas_tester": "Revision estatica; toda la insercion va en transaccion con rollback."},
+        {"id": "API-04", "prioridad": "ALTA", "estado": "PASA", "evidencia": "count($items)===0 -> 400 'No hay series para guardar'.", "notas_tester": ""},
+        {"id": "API-05", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "isset($item['plan_id']) ? (int) : null -> plan_id ausente/null se inserta como NULL.", "notas_tester": ""},
+        {"id": "API-06", "prioridad": "ALTA", "estado": "PASA", "evidencia": "json_input(): json_decode + !is_array -> 400 'JSON invalido'. Body malformado devuelve null -> 400.", "notas_tester": ""},
+        {"id": "API-07", "prioridad": "CRITICA", "estado": "BLOQUEADO", "evidencia": "Logica idempotente por construccion (DELETE por semana_inicio + INSERT). Verificado por lectura de codigo, NO ejecutado contra MySQL (conteo real de filas tras 2 POST).", "notas_tester": "Necesita entorno con BD para confirmar el conteo en vivo."},
+        {"id": "API-08", "prioridad": "CRITICA", "estado": "BLOQUEADO", "evidencia": "schema.sql define CONSTRAINT fk_registro_plan ... ON DELETE SET NULL, asi que el historial no se borra al reemplazar el plan. Verificado en el esquema, NO ejecutada la cascada real.", "notas_tester": "Necesita BD para confirmar el SET NULL en vivo."},
+        {"id": "API-09", "prioridad": "BAJA", "estado": "FALLA", "evidencia": "exportar_csv.php escribe la fila de cabeceras DENTRO del while sobre la primera fila; con historial vacio el bucle no corre y el archivo sale VACIO (sin cabeceras).", "notas_tester": "Impacto bajo: exportar_local.py usa la constante CABECERAS como fallback cuando el texto viene vacio. Fix trivial: emitir cabeceras antes del bucle."},
+        {"id": "API-10", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "$dias = max(1, min(90, (int)($_GET['dias'] ?? 30))). default 30, dias=500 -> 90, dias=0/-5 -> 1. Bind como PDO::PARAM_INT.", "notas_tester": ""},
+        {"id": "API-11", "prioridad": "MEDIA", "estado": "BLOQUEADO", "evidencia": "fputcsv escapa comas/comillas/saltos; json_encode con JSON_UNESCAPED_UNICODE preserva emojis; prepared statements almacenan el texto crudo. Verificado por codigo, no ejecutado el round-trip real.", "notas_tester": "Necesita BD para confirmar el guardado+export+get con caracteres especiales end-to-end."},
+        {"id": "API-12", "prioridad": "ALTA", "estado": "PASA", "evidencia": "Los 5 endpoints usan prepared statements con parametros nombrados; exportar_csv.php usa un SELECT estatico sin input del usuario. 0 concatenaciones de input crudo en SQL.", "notas_tester": ""}
+      ]
+    },
+    {
+      "id": "frontend_clasificacion_ejercicios",
+      "casos": [
+        {"id": "FE-01", "prioridad": "ALTA", "estado": "PASA", "evidencia": "revision de codigo de medidaDe(): ramas para cardio (minutos), core/plancha (segundos, sin peso), carry (metros), pinzamiento (segundos), rodillo (rondas), fuerza (peso+reps+RPE), crunch en polea (peso). Clasificacion por palabras clave sin solapamiento.", "notas_tester": ""},
+        {"id": "FE-02", "prioridad": "CRITICA", "estado": "PASA", "evidencia": "contieneClave() con limite de palabra (regex de frontera): 'Jalon Unilateral' NO matchea 'lateral'. Confirmado tambien en navegador en una tanda previa (mapa muscular = dorsales/trapecios/biceps).", "notas_tester": ""},
+        {"id": "FE-03", "prioridad": "ALTA", "estado": "PASA", "evidencia": "alternativasDe() busca por grupo funcional. Confirmado en navegador: 'Jalon Unilateral en Polea' -> ['Jalon al Pecho / Dominadas'], no elevaciones laterales.", "notas_tester": ""},
+        {"id": "FE-04", "prioridad": "BAJA", "estado": "PASA", "evidencia": "nSeriesDe(): '2'->2, '2.0'->2, null->3, '1.0'->1, 9999->6 (Math.min(6, Math.max(1, n))).", "notas_tester": ""},
+        {"id": "FE-05", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "rpeObjetivoDe(): ('Top Set',false)->'RPE 8-9'; ('Back-off',false)->'RPE 7-8'; ('...AMRAP',true)->'al fallo (RPE 10)'; ('...AMRAP',false)-> no dice 'al fallo'.", "notas_tester": ""}
+      ]
+    },
+    {
+      "id": "frontend_experiencia_entreno",
+      "casos": [
+        {"id": "UX-01", "prioridad": "CRITICA", "estado": "PASA", "evidencia": "revision de codigo: timer basado en finAt (timestamp absoluto) persistido en localStorage; restaurarTimer() recalcula por diferencia con Date.now(); listener visibilitychange re-tickea al volver.", "notas_tester": "Logica correcta; el tiempo restante siempre deriva del reloj real."},
+        {"id": "UX-02", "prioridad": "CRITICA", "estado": "PASA", "evidencia": "guardar() en error encola en localStorage['colaEntrenos']; listener 'online' y ngOnInit llaman reenviarPendientes(); al exito quita de la cola.", "notas_tester": ""},
+        {"id": "UX-03", "prioridad": "ALTA", "estado": "PASA", "evidencia": "encolar() filtra la cola por fecha antes de push -> 1 solo pendiente por fecha (el mas reciente reemplaza).", "notas_tester": ""},
+        {"id": "UX-04", "prioridad": "ALTA", "estado": "PASA", "evidencia": "guardar() chequea guardando() (anti doble-tap) y yaGuardadoHoy() -> window.confirm antes de reenviar el mismo dia.", "notas_tester": ""},
+        {"id": "UX-05", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "descansarEn() intercambia la sesion con el dia de descanso actual via mapa de override; restaurarSemana() limpia el override. Nunca deja 2 descansos ni 0.", "notas_tester": ""},
+        {"id": "UX-06", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "registrarRacha(): last===ayer -> count+1; else -> 1; last===hoy -> no incrementa (guarda solo si last!=hoy).", "notas_tester": ""},
+        {"id": "UX-07", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "detectarPrs(): solo push a 'nuevos' si record>0 && e1rm>record+0.01. La 1a vez (record=0) establece linea base sin celebrar.", "notas_tester": ""},
+        {"id": "UX-08", "prioridad": "ALTA", "estado": "PASA", "evidencia": "cargarSesion() en error lee cache 'plan-<fecha>' de localStorage, muestra la rutina y activa modoOffline con mensaje. Confirmado en navegador en tanda previa (siembra de cache).", "notas_tester": ""},
+        {"id": "UX-09", "prioridad": "BAJA", "estado": "PASA", "evidencia": "recalcularProgreso() calcula pct = total ? round(hechas/total*100) : 0 (sin division por cero); se llama en cada toggleSerie y al cargar. Confirmado en navegador (0/11 -> 3/11).", "notas_tester": ""}
+      ]
+    },
+    {
+      "id": "dashboard_python",
+      "casos": [
+        {"id": "DASH-01", "prioridad": "ALTA", "estado": "PASA", "evidencia": "revision de codigo: _cargar_df() devuelve estado 'vacio' si no hay CSV/datos; todas las _fig_* tienen guarda 'if df.empty: return _fig_vacia()'. Smoke test de _serve_layout() OK.", "notas_tester": ""},
+        {"id": "DASH-02", "prioridad": "ALTA", "estado": "PASA", "evidencia": "_guardar_enfoque() escribe config_usuario.json y valida generar_plan(cfg) en try/except antes de confirmar.", "notas_tester": ""},
+        {"id": "DASH-03", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "Excluir los 4 equipos: generar_plan usa el fallback de _elegir (no deja patron vacio) y la llamada esta en try/except -> mensaje controlado, sin stack trace en pantalla.", "notas_tester": "Coherente con GEN-04 (exclusion total no crashea)."},
+        {"id": "DASH-04", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "Ejecutado: registrar 74.6 -> 74.3 (mismo dia) -> 74.3+cintura83 -> 1 sola fila en peso_corporal.csv, ultimo peso 74.3, cintura 83.", "notas_tester": ""},
+        {"id": "DASH-05", "prioridad": "BAJA", "estado": "PASA", "evidencia": "Ejecutado: 35 backups fechados -> tras la limpieza (sorted()[:-30]) quedan exactamente 30.", "notas_tester": ""},
+        {"id": "DASH-06", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "_subir_plan() envuelve planificar.main() en try/except y devuelve un html.Div de error con estilo, no un traceback.", "notas_tester": ""}
+      ]
+    },
+    {
+      "id": "escenarios_end_to_end",
+      "casos": [
+        {"id": "E2E-01", "prioridad": "CRITICA", "estado": "PASA", "evidencia": "Verificado EN VIVO en sesiones previas: se corrio planificar.py (POST actualizar_plan.php -> {'ok':true, procesados:N}) y luego get_rutina_hoy.php devolvio el plan actualizado con las notas nuevas. El pipeline exportar_local -> planificar -> subir -> get_rutina_hoy encadena sin perdida.", "notas_tester": "Contra el InfinityFree real del usuario, no un entorno de test aislado."},
+        {"id": "E2E-02", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "revision de codigo + MESO: cambiar enfoque reescribe config; generar_filas usa el plan nuevo (reglas de volumen) y la marca 'Anterior' se resuelve por (ejercicio, familia), asi que los ejercicios compartidos conservan su historial.", "notas_tester": ""},
+        {"id": "E2E-03", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "revision de codigo: guardar() usa this.fecha = fechaLocal() (HOY real), independiente de la reprogramacion visual (que solo cambia que sesion se muestra). El historial queda con la fecha real entrenada.", "notas_tester": ""},
+        {"id": "E2E-04", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "Confirmado por LIM-04: un ejercicio sin historial de la clave exacta cae a peso_base sin crash. La alternativa se guarda con su nombre; el plan original que pide otro nombre usa peso_base.", "notas_tester": ""}
+      ]
+    },
+    {
+      "id": "casos_limite_y_robustez",
+      "casos": [
+        {"id": "LIM-01", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "El motor no valida la fecha del cliente; guardar_entreno.php acepta cualquier fecha (responsabilidad del usuario). No crashea con fechas raras.", "notas_tester": ""},
+        {"id": "LIM-02", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "revision de codigo: todos los accesos a localStorage (setItem de cache, cola, racha, tema, prs) estan envueltos en try/catch. Si falla, se pierde solo esa funcion, la app sigue.", "notas_tester": ""},
+        {"id": "LIM-03", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "Tras el fix: peso_kg='abc' -> NaN, se descartan las series invalidas, sin crash. Antes reventaba con 'cannot convert float NaN to integer' en planificar.py:129.", "notas_tester": "Bug real detectado y corregido durante el testeo."},
+        {"id": "LIM-04", "prioridad": "BAJA", "estado": "PASA", "evidencia": "Ejecutado: historial con 'Ejercicio Que Ya No Existe' -> generar_filas corre sin excepcion (esa fila se ignora para el plan actual).", "notas_tester": ""},
+        {"id": "LIM-05", "prioridad": "MEDIA", "estado": "PASA", "evidencia": "revision de codigo: sesion_infinityfree() hace 'reto = _RETO.search(...); if reto: set cookie'. Si no matchea, continua SIN cookie (no hay loop); una peticion posterior fallaria con error HTTP claro.", "notas_tester": ""},
+        {"id": "LIM-06", "prioridad": "MEDIA", "estado": "BLOQUEADO", "evidencia": "Revision estatica: schema.sql define idx_registro_fecha, idx_plan_fecha_dia, idx_registro_ejercicio_fecha; las queries filtran por esas columnas. NO se midio tiempo real con historial de miles de filas (no hay BD grande disponible).", "notas_tester": "Indices correctos; medicion de tiempo requiere BD poblada."},
+        {"id": "LIM-07", "prioridad": "ALTA", "estado": "PASA", "evidencia": "sw.js linea 25: 'if (url.pathname.includes(\"/api/\")) return;' -> el service worker nunca intercepta /api/. 0 respuestas de API desde cache.", "notas_tester": ""},
+        {"id": "LIM-08", "prioridad": "ALTA", "estado": "PASA", "evidencia": "Ejecutado 'npx ng build': Application bundle generation complete, 276.16 kB, sin errores ni warnings de budget.", "notas_tester": ""},
+        {"id": "LIM-09", "prioridad": "CRITICA", "estado": "PASA", "evidencia": "Ejecutado: test_motor.py -> 'todas las pruebas pasaron'; test_funcional.py -> 'todas las pruebas funcionales pasaron'. 0 fallos.", "notas_tester": "Linea base en verde antes y despues de los fixes."}
+      ]
+    }
+  ]
+}
