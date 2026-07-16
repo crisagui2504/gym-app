@@ -4,14 +4,26 @@
 > con arquitectura **Edge-to-Local** de tres capas (nube gratuita + cliente móvil +
 > motor local en la laptop).
 
-**Versión del documento:** 1.1 · **Última actualización:** Julio 2026
+**Versión del documento:** 1.2 · **Última actualización:** Julio 2026
 **Repositorio:** https://github.com/crisagui2504/gym-app
 
-> **v1.1 (Julio 2026)**: el motor de rutinas y progresión se ajustó a la
-> evidencia científica 2016–2025 (gestión del fallo por semana, PR de S4
-> condicionado al rendimiento, descansos de compuestos a 2 min, frecuencia 2×
-> real en Full Body, volumen de pecho, y varios bugs). Detalle completo y
-> referencias en [`docs/CAMBIOS_EVIDENCIA.md`](docs/CAMBIOS_EVIDENCIA.md).
+> **v1.2 (Julio 2026)**: el motor de rutinas y progresión se ajustó a la
+> evidencia científica 2016–2025 y se sumó una capa de **inteligencia por
+> submúsculos** que evita la sobrecarga y la redundancia. Lo esencial:
+> - **Progresión**: doble progresión estricta, RPE de trabajo (excluye la serie al
+>   fallo), fallo dosificado por semana (RIR 1-2 en S1-S2), deload reactivo global,
+>   marca "Anterior" visible, progresión por reps en peso corporal.
+> - **Selección**: ponderación de estímulo por submúsculo, elección por ganancia
+>   marginal (anti-redundancia), topes de compuestos por región, protección lumbar
+>   (máx. 2 bisagras axiales), rotación de ejercicios por mesociclo.
+> - **Nutrición**: macros en gramos, peso corporal + cintura con semáforo calórico,
+>   creatina; **app**: PWA, cola offline, readiness, historial, e1RM, confeti de PR,
+>   rediseño mobile-first; **dashboard**: pestañas nuevas (Peso corporal, Mesociclo),
+>   copiar tablas, subir plan; **automatización** semanal + backups fechados.
+>
+> Detalle completo, fundamento y **27 referencias** en
+> [`docs/CAMBIOS_EVIDENCIA.md`](docs/CAMBIOS_EVIDENCIA.md) y el informe formal
+> [`docs/Informe_Cientifico_GymTracker.docx`](docs/Informe_Cientifico_GymTracker.docx).
 
 ---
 
@@ -157,6 +169,7 @@ laptop del usuario, comunicándose con el servidor por HTTP.
 ┌──────────────────────── CAPA EDGE (InfinityFree, nube gratis) ──────────────────┐
 │  infinityfree/api/ (PHP 8 + PDO)                                                 │
 │   ├─ get_rutina_hoy.php   → devuelve la sesión del día                           │
+│   ├─ get_historial.php    → últimas sesiones (panel Historial de la app)        │
 │   ├─ guardar_entreno.php  → graba las series del entreno                         │
 │   ├─ actualizar_plan.php  → reemplaza el plan de la semana (DELETE + INSERT)     │
 │   └─ exportar_csv.php     → exporta todo el historial como CSV                   │
@@ -528,6 +541,20 @@ semana de plan disponible).
   ]
 }
 ```
+
+### 9.1b. `GET /get_historial.php`
+
+Devuelve las series de los últimos `dias` días (por defecto 30, tope 90), más
+recientes primero. Lo consume el panel **Historial** de la app (botón 📓).
+
+**Query params**
+| Param | Tipo | Descripción |
+|---|---|---|
+| `dias` | int | Opcional (1–90). Por defecto 30. |
+| `token` | string | Token (si no va en el header). |
+
+**Respuesta `200`**: `{ "ok": true, "dias": 30, "series": [ { "fecha_entreno",
+"ejercicio", "tecnica", "numero_serie", "peso_kg", "repeticiones", "rpe" }, … ] }`
 
 ### 9.2. `POST /guardar_entreno.php`
 

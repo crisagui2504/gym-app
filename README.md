@@ -1,6 +1,11 @@
 # Gym App — Rutinas Inteligentes con Sobrecarga Progresiva
 
-Sistema completo de seguimiento de entrenamiento con planificación automática basada en tu historial real. Conecta una app Angular (interfaz de entrenamiento), una API PHP en la nube, un motor Python de inteligencia de progresión, y Power BI para análisis visual.
+Sistema completo de seguimiento de entrenamiento con planificación automática basada en tu historial real. Conecta una app Angular (interfaz de entrenamiento, instalable como PWA), una API PHP en la nube, un motor Python de inteligencia de progresión **basado en evidencia científica**, y un dashboard local Dash/Plotly para análisis visual.
+
+> **📚 Documentación clave**
+> - [`DOCUMENTACION.md`](DOCUMENTACION.md) — documentación técnica completa (arquitectura, módulos, API).
+> - [`docs/CAMBIOS_EVIDENCIA.md`](docs/CAMBIOS_EVIDENCIA.md) — **el fundamento científico de cada regla del motor**, con el detalle de todas las mejoras aplicadas (fallo/RIR, volumen, descansos, submúsculos, topes anti-sobrecarga, protección lumbar, etc.) y sus citas.
+> - [`docs/Informe_Cientifico_GymTracker.docx`](docs/Informe_Cientifico_GymTracker.docx) / [`.pdf`](docs/Informe_Cientifico_GymTracker.pdf) — informe formal con 27 referencias revisadas por pares.
 
 ---
 
@@ -25,6 +30,7 @@ Sistema completo de seguimiento de entrenamiento con planificación automática 
 │                                                                   │
 │  infinityfree/api/                                                │
 │  ├── get_rutina_hoy.php   → devuelve los ejercicios del día      │
+│  ├── get_historial.php    → últimas sesiones (panel Historial)   │
 │  ├── guardar_entreno.php  → graba series, peso, RPE              │
 │  ├── actualizar_plan.php  → recibe el plan calculado por Python  │
 │  └── exportar_csv.php     → descarga el historial completo       │
@@ -65,6 +71,9 @@ gym/
 │   ├── planificar.py    → Motor de sobrecarga progresiva (mesociclo 5 semanas)
 │   ├── plan_template.py → Dataclass Fila + plantilla de referencia
 │   ├── dashboard.py     → Dashboard Dash/Plotly + configuración interactiva
+│   ├── exportar_local.py→ Descarga historial.csv + backups fechados
+│   ├── motor_semanal.py/.bat → Orquestador para el Programador de tareas
+│   ├── tests/test_motor.py → Suite de pruebas + simulaciones de cobertura
 │   └── assets/         → CSS del dashboard (tema oscuro, lo carga Dash solo)
 ├── python-scripts/       → Scripts auxiliares (optimización básica)
 ├── docs/                 → Roadmap por sprints
@@ -90,6 +99,17 @@ La interfaz móvil con la que entrenas en el gimnasio. Se conecta a la API PHP c
 - **Diseño adaptado a cada ejercicio**: la tarjeta muestra solo los campos que el ejercicio necesita — fuerza (peso + reps + RPE), cardio (minutos, Zona 2), plancha (segundos), Farmer's carry (peso + metros), pinzamiento (peso + segundos), rodillo (rondas), core (reps, sin RPE). Lo decide `medidaDe()` en `entreno-data.ts`.
 - **Reprogramar la semana** (botón 📅): movés el **día de descanso** sin tocar el servidor. Tocás "Descansar acá" en cualquier día y su entreno se intercambia con el día de descanso actual (p. ej. descansás el sábado y hacés su entreno el jueves). El cambio se guarda en `localStorage` para esa semana y vuelve solo al default la semana siguiente.
 - Modal de **explicación de técnica**: Top Set, Back-off, AMRAP, Rest-Pause, etc.
+
+### Funciones avanzadas (tandas de mejora)
+
+- **PWA instalable**: `manifest.webmanifest` + service worker + ícono. Se agrega a la pantalla de inicio del iPhone y abre al instante; cachea el shell y el plan del día para funcionar sin conexión.
+- **Rediseño mobile-first (iPhone)**: barra de acciones fija al fondo (zona del pulgar) con Guardar grande (52 px) + toggles, barra de progreso de la sesión (N/M series), `safe-area-inset` respetado, sin zoom por doble toque.
+- **Guardado blindado**: cola offline (si falla, el entreno queda en el teléfono y se reenvía solo al volver internet), anti doble-envío, y caché del plan para entrenar aunque el servidor esté caído.
+- **Check-in de readiness** (😃/😐/😫): en día de baja energía baja el objetivo de RPE a 7-8 sin fallo, solo por ese día.
+- **Objetivo de RPE por serie**: muestra el RPE objetivo antes de registrar (RIR 1-2, o "al fallo" en la última serie de S3-S4).
+- **Historial** (botón 📓): tus últimas sesiones con la mejor serie de cada ejercicio (por e1RM).
+- **Confeti de PR** 🎉: al guardar, si rompés un récord de 1RM estimado, celebración + vibración.
+- **Filtro de equipo**: si tu gym no tiene cierto equipo, el motor sustituye por alternativas del mismo patrón (se configura en el dashboard).
 
 ### Archivos clave
 
@@ -181,15 +201,29 @@ El cerebro del sistema. Corre en tu PC (no en el servidor) cada domingo o cuando
    - **S3** — superar los registros de la Semana 1 (sobrecarga progresiva).
    - **S4 (Pico)** — superar todos los Top Sets del mes.
    - **S5 (Deload)** — recuperación: mismo peso que la última sesión, volumen reducido al 50% (1 serie en Bloque A y B, sin Bloque C).
-4. **Aplica reglas distintas por bloque**:
-   - **Top Set**: si completaste el rango de reps con RPE ≤ 9, subís. Si el RPE fue ≥ 9 y estás estancado, deload reactivo al 90%.
+4. **Aplica reglas distintas por bloque** (doble progresión estricta):
+   - **Top Set**: primero completás el rango de reps, luego sube la carga. El PR de la S4 solo se intenta si la última sesión cumplió el rango con RPE ≤ 8 (progresión ganada, no forzada). Deload reactivo al 90% si estás estancado con RPE alto.
    - **Back-off**: siempre el 80% del Top Set calculado.
-   - **Volumen / AMRAP / Drop Set / Rest-Pause / Superserie**: sube si llegaste al tope de reps con RPE ≤ 8.
-   - **Cardio y core**: peso base fijo.
-5. **Rota ejercicios según la semana** (campo `semanas` en cada fila de la plantilla): por ejemplo el Bloque B de Torso pasa de Press de Banca (S1/S3/S4) a Press Inclinado (S2), y los ejercicios de antebrazo (Farmer's Carry, Pinzamiento de Disco, Rodillo de Muñeca, Curl de Muñeca) aparecen en semanas específicas, siempre al final de la sesión.
-6. **Sube el plan** calculado al servidor vía `actualizar_plan.php`.
+   - **Volumen / AMRAP / Drop Set / Rest-Pause / Superserie**: sube si llegaste al tope de reps con RPE ≤ 8. El **RPE de trabajo excluye la serie al fallo** (si no, el AMRAP bloqueaba la progresión).
+   - **Peso corporal / core**: progresa por reps (sube el rango objetivo) hasta gatillar lastre.
+5. **Dosifica el fallo por semana**: S1-S2 a RIR 1-2; las técnicas de intensidad (AMRAP/Rest-Pause/Drop) solo en S3-S4 y solo en la última serie. Deload (S5) 100% libre de fallo.
+6. **Marca a superar visible**: cada tarjeta trae "Anterior: X kg × Y @RPE Z".
+7. **Deload reactivo global**: si el RPE medio semanal ≥ 9 dos semanas seguidas, adelanta la descarga.
+8. **Sube el plan** calculado al servidor vía `actualizar_plan.php`.
 
 > InfinityFree bloquea bots con un reto AES-128/CBC. El motor lo resuelve automáticamente con `pycryptodome` sin que tengas que hacer nada.
+
+### Selección inteligente por submúsculos (anti-sobrecarga)
+
+El generador no elige ejercicios "por categoría amplia" ni al azar. Cada ejercicio declara **cuánto estimula cada submúsculo** (dorsal / espalda alta / deltoides anterior-lateral-posterior / pecho superior-inferior / cuádriceps / isquios / glúteo…) en `ESTIMULOS` (`ejercicios_db.py`), y la selección aplica:
+
+- **Ganancia marginal con retornos decrecientes**: tras unas dominadas (dorsal), elige un remo (espalda alta) en vez de otro jalón — no repite el mismo estímulo.
+- **Tope de compuestos por región/sesión**: pecho 2, press de hombro 1, espalda 3, cuádriceps 2, cadera 3 (no 3 presses de pecho el mismo día).
+- **Techo de saturación**: ningún submúsculo pasa de ~10-12 series efectivas por sesión (dosis-respuesta con techo).
+- **Protección lumbar**: máximo 2 bisagras axiales (peso muerto/RDL) por sesión; la 3ª pasa a hip thrust / curl femoral (cadena posterior sin carga espinal).
+- **Rotación por mesociclo**: cada 5 semanas rota al siguiente ejercicio preferido de cada patrón (variedad con intención; la progresión no se pierde porque el historial es por ejercicio).
+
+Todo esto se valida con **simulaciones automáticas** (45 combinaciones enfoque × split × ciclo) en `python-engine/tests/test_motor.py`. Detalle y citas en [`docs/CAMBIOS_EVIDENCIA.md`](docs/CAMBIOS_EVIDENCIA.md).
 
 ### Setup
 
@@ -281,21 +315,25 @@ Al presionar **"Generar y guardar plan"**, el `generador.py` reconstruye el plan
 - **`enfoques.py`** — define cada enfoque (reps, técnicas, volumen, macros) y cada split (qué patrón se entrena cada día, respetando frecuencia 2×/semana).
 - **`generador.py`** — combina lo anterior con tus prioridades para producir un plan válido. Nada de ejercicios raros: todo común y replicable en cualquier gimnasio.
 
-### Qué muestra (7 pestañas)
+### Qué muestra (pestañas)
 
 | Pestaña | Contenido |
 |---|---|
 | **Resumen** | Tonelaje semanal, frecuencia de sesiones, volumen por bloque y RPE semanal |
-| **Progresión** | Curva de peso máximo + tonelaje por ejercicio (selector) |
-| **Records (PRs)** | Peso máximo histórico de cada ejercicio |
-| **Estado SNC** | RPE promedio semanal con zona óptima (7.5–9) y zona de deload (≥9) |
+| **Progresión** | Peso máximo + **1RM estimado (Epley)** + tonelaje por ejercicio (selector) |
+| **Records (PRs)** | Récords por **e1RM** (fuerza real), con la serie que lo produjo — detecta PRs "invisibles" (mismos kg, más reps) |
+| **Fatiga (RPE)** | RPE promedio semanal con zona óptima (7.5–9) y zona de deload (≥9) |
+| **Peso corporal** | Registro de peso + **cintura**, media móvil de 7 días y **semáforo calórico** que compara tu tendencia con el objetivo del enfoque (detecta recomposición) |
 | **Logbook** | Tabla completa, filtrable y ordenable, de todas las series |
-| **⚙ Configuración** | Cambiar enfoque / split / prioridades y regenerar el plan |
-| **Plan semana** | El plan calculado para la próxima semana según tu config |
+| **⚙ Configuración** | Cambiar enfoque / split / prioridades / **equipo excluido** y regenerar el plan; **macros en gramos** según tu peso |
+| **Plan semana** | El plan de la próxima semana + botones **⬆ Recalcular y subir plan** y **📋 Copiar tabla** |
+| **Mesociclo (5 sem)** | Las 5 semanas del mesociclo de un vistazo (estructura exacta, pesos proyectados), filtrable y copiable |
 
-Interfaz moderna (fuente Inter, tarjetas con gradiente, dropdowns de alto contraste). Incluye **tema oscuro y tema claro** conmutables con el botón **☀️ Vista clara / 🌙 Vista oscura** del header; la preferencia se guarda en `config_usuario.json`. Los estilos están en `python-engine/assets/dashboard.css` (Dash los carga solo).
+Interfaz moderna con **tema oscuro y claro** (botón del header, se guarda en `config_usuario.json`). Los estilos están en `python-engine/assets/dashboard.css`.
 
-> Power BI (`powerbi_guide.md`) queda como alternativa, pero el dashboard Python es la herramienta principal.
+**Nutrición**: la pestaña Configuración convierte las guías de macros del enfoque a **gramos diarios** según tu peso, con distribución de proteína y recordatorio de creatina.
+
+> Power BI (`powerbi_guide.md`) queda como alternativa legacy; el dashboard Python es la herramienta principal.
 
 ---
 
@@ -322,12 +360,17 @@ El archivo resultante está ignorado por git (`.gitignore`).
 
 ---
 
+## Automatización semanal (opcional)
+
+- **`motor_semanal.bat`** + **tarea programada de Windows** «GymTracker Semanal» (creada para correr **domingos 20:00**): descarga historial → recalcula → sube el plan, sin que toques nada. Se cambia/quita con `schtasks /Change` / `schtasks /Delete`.
+- **`exportar_local.py`** guarda un **backup fechado** del historial en `python-engine/backups/` cada vez que descarga (las últimas 30 copias) — tu respaldo real ante un hosting gratuito.
+
 ## Flujo completo de un ciclo semanal
 
 ```
-Domingo por la noche
-  └── python planificar.py   (o motor_semanal.py para automatizar)
-        ├── Descarga historial del servidor
+Domingo por la noche  (automático con la tarea programada, o manual)
+  └── python planificar.py   (o motor_semanal.bat / botón del dashboard)
+        ├── Descarga historial del servidor (+ backup fechado)
         ├── Calcula pesos para la semana siguiente (S1–S5 del mesociclo)
         │   → S2 rota Bloque B, S5 es semana de deload
         └── Sube el plan a InfinityFree
@@ -350,7 +393,7 @@ Cuando querés analizar tu progreso
 
 | Componente | Tecnología |
 |---|---|
-| App Angular | Node.js 18+, Angular 17+ |
+| App Angular | Node.js 18+ (probado en 24), Angular 20 (standalone + signals), PWA |
 | Backend | PHP 8+, MySQL 5.7+ |
 | Hosting | InfinityFree (gratuito) o cualquier hosting PHP/MySQL |
 | Motor Python | Python 3.10+, pandas, requests, pycryptodome, python-dotenv |
@@ -368,3 +411,5 @@ Ver [`docs/SPRINTS.md`](docs/SPRINTS.md) para el detalle. Resumen:
 - **Sprint 4** ✅ Motor Python local con mesociclo de 5 semanas (deload + rotación)
 - **Sprint 5** ✅ Dashboard Python (Dash/Plotly) — reemplaza Power BI
 - **Sprint 6** ✅ App autónoma: generador dinámico de planes + enfoque configurable desde el dashboard + ejecutable de un clic
+- **Sprint 7** ✅ **Motor basado en evidencia científica**: dosificación del fallo (RIR), descansos, volumen dosis-respuesta, doble progresión, deload reactivo, e1RM, nutrición en gramos, peso corporal + cintura, PWA, rediseño mobile-first, backups, automatización semanal.
+- **Sprint 8** ✅ **Ponderación por submúsculos y anti-sobrecarga**: selección por ganancia marginal, topes por región, protección lumbar (bisagras axiales), rotación por mesociclo, vista del mesociclo completo — todo verificado con simulaciones. Ver [`docs/CAMBIOS_EVIDENCIA.md`](docs/CAMBIOS_EVIDENCIA.md).

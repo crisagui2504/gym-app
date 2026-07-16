@@ -36,16 +36,29 @@ Sube el build de Angular a `htdocs/` y `infinityfree/api/` a `htdocs/api/`.
 
 Base creada en `python-engine/planificar.py`.
 
-## Sprint 5 - Power BI
+## Sprint 5 - Dashboard local (reemplaza Power BI)
 
-Conecta Power BI a la URL:
+Dashboard Dash/Plotly en `python-engine/dashboard.py` (localhost:8050). Power BI
+queda como alternativa legacy (`powerbi_guide.md`).
 
-```text
-https://TU-DOMINIO.infinityfreeapp.com/api/exportar_csv.php?token=TU_TOKEN
-```
+## Sprint 6 - App autónoma
 
-Medida DAX inicial:
+Generador dinámico de planes (`generador.py`) + enfoque configurable desde el
+dashboard + ejecutable de un clic (`GymTracker.bat`).
 
-```DAX
-Tonelaje Total = SUMX(registro_series, registro_series[reps_hechas] * registro_series[peso_kg])
-```
+## Sprint 7 - Motor basado en evidencia científica
+
+Ajuste de todas las reglas de programación a la literatura 2016–2025: fallo
+dosificado (RIR), descansos, volumen dosis-respuesta, doble progresión, deload
+reactivo, e1RM, nutrición en gramos, peso + cintura, PWA, rediseño mobile-first,
+backups y automatización semanal.
+
+## Sprint 8 - Inteligencia por submúsculos y anti-sobrecarga
+
+Ponderación de estímulo por submúsculo, selección por ganancia marginal
+(anti-redundancia), topes de compuestos por región, protección lumbar (bisagras
+axiales), rotación por mesociclo y vista del mesociclo completo — todo validado
+con simulaciones automáticas (`tests/test_motor.py`).
+
+> El fundamento científico y el detalle de los Sprints 7–8 están en
+> [`CAMBIOS_EVIDENCIA.md`](CAMBIOS_EVIDENCIA.md).
