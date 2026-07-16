@@ -465,9 +465,10 @@ export function seriesAproximacion(peso: number): Array<{ label: string; peso: n
   }
   // Cargas altas: tantos escalones como haga falta para que el salto entre
   // series (incluido el ultimo hacia el peso objetivo) no pase de ~15 kg.
+  // Tope de 8 escalones (cubre saltos <=15 kg hasta ~240 kg objetivo).
   const saltoMax = 15;
-  const n = Math.min(6, Math.max(3, Math.ceil((peso * 0.5) / saltoMax)));
-  const reps = [10, 6, 4, 3, 2, 2];
+  const n = Math.min(8, Math.max(3, Math.ceil((peso * 0.5) / saltoMax)));
+  const reps = [12, 10, 8, 5, 4, 3, 2, 2];
   const sets: Array<{ label: string; peso: number; reps: number }> = [];
   for (let i = 0; i < n; i++) {
     const frac = 0.5 + (0.5 * i) / n; // 50 % .. justo por debajo de 100 %
