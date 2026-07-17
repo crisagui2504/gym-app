@@ -920,6 +920,65 @@ quiere trabajo lumbar directo pese al RDL/peso muerto? ¿el core debe pasar por
 el motor razonado (y existir fuera de los días de cardio)? Los extensores de
 muñeca (salud del codo) no se entrenan nunca.
 
+> **Resuelto en la tanda BE**: se cierran ambas, con protección verificada.
+
+## BE. El Bloque C no tenía NINGUNA protección de sobrecarga
+
+Al ir a enganchar el lumbar apareció la causa raíz: `_saturado` —el guarda
+anti-sobrecarga— **solo se aplicaba en el Bloque B** (una sola línea, la 330).
+El Bloque C añadía el aislamiento **siempre**, aunque todos sus objetivos
+estuvieran ya al techo de la sesión: series basura que solo suman fatiga.
+Enganchar ahí el lumbar sin más habría sido exactamente el error que se quería
+evitar. **El Bloque C usa ya el mismo guarda que el B.**
+
+### Lumbar directo: condicional a la carga axial real, no plantilla
+
+Regla: el accesorio lumbar (hiperextensión) **solo se programa si la sesión no
+llevó bisagra axial**. Si hubo peso muerto o RDL, los erectores ya trabajaron
+isométricamente y al límite → el slot se omite. Si el día salió con hip thrust
+o prensa (sin carga espinal), el lumbar no recibió nada y el accesorio directo
+sí está justificado. Es una decisión *reactiva al día*, no un hueco fijo.
+
+**Verificado sobre 825 configuraciones** (5 enfoques × 3 splits × 5 ciclos × 11
+combinaciones de equipo excluido): **0 sesiones** mezclan peso muerto con
+hiperextensión lastrada. El estímulo lumbar semanal **no subió** (media 6.16;
+los máximos son días axiales, donde el guarda bloquea el añadido).
+
+### El bug de cupo que lo hacía invisible
+
+El lumbar seguía sin entrar pese a que `n_c=3 < tope=4`. La instrumentación del
+bucle real lo destapó: **`exento` significa «no me pueden recortar», pero el
+patrón consume cupo igualmente** (`n_c += 1` corre para todos salvo el tríceps
+pareado). La pantorrilla, exenta y colocada antes, se comía el slot y dejaba al
+lumbar justo en el tope. Por eso `DOMINANTE_CADERA` va ahora **antes** de los
+patrones exentos: detrás de ellos nunca entraría.
+
+Los 3 ejercicios lumbares son alcanzables; rotan en los ciclos **4, 9 y 14**
+(m.c.m. de la rotación de 5 bisagras × 3 lumbares = 15).
+
+### Core y cardio: del template fijo al motor razonado
+
+`_dia_cardio` tenía 3 nombres de core hardcodeados y la elíptica fija. Ahora el
+core se elige con `_elegir` (patrón `CORE`, rotación por mesociclo, sin repetir
+entre los días de cardio de la semana) y la modalidad de cardio también rota.
+**Mismo volumen (3 × 3 series), misma dosis**: lo que cambia es que rota y
+cubre el catálogo. La rueda abdominal y el Pallof press ya salen.
+
+**Alcanzabilidad: 85 → 89 de 96.** Los 6 que siguen sin salir con ninguna
+configuración: `Press Hombro en Máquina` y `Pullover en Polea` (su patrón no se
+pide en ese bloque; el pullover, además, reintroduciría la redundancia dorsal
+de dominadas+jalón si se enganchase a un día de tirón), los 2 de antebrazo
+(plantilla fija `ANTEBRAZO_SEMANA`; **los extensores de muñeca siguen sin
+entrenarse**, relevante para epicondilitis) y 2 de cardio ya cubiertos por la
+rotación de modalidad.
+
+### Tests de regresión (que no vuelva a fallar)
+
+Tres bloques nuevos en `test_motor.py`, que barren 825 configuraciones × 15
+ciclos: (24) ninguna sesión mezcla axial + lumbar directo **y** el lumbar
+directo sí llega a programarse —no es código muerto—; (25) el aislamiento
+saturado no se añade; (26) el core rota y no repite en la semana.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

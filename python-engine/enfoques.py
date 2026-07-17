@@ -208,10 +208,17 @@ SPLITS: dict[str, Split] = {
                     [P.AISL_BICEPS, P.AISL_TRICEPS, P.AISL_HOMBRO_POST, P.EMPUJE_HORIZONTAL]),
             # igual que Legs B del PPL: Bloque B unilateral de cuadriceps/gluteo,
             # no una 2da bisagra (proteccion lumbar + variedad para la rotacion)
+            # DOMINANTE_CADERA en C = accesorio LUMBAR directo (hiperextension).
+            # El generador solo lo programa si el dia NO llevo bisagra axial: si
+            # hubo peso muerto o RDL, los erectores ya estan al limite y el slot
+            # se omite. Va ANTES de los patrones exentos (pantorrilla, hombro):
+            # no se recortan pero SI consumen cupo, y detras de ellos nunca
+            # entraria.
             DiaPlan("Pierna Bombeo", "pierna",
                     [P.DOMINANTE_CADERA, P.DOMINANTE_RODILLA],
                     [P.DOMINANTE_RODILLA],
-                    [P.AISL_ISQUIOS, P.AISL_GLUTEO, P.AISL_ABDUCTOR, P.PANTORRILLA, P.AISL_HOMBRO]),
+                    [P.AISL_ISQUIOS, P.AISL_GLUTEO, P.AISL_ABDUCTOR,
+                     P.DOMINANTE_CADERA, P.PANTORRILLA, P.AISL_HOMBRO]),
         ],
     ),
     "ppl": Split(
@@ -246,9 +253,15 @@ SPLITS: dict[str, Split] = {
             # peso muerto pesado del Bloque A ya cubre la cadena posterior, y la
             # espalda baja no acumula carga axial redundante. Ademas da variedad
             # real para la rotacion S2 (bulgara/zancada/step-up).
+            # DOMINANTE_CADERA en C = accesorio LUMBAR directo (hiperextension).
+            # El generador solo lo programa si el dia NO llevo bisagra axial: si
+            # hubo peso muerto o RDL, los erectores ya estan al limite y el slot
+            # se omite. Va ANTES de PANTORRILLA porque los patrones exentos no
+            # se recortan pero SI consumen cupo: detras de ella nunca entraria.
             DiaPlan("Legs B", "pierna",
                     [P.DOMINANTE_CADERA, P.DOMINANTE_RODILLA], [P.DOMINANTE_RODILLA],
-                    [P.AISL_ISQUIOS, P.AISL_GLUTEO, P.AISL_ABDUCTOR, P.PANTORRILLA]),
+                    [P.AISL_ISQUIOS, P.AISL_GLUTEO, P.AISL_ABDUCTOR,
+                     P.DOMINANTE_CADERA, P.PANTORRILLA]),
             DiaPlan("Pull B", "pull",
                     [P.TIRON_VERTICAL, P.TIRON_HORIZONTAL], [P.TIRON_HORIZONTAL],
                     [P.AISL_BICEPS, P.AISL_HOMBRO_POST, P.TRAPECIO]),

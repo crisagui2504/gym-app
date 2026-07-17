@@ -12,6 +12,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import pandas as pd
 
 import ejercicios_db as db
+import generador as gen
 from enfoques import SPLITS
 from generador import generar_plan
 from plan_template import Fila
@@ -461,6 +462,57 @@ for enfoque in ("recomposicion", "volumen", "definicion", "powerbuilding", "fuer
             filas = pl.generar_filas(df1, "2026-07-13", sem, plan=p)
             assert len(filas) > 0
 check("15 combinaciones enfoque x split x 5 semanas generan sin excepcion", True)
+
+print("\n== 24. Proteccion lumbar: nunca bisagra axial + lumbar directo el mismo dia ==")
+import itertools
+POR_NOMBRE = {e.nombre: e for e in db.EJERCICIOS}
+LUMBAR_DIRECTO = {e.nombre for e in db.por_patron(db.DOMINANTE_CADERA, "C")}
+EQUIPOS = ["barra", "mancuerna", "polea", "maquina"]
+_excl = [()] + [(x,) for x in EQUIPOS] + list(itertools.combinations(EQUIPOS, 2))
+violaciones, apariciones = [], 0
+for ex in _excl:
+    for enfoque in ("recomposicion", "volumen", "definicion", "powerbuilding", "fuerza"):
+        for split in ("upper_lower", "ppl", "full_body"):
+            for ciclo in range(15):  # 15 = mcm de las rotaciones (5 bisagras x 3 lumbares)
+                p = generar_plan({"enfoque": enfoque, "split": split,
+                                  "equipo_excluido": list(ex)}, ciclo=ciclo)
+                pordia = {}
+                for f in p:
+                    if f.tecnica and f.bloque and f.bloque[0] in "ABC":
+                        pordia.setdefault(f.dia, set()).add(f.ejercicio)
+                for dia, nombres in pordia.items():
+                    axial = {n for n in nombres
+                             if n in POR_NOMBRE and db.es_axial(POR_NOMBRE[n])}
+                    directo = nombres & LUMBAR_DIRECTO
+                    apariciones += len(directo)
+                    if axial and directo:
+                        violaciones.append(f"{enfoque}/{split}/c{ciclo}/ex={ex} dia{dia}")
+check("ninguna sesion mezcla peso muerto con hiperextension lastrada",
+      not violaciones, f"{len(violaciones)} violaciones: {violaciones[:3]}")
+check("el lumbar directo SI llega a programarse (no es codigo muerto)",
+      apariciones > 0, f"apariciones={apariciones}")
+
+print("\n== 25. Bloque C: el aislamiento saturado no se anade (anti-sobrecarga) ==")
+_ej_sat = next(e for e in db.EJERCICIOS if e.nombre == "Curl de Isquios Sentado (Maquina)")
+check("un objetivo por encima del techo marca saturado",
+      gen._saturado(_ej_sat, {"isquios": gen.PROYECCION_MAX}, 2))
+check("un objetivo fresco NO marca saturado",
+      not gen._saturado(_ej_sat, {"isquios": 0.0}, 2))
+
+print("\n== 26. Core: se elige con el motor y rota (no es lista fija) ==")
+_core_vistos = set()
+for ciclo in range(5):
+    p = generar_plan({"enfoque": "definicion", "split": "ppl"}, ciclo=ciclo)
+    _core_vistos |= {f.ejercicio for f in p if f.bloque == "Core"}
+check("el core cubre mas de los 3 nombres que estaban hardcodeados",
+      len(_core_vistos) > 3, f"vistos={sorted(_core_vistos)}")
+check("el core no repite ejercicio dentro de la misma semana", True)
+for ciclo in range(5):
+    p = generar_plan({"enfoque": "definicion", "split": "ppl"}, ciclo=ciclo)
+    _c = [f.ejercicio for f in p if f.bloque == "Core"]
+    if len(_c) != len(set(_c)):
+        check("el core no repite ejercicio dentro de la misma semana", False, f"c{ciclo}: {_c}")
+        break
 
 print()
 if FALLOS:

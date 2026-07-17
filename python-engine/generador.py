@@ -399,10 +399,23 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
         # orden_pref=variante: el 2do dia del mismo foco usa el aislamiento
         # alternativo (curl EZ vs mancuernas, laterales mancuerna vs polea...)
         # para cubrir cabezas/angulos distintos, no repetir el mismo estimulo.
+        # LUMBAR DIRECTO — solo si la sesion NO llevo bisagra axial. Los
+        # erectores ya trabajan isometricamente y al limite en un peso muerto o
+        # un RDL: anadirles hiperextensiones lastradas encima es exactamente la
+        # sobrecarga lumbar que se corrigio en Legs B. Si el dia salio con hip
+        # thrust / prensa (sin carga espinal), el lumbar no recibio nada y el
+        # accesorio directo si esta justificado. Condicional, no plantilla.
+        if patron == db.DOMINANTE_CADERA and axiales["n"] > 0:
+            continue
         ej = _elegir(patron, "C", usados | (usados_c_semana or set()),
                      orden_pref=variante + ciclo, excluidos=excluidos,
                      acumulado=est_dia)
         if not ej:
+            continue
+        # ANTI-SOBRECARGA del Bloque C: mismo guarda que ya tenia el Bloque B.
+        # Sin el, el aislamiento se anadia SIEMPRE, aunque todos sus objetivos
+        # estuviesen al tope de la sesion: series basura que solo suman fatiga.
+        if _saturado(ej, est_dia, b.series_c):
             continue
         usados.add(ej.nombre)
         if usados_c_semana is not None:
@@ -467,18 +480,45 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
     return filas
 
 
-def _dia_cardio(dia_sem: int, enf: Enfoque) -> list[Fila]:
+CORE_ISOMETRICO = frozenset({"Plancha Frontal", "Pallof Press en Polea"})
+
+
+def _dia_cardio(dia_sem: int, enf: Enfoque, ciclo: int = 0,
+                excluidos: frozenset[str] = frozenset(),
+                usados_core: set[str] | None = None) -> list[Fila]:
+    """Cardio LISS + core. El core se ELIGE con el motor (patron CORE, rotacion
+    por mesociclo), no con una lista fija: antes eran 3 nombres hardcodeados y
+    la rueda abdominal y el Pallof press no salian nunca. Mismo volumen (3 x 3),
+    misma dosis: lo que cambia es que ahora rota y cubre el catalogo."""
     nombre = "Cardio LISS + Core"
+    # la modalidad tambien rota por mesociclo (antes era siempre la eliptica y
+    # la bicicleta y la caminata no salian nunca). Zona 2 = mismo estimulo.
+    modalidades = db.por_patron(db.CARDIO, "C")
+    modo = modalidades[ciclo % len(modalidades)] if modalidades else None
     filas = [
-        Fila(dia_sem, nombre, "Cardio", 1, "Eliptica", "Zona 2", 1, 35, 45, None, None,
+        Fila(dia_sem, nombre, "Cardio", 1, modo.nombre if modo else "Eliptica",
+             "Zona 2", 1, 35, 45, None, None,
              "Ritmo conversacional. Registrar minutos, no reps."),
     ]
-    core = ["Plancha Frontal", "Crunch en Polea Alta", "Elevaciones de Piernas Colgado"]
-    for i, ej in enumerate(core, start=2):
-        filas.append(Fila(dia_sem, nombre, "Core", i, ej, "Tradicional", 3,
-                          None if ej == "Plancha Frontal" else 15,
-                          None if ej == "Plancha Frontal" else 20,
-                          DESC["core"], None, "Al fallo." if ej == "Plancha Frontal" else ""))
+    usados: set[str] = set()
+    est_core: dict[str, float] = {}
+    orden = 2
+    for i in range(3):
+        ej = _elegir(db.CORE, "C", usados | (usados_core or set()),
+                     orden_pref=ciclo + i, excluidos=excluidos, acumulado=est_core)
+        if not ej:
+            break
+        usados.add(ej.nombre)
+        if usados_core is not None:
+            usados_core.add(ej.nombre)  # variedad entre los dias de cardio de la semana
+        for sub, v in db.estimulo_de(ej).items():
+            est_core[sub] = est_core.get(sub, 0.0) + v * 3
+        iso = ej.nombre in CORE_ISOMETRICO
+        filas.append(Fila(dia_sem, nombre, "Core", orden, ej.nombre, "Tradicional", 3,
+                          None if iso else 15, None if iso else 20,
+                          DESC["core"], None,
+                          "Isometrico: aguanta sin perder la postura." if iso else ""))
+        orden += 1
     return filas
 
 
@@ -520,9 +560,11 @@ def generar_plan(config: dict | None = None, ciclo: int | None = None) -> list[F
                             usados_c_semana=usados_c_semana)
 
     # Dias libres -> cardio (hasta enf.cardio_dias) y luego descanso
+    usados_core: set[str] = set()  # el core no repite entre dias de cardio
     for j, dia_sem in enumerate(layout["libres"]):
         if j < enf.cardio_dias:
-            filas += _dia_cardio(dia_sem, enf)
+            filas += _dia_cardio(dia_sem, enf, ciclo=ciclo, excluidos=excluidos,
+                                 usados_core=usados_core)
         else:
             filas += _dia_descanso(dia_sem)
 
