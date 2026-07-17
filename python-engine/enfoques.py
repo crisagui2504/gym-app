@@ -196,7 +196,7 @@ SPLITS: dict[str, Split] = {
             DiaPlan("Pierna A - Fuerza", "pierna",
                     [P.DOMINANTE_RODILLA, P.DOMINANTE_CADERA],
                     [P.DOMINANTE_RODILLA],
-                    [P.AISL_ISQUIOS, P.PANTORRILLA, P.DOMINANTE_RODILLA, P.AISL_HOMBRO]),
+                    [P.AISL_ISQUIOS, P.AISL_ABDUCTOR, P.PANTORRILLA, P.AISL_HOMBRO]),
             # hombro POSTERIOR en el 2do dia de torso (el lateral ya se cubre en
             # Torso A y, si hay prioridad de hombro, tambien en los dias de pierna)
             DiaPlan("Torso Bombeo", "torso",
@@ -208,7 +208,7 @@ SPLITS: dict[str, Split] = {
             DiaPlan("Pierna Bombeo", "pierna",
                     [P.DOMINANTE_CADERA, P.DOMINANTE_RODILLA],
                     [P.DOMINANTE_RODILLA],
-                    [P.AISL_ISQUIOS, P.PANTORRILLA, P.AISL_HOMBRO]),
+                    [P.AISL_ISQUIOS, P.AISL_GLUTEO, P.AISL_ABDUCTOR, P.PANTORRILLA, P.AISL_HOMBRO]),
         ],
     ),
     "ppl": Split(
@@ -219,33 +219,33 @@ SPLITS: dict[str, Split] = {
         dias_pesas=[
             DiaPlan("Push A", "push",
                     [P.EMPUJE_VERTICAL, P.EMPUJE_HORIZONTAL], [P.EMPUJE_HORIZONTAL],
-                    [P.AISL_HOMBRO, P.AISL_TRICEPS]),
+                    [P.AISL_HOMBRO, P.AISL_TRICEPS, P.ROTADORES]),
             DiaPlan("Legs A", "pierna",
                     [P.DOMINANTE_RODILLA, P.DOMINANTE_CADERA], [P.DOMINANTE_RODILLA],
-                    [P.AISL_ISQUIOS, P.PANTORRILLA, P.DOMINANTE_RODILLA]),
+                    [P.AISL_ISQUIOS, P.AISL_ABDUCTOR, P.PANTORRILLA, P.DOMINANTE_RODILLA]),
             # B = tiron HORIZONTAL, no vertical: repetir el vertical producia
             # dominadas + jalon el mismo dia (mismo dorsal ancho, estimulo casi
             # identico). Los remos tienen mas variedad interna (espalda alta /
             # dorsal segun agarre) y el vertical ya tiene su top set pesado.
             DiaPlan("Pull A", "pull",
                     [P.TIRON_HORIZONTAL, P.TIRON_VERTICAL], [P.TIRON_HORIZONTAL],
-                    [P.AISL_BICEPS, P.AISL_HOMBRO_POST]),
+                    [P.AISL_BICEPS, P.AISL_HOMBRO_POST, P.TRAPECIO]),
             # B = empuje HORIZONTAL: repetir el vertical duplicaba el deltoides
             # anterior (2 presses de hombro seguidos); el pecho, en cambio, es
             # el musculo con menos volumen del plan y tiene angulos distintos.
             DiaPlan("Push B", "push",
                     [P.EMPUJE_HORIZONTAL, P.EMPUJE_VERTICAL], [P.EMPUJE_HORIZONTAL],
-                    [P.AISL_HOMBRO, P.AISL_TRICEPS]),
+                    [P.AISL_HOMBRO, P.AISL_TRICEPS, P.ROTADORES]),
             # Bloque B = unilateral de cuadriceps/gluteo (no otra bisagra): el
             # peso muerto pesado del Bloque A ya cubre la cadena posterior, y la
             # espalda baja no acumula carga axial redundante. Ademas da variedad
             # real para la rotacion S2 (bulgara/zancada/step-up).
             DiaPlan("Legs B", "pierna",
                     [P.DOMINANTE_CADERA, P.DOMINANTE_RODILLA], [P.DOMINANTE_RODILLA],
-                    [P.AISL_ISQUIOS, P.PANTORRILLA]),
+                    [P.AISL_ISQUIOS, P.AISL_GLUTEO, P.AISL_ABDUCTOR, P.PANTORRILLA]),
             DiaPlan("Pull B", "pull",
                     [P.TIRON_VERTICAL, P.TIRON_HORIZONTAL], [P.TIRON_HORIZONTAL],
-                    [P.AISL_BICEPS, P.AISL_HOMBRO_POST]),
+                    [P.AISL_BICEPS, P.AISL_HOMBRO_POST, P.TRAPECIO]),
         ],
     ),
     "full_body": Split(

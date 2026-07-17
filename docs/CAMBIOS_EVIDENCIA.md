@@ -774,6 +774,48 @@ a 8; saltos ≤15 kg verificados hasta 240 kg.
 topes de volumen/región, bisagras axiales, rangos de reps por enfoque y guías
 de proteína/creatina, todas alineadas con la literatura citada.
 
+---
+
+# Decimoquinta tanda — ampliación del banco de ejercicios (68 → 81)
+
+> A petición de la usuaria («faltan rotación de hombro, patada de burro,
+> abductores»). La auditoría confirmó que **todos esos huecos eran reales**, y
+> destapó dos más (trapecio y aductores directos).
+
+## AV. Glúteo medio / abductores — el hueco más grave
+
+**No se entrenaba en absoluto**: ni existía el submúsculo. Ningún compuesto lo
+trabaja de motor (sentadilla y peso muerto lo usan como estabilizador). Es clave
+para la estabilidad de cadera/rodilla y la forma del glúteo. Nuevo patrón
+`AISL_ABDUCTOR` con submúsculo `gluteo_med`: Abducción en Máquina / en Polea /
+Caminata Lateral con Banda. Programado en **los dos días de pierna**
+(frecuencia 2×/semana → 4.0 series efectivas/semana, antes 0).
+
+## AW. Rotadores / manguito, patada de glúteo, trapecio y aductores
+
+| Patrón nuevo | Submúsculo | Ejercicios |
+|---|---|---|
+| `ROTADORES` | `manguito` (nuevo) | Rotación Externa en Polea / con Mancuerna, Cubanos |
+| `AISL_GLUTEO` | `gluteo` | Patada de Glúteo en Polea / Máquina, Puente a 1 Pierna |
+| `TRAPECIO` | `trapecio_sup` | Encogimientos con Mancuernas / Barra |
+| `AISL_ADUCTOR` | `aductor` | Aducción en Máquina, Sentadilla Sumo con Mancuerna |
+
+Los **rotadores** se tratan como trabajo de salud (igual que el hombro
+posterior): exentos del cupo, 15-20 reps, **nunca al fallo** (RIR 3-4). El
+manguito estabiliza cada press y jalón pero ningún ejercicio lo entrena de
+motor; es prehab, no volumen.
+
+## AX. Bug encontrado de paso
+
+La clave `'patada'` del tríceps (para «patada de tríceps») matcheaba **«Patada
+de Glúteo»** y la clasificaba como ejercicio de tríceps en la app. Corregido a
+`'patada de triceps'`. También se añadió el músculo `aductores` al front (tipo,
+etiqueta, clasificación y catálogo de alternativas).
+
+**Cobertura semanal resultante:** glúteo medio 4.0 · manguito 5.0 · trapecio
+9.0 · aductores 4.5 series efectivas. Las 3 suites (motor, funcional, QA 35/35)
+siguen en verde.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

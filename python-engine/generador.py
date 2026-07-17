@@ -381,7 +381,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
         # descanso). Antes, con n_ejercicios_c bajo (Definicion), el triceps se
         # recortaba y quedaba un biceps "en superserie" sin pareja.
         es_tri_pareado = patron == db.AISL_TRICEPS and tiene_bi
-        exento = (patron in (db.AISL_HOMBRO, db.AISL_HOMBRO_POST, db.PANTORRILLA)
+        exento = (patron in (db.AISL_HOMBRO, db.AISL_HOMBRO_POST, db.ROTADORES, db.PANTORRILLA)
                   or es_tri_pareado)
         if n_c >= b.n_ejercicios_c and not exento:
             continue
@@ -398,15 +398,16 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
             usados_c_semana.add(ej.nombre)  # variedad: no repetir el aislamiento en la semana
         _acumular(ej, b.series_c)
         extra = " Extra hombro (frecuencia 4x/sem)." if patron == db.AISL_HOMBRO and "hombros" in prioridades else ""
-        reps_lo, reps_hi = (15, 20) if patron in (db.PANTORRILLA, db.AISL_HOMBRO_POST) else b.reps_c
+        reps_lo, reps_hi = (15, 20) if patron in (db.PANTORRILLA, db.AISL_HOMBRO_POST, db.ROTADORES) else b.reps_c
 
         # tecnica: superserie si biceps/triceps juntos; pantorrilla tradicional
-        if patron == db.AISL_HOMBRO_POST:
+        if patron in (db.AISL_HOMBRO_POST, db.ROTADORES):
             # salud de hombro: trabajo ligero y controlado, nunca al fallo
+            nota_h = ("Deltoide posterior. Lento y controlado, RIR 2-3." if patron == db.AISL_HOMBRO_POST
+                      else "Manguito rotador (prehab). Peso ligero, muy controlado, RIR 3-4.")
             filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
                               "Tradicional", b.series_c, reps_lo, reps_hi, DESC["aislamiento"],
-                              ej.peso_base,
-                              "Deltoide posterior + manguito. Lento y controlado, RIR 2-3."))
+                              ej.peso_base, nota_h))
         elif patron == db.AISL_BICEPS and tiene_tri:
             filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
                               "Superserie", b.series_c, reps_lo, reps_hi, DESC["superserie"],

@@ -14,7 +14,8 @@ export type MuscleId =
   | 'lumbar'
   | 'gluteos'
   | 'isquios'
-  | 'gemelos';
+  | 'gemelos'
+  | 'aductores';
 
 export const MUSCLE_LABEL: Record<MuscleId, string> = {
   hombros: 'Hombros',
@@ -29,7 +30,8 @@ export const MUSCLE_LABEL: Record<MuscleId, string> = {
   lumbar: 'Lumbar',
   gluteos: 'Gluteos',
   isquios: 'Isquios',
-  gemelos: 'Gemelos'
+  gemelos: 'Gemelos',
+  aductores: 'Aductores'
 };
 
 /** Fecha local en formato YYYY-MM-DD (evita el desfase de toISOString que usa UTC). */
@@ -103,7 +105,7 @@ export function musculosDe(nombre: string): MuscleId[] {
   if (tiene('encogimiento', 'shrug', 'trapecio')) add('trapecios');
   if (tiene('curl invertido', 'martillo', 'muneca', 'antebrazo')) add('antebrazos');
   if (tiene('curl') && !tiene('isquios', 'femoral')) add('biceps');
-  if (tiene('triceps', 'press frances', 'frances', 'copa', 'patada', 'press cerrado', 'close grip')) add('triceps');
+  if (tiene('triceps', 'press frances', 'frances', 'copa', 'patada de triceps', 'press cerrado', 'close grip')) add('triceps');
   if (tiene('sentadilla', 'prensa', 'hack', 'zancada', 'bulgara', 'split', 'extension de cuadriceps', 'extensiones de cuadriceps', 'cuadriceps')) {
     add('cuadriceps');
     add('gluteos');
@@ -113,6 +115,13 @@ export function musculosDe(nombre: string): MuscleId[] {
   if (tiene('plancha', 'crunch', 'abdominal', 'rueda', 'ab wheel', 'elevaciones de piernas', 'elevacion de piernas', 'oblicuo', 'core')) {
     add('abdomen');
   }
+  if (tiene('abduccion', 'abductor', 'caminata lateral')) add('gluteos');
+  if (tiene('aduccion', 'aductor')) add('aductores');
+  if (tiene('patada de gluteo', 'kickback', 'puente de gluteo')) {
+    add('gluteos');
+    add('isquios');
+  }
+  if (tiene('rotacion externa', 'cubanos', 'manguito')) add('hombros');
   if (tiene('farmer', 'pinzamiento', 'agarre')) add('antebrazos');
 
   return s;
@@ -126,7 +135,8 @@ type GrupoFn =
   | 'empuje_h' | 'empuje_v' | 'tiron_h' | 'tiron_v'
   | 'rodilla' | 'cadera' | 'aisl_cuadriceps' | 'aisl_isquios'
   | 'hombro_lat' | 'hombro_post' | 'aisl_pecho'
-  | 'biceps' | 'triceps' | 'trapecio' | 'core' | 'antebrazo';
+  | 'biceps' | 'triceps' | 'trapecio' | 'core' | 'antebrazo'
+  | 'abductor' | 'aductor' | 'gluteo' | 'rotadores';
 
 interface CatItem {
   nombre: string;
@@ -154,7 +164,7 @@ const CATALOGO: CatItem[] = [
   { nombre: 'Remo con Barra', muscle: 'dorsales', grupo: 'tiron_h', claves: ['remo'] },
   { nombre: 'Remo en Maquina (T-Bar)', muscle: 'dorsales', grupo: 'tiron_h', claves: ['t-bar', 'remo t', 'remo en punta'] },
   // Triceps
-  { nombre: 'Extension de Triceps en Polea', muscle: 'triceps', grupo: 'triceps', claves: ['extension triceps', 'extension de triceps', 'triceps', 'frances', 'patada'] },
+  { nombre: 'Extension de Triceps en Polea', muscle: 'triceps', grupo: 'triceps', claves: ['extension triceps', 'extension de triceps', 'triceps', 'frances', 'patada de triceps'] },
   { nombre: 'Fondos en Banco', muscle: 'triceps', grupo: 'triceps', claves: ['fondos', 'dips'] },
   { nombre: 'Press Cerrado', muscle: 'triceps', grupo: 'triceps', claves: ['press cerrado', 'close grip'] },
   // Biceps
@@ -173,6 +183,17 @@ const CATALOGO: CatItem[] = [
   { nombre: 'Peso Muerto Rumano', muscle: 'isquios', grupo: 'cadera', claves: ['rumano', 'pdr', 'buenos dias', 'peso muerto'] },
   // Gluteos
   { nombre: 'Hip Thrust', muscle: 'gluteos', grupo: 'cadera', claves: ['hip thrust', 'puente'] },
+  // Abductor / gluteo medio
+  { nombre: 'Abduccion de Cadera en Maquina', muscle: 'gluteos', grupo: 'abductor', claves: ['abduccion', 'abductor'] },
+  { nombre: 'Caminata Lateral con Banda', muscle: 'gluteos', grupo: 'abductor', claves: ['caminata lateral', 'monster walk'] },
+  // Aductor
+  { nombre: 'Aduccion de Cadera en Maquina', muscle: 'aductores', grupo: 'aductor', claves: ['aduccion', 'aductor'] },
+  // Gluteo aislado
+  { nombre: 'Patada de Gluteo en Polea', muscle: 'gluteos', grupo: 'gluteo', claves: ['patada de gluteo', 'kickback'] },
+  { nombre: 'Puente de Gluteo a 1 Pierna', muscle: 'gluteos', grupo: 'gluteo', claves: ['puente de gluteo'] },
+  // Rotadores / manguito
+  { nombre: 'Rotacion Externa en Polea', muscle: 'hombros', grupo: 'rotadores', claves: ['rotacion externa'] },
+  { nombre: 'Cubanos con Mancuernas', muscle: 'hombros', grupo: 'rotadores', claves: ['cubanos', 'manguito'] },
   // Trapecios
   { nombre: 'Encogimientos', muscle: 'trapecios', grupo: 'trapecio', claves: ['encogimiento', 'shrug', 'trapecio'] },
   // Abdomen

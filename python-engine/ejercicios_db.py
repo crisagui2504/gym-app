@@ -26,10 +26,15 @@ DOMINANTE_RODILLA = "dominante_rodilla"
 DOMINANTE_CADERA  = "dominante_cadera"
 # Accesorios / aislamientos
 AISL_HOMBRO      = "aislamiento_hombro"        # deltoide LATERAL (elevaciones)
-AISL_HOMBRO_POST = "aislamiento_hombro_post"   # deltoide POSTERIOR + manguito (face pull)
+AISL_HOMBRO_POST = "aislamiento_hombro_post"   # deltoide POSTERIOR (face pull, pajaros)
 AISL_BICEPS      = "aislamiento_biceps"
 AISL_TRICEPS     = "aislamiento_triceps"
 AISL_ISQUIOS     = "aislamiento_isquios"       # flexion de rodilla (curl femoral)
+AISL_ABDUCTOR    = "aislamiento_abductor"      # GLUTEO MEDIO (abduccion de cadera)
+AISL_ADUCTOR     = "aislamiento_aductor"       # aductores (aduccion de cadera)
+AISL_GLUTEO      = "aislamiento_gluteo"        # gluteo mayor aislado (patada / kickback)
+ROTADORES        = "rotadores"                 # manguito rotador (rotacion externa)
+TRAPECIO         = "trapecio"                  # trapecio superior (encogimientos)
 PANTORRILLA      = "pantorrilla"
 ANTEBRAZO        = "antebrazo"
 CORE             = "core"
@@ -131,6 +136,34 @@ EJERCICIOS: list[Ejercicio] = [
     Ejercicio("Extension Triceps sobre Cabeza",    AISL_TRICEPS, "triceps", "mancuerna", ("C",), None, 4),
     Ejercicio("Fondos en Banco",                   AISL_TRICEPS, "triceps", "peso_corporal", ("C",), None, 5),
 
+    # ===================== ABDUCTOR / GLUTEO MEDIO ===========================
+    # El gluteo medio no lo entrena ningun compuesto (sentadilla y peso muerto
+    # lo usan como estabilizador, no como motor). Es clave para la estabilidad
+    # de cadera/rodilla y para la forma del gluteo: necesita trabajo directo.
+    Ejercicio("Abduccion de Cadera en Maquina",    AISL_ABDUCTOR, "gluteos", "maquina",       ("C",), None, 1),
+    Ejercicio("Abduccion de Cadera en Polea",      AISL_ABDUCTOR, "gluteos", "polea",         ("C",), None, 2),
+    Ejercicio("Caminata Lateral con Banda",        AISL_ABDUCTOR, "gluteos", "peso_corporal", ("C",), None, 3),
+
+    # ===================== ADUCTOR ===========================================
+    Ejercicio("Aduccion de Cadera en Maquina",     AISL_ADUCTOR, "aductores", "maquina",   ("C",), None, 1),
+    Ejercicio("Sentadilla Sumo con Mancuerna",     AISL_ADUCTOR, "aductores", "mancuerna", ("C",), None, 2),
+
+    # ===================== GLUTEO AISLADO (patada / kickback) ================
+    Ejercicio("Patada de Gluteo en Polea",         AISL_GLUTEO, "gluteos", "polea",         ("C",), None, 1),
+    Ejercicio("Patada de Gluteo en Maquina",       AISL_GLUTEO, "gluteos", "maquina",       ("C",), None, 2),
+    Ejercicio("Puente de Gluteo a 1 Pierna",       AISL_GLUTEO, "gluteos", "peso_corporal", ("C",), None, 3),
+
+    # ===================== ROTADORES / MANGUITO ==============================
+    # Salud de hombro: el manguito rotador estabiliza cada press y jalon pero
+    # ningun ejercicio lo entrena de motor. Trabajo ligero y controlado.
+    Ejercicio("Rotacion Externa en Polea",         ROTADORES, "hombros", "polea",     ("C",), None, 1),
+    Ejercicio("Rotacion Externa con Mancuerna",    ROTADORES, "hombros", "mancuerna", ("C",), None, 2),
+    Ejercicio("Cubanos con Mancuernas",            ROTADORES, "hombros", "mancuerna", ("C",), None, 3),
+
+    # ===================== TRAPECIO (encogimientos) ==========================
+    Ejercicio("Encogimientos con Mancuernas",      TRAPECIO, "trapecios", "mancuerna", ("C",), None, 1),
+    Ejercicio("Encogimientos con Barra",           TRAPECIO, "trapecios", "barra",     ("C",), None, 2),
+
     # ===================== PANTORRILLA =======================================
     Ejercicio("Elevaciones de Pantorrilla De Pie", PANTORRILLA, "gemelos", "maquina", ("C",), None, 1),
     Ejercicio("Elevaciones de Pantorrilla Sentado", PANTORRILLA, "gemelos", "maquina", ("C",), None, 2),
@@ -197,10 +230,10 @@ MUSCULO_A_PATRON = {
 
 SUBMUSCULOS = {
     "espalda": ["dorsal", "espalda_alta", "trapecio_sup", "lumbar"],
-    "hombro":  ["delt_ant", "delt_lat", "delt_post"],
+    "hombro":  ["delt_ant", "delt_lat", "delt_post", "manguito"],
     "pecho":   ["pecho_sup", "pecho_inf"],
     "brazo":   ["biceps", "triceps", "antebrazo"],
-    "pierna":  ["cuadriceps", "isquios", "gluteo", "aductor", "gemelo"],
+    "pierna":  ["cuadriceps", "isquios", "gluteo", "gluteo_med", "aductor", "gemelo"],
     "core":    ["abdomen"],
 }
 
@@ -255,8 +288,26 @@ ESTIMULOS: dict[str, dict[str, float]] = {
     "Elevaciones Laterales Polea Baja":   {"delt_lat": 1.0, "trapecio_sup": 0.25},
     "Elevaciones Laterales en Maquina":   {"delt_lat": 1.0, "trapecio_sup": 0.25},
     # ── Hombro posterior / manguito ──────────────────────────────────────────
-    "Face Pull Polea Alta":               {"delt_post": 1.0, "espalda_alta": 0.5, "trapecio_sup": 0.25},
+    "Face Pull Polea Alta":               {"delt_post": 1.0, "espalda_alta": 0.5, "trapecio_sup": 0.25, "manguito": 0.5},
     "Pec Deck Invertido":                 {"delt_post": 1.0, "espalda_alta": 0.5},
+    # ── Rotadores / manguito ─────────────────────────────────────────────────
+    "Rotacion Externa en Polea":          {"manguito": 1.0, "delt_post": 0.25},
+    "Rotacion Externa con Mancuerna":     {"manguito": 1.0, "delt_post": 0.25},
+    "Cubanos con Mancuernas":             {"manguito": 1.0, "delt_post": 0.5, "delt_lat": 0.25, "trapecio_sup": 0.25},
+    # ── Abductor / gluteo medio ──────────────────────────────────────────────
+    "Abduccion de Cadera en Maquina":     {"gluteo_med": 1.0, "gluteo": 0.25},
+    "Abduccion de Cadera en Polea":       {"gluteo_med": 1.0, "gluteo": 0.25},
+    "Caminata Lateral con Banda":         {"gluteo_med": 1.0},
+    # ── Aductor ──────────────────────────────────────────────────────────────
+    "Aduccion de Cadera en Maquina":      {"aductor": 1.0},
+    "Sentadilla Sumo con Mancuerna":      {"aductor": 1.0, "cuadriceps": 0.5, "gluteo": 0.5},
+    # ── Gluteo aislado (patada / kickback) ───────────────────────────────────
+    "Patada de Gluteo en Polea":          {"gluteo": 1.0, "isquios": 0.25},
+    "Patada de Gluteo en Maquina":        {"gluteo": 1.0, "isquios": 0.25},
+    "Puente de Gluteo a 1 Pierna":        {"gluteo": 1.0, "isquios": 0.5},
+    # ── Trapecio ─────────────────────────────────────────────────────────────
+    "Encogimientos con Mancuernas":       {"trapecio_sup": 1.0, "antebrazo": 0.25},
+    "Encogimientos con Barra":            {"trapecio_sup": 1.0, "antebrazo": 0.25},
     # ── Biceps ───────────────────────────────────────────────────────────────
     "Curl con Barra EZ":                  {"biceps": 1.0, "antebrazo": 0.25},
     "Curl con Mancuernas":                {"biceps": 1.0, "antebrazo": 0.25},
@@ -319,10 +370,15 @@ PATRON_LABEL = {
     DOMINANTE_RODILLA: "Dominante de Rodilla",
     DOMINANTE_CADERA:  "Dominante de Cadera",
     AISL_HOMBRO:       "Hombro lateral (aislamiento)",
-    AISL_HOMBRO_POST:  "Hombro posterior / manguito",
+    AISL_HOMBRO_POST:  "Hombro posterior",
     AISL_BICEPS:       "Biceps",
     AISL_TRICEPS:      "Triceps",
     AISL_ISQUIOS:      "Isquios (curl femoral)",
+    AISL_ABDUCTOR:     "Abductor / gluteo medio",
+    AISL_ADUCTOR:      "Aductores",
+    AISL_GLUTEO:       "Gluteo (patada / kickback)",
+    ROTADORES:         "Rotadores / manguito",
+    TRAPECIO:          "Trapecio (encogimientos)",
     PANTORRILLA:       "Pantorrilla",
     ANTEBRAZO:         "Antebrazo",
     CORE:              "Core",
