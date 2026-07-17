@@ -193,10 +193,13 @@ SPLITS: dict[str, Split] = {
                     [P.AISL_BICEPS, P.AISL_TRICEPS, P.AISL_HOMBRO, P.EMPUJE_HORIZONTAL]),
             # curl femoral en ambos dias de pierna: la flexion de rodilla no la
             # cubre ningun compuesto (RDL = cadera; el femoral corto queda fuera)
+            # aductor en el dia A y abductor en el B: alternados, no el abductor
+            # dos veces. El aductor mayor es el musculo mas grande de la cadera
+            # despues del gluteo y ningun compuesto lo lleva a posicion elongada.
             DiaPlan("Pierna A - Fuerza", "pierna",
                     [P.DOMINANTE_RODILLA, P.DOMINANTE_CADERA],
                     [P.DOMINANTE_RODILLA],
-                    [P.AISL_ISQUIOS, P.AISL_ABDUCTOR, P.PANTORRILLA, P.AISL_HOMBRO]),
+                    [P.AISL_ISQUIOS, P.AISL_ADUCTOR, P.PANTORRILLA, P.AISL_HOMBRO]),
             # hombro POSTERIOR en el 2do dia de torso (el lateral ya se cubre en
             # Torso A y, si hay prioridad de hombro, tambien en los dias de pierna)
             DiaPlan("Torso Bombeo", "torso",
@@ -220,9 +223,12 @@ SPLITS: dict[str, Split] = {
             DiaPlan("Push A", "push",
                     [P.EMPUJE_VERTICAL, P.EMPUJE_HORIZONTAL], [P.EMPUJE_HORIZONTAL],
                     [P.AISL_HOMBRO, P.AISL_TRICEPS, P.ROTADORES]),
+            # aductor en Legs A y abductor en Legs B: alternados, no el abductor
+            # dos veces. El aductor mayor es el musculo mas grande de la cadera
+            # despues del gluteo y ningun compuesto lo lleva a posicion elongada.
             DiaPlan("Legs A", "pierna",
                     [P.DOMINANTE_RODILLA, P.DOMINANTE_CADERA], [P.DOMINANTE_RODILLA],
-                    [P.AISL_ISQUIOS, P.AISL_ABDUCTOR, P.PANTORRILLA, P.DOMINANTE_RODILLA]),
+                    [P.AISL_ISQUIOS, P.AISL_ADUCTOR, P.PANTORRILLA, P.DOMINANTE_RODILLA]),
             # B = tiron HORIZONTAL, no vertical: repetir el vertical producia
             # dominadas + jalon el mismo dia (mismo dorsal ancho, estimulo casi
             # identico). Los remos tienen mas variedad interna (espalda alta /

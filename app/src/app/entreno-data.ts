@@ -55,7 +55,10 @@ export function norm(texto: string): string {
  *  multi-palabra; se exige que empiece y termine en frontera de palabra. */
 export function contieneClave(texto: string, clave: string): boolean {
   const esc = clave.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(^|[^a-z0-9])${esc}([^a-z0-9]|$)`).test(texto);
+  // (e?s)? admite el plural de la clave: 'dominada' casa con "Dominadas" y
+  // 'encogimiento' con "Encogimientos". Sin esto la frontera de palabra final
+  // rechazaba toda forma plural y el ejercicio quedaba sin clasificar.
+  return new RegExp(`(^|[^a-z0-9])${esc}(e?s)?([^a-z0-9]|$)`).test(texto);
 }
 
 /** Musculos principales de un ejercicio segun su nombre. El primero es el primario. */
@@ -67,28 +70,80 @@ export function musculosDe(nombre: string): MuscleId[] {
   };
   const tiene = (...claves: string[]) => claves.some((k) => contieneClave(n, k));
 
+  // ===== Casos que DEBEN resolverse antes que las reglas genericas =========
+  // Sus nombres contienen una palabra que otra regla reclamaria y acabarian
+  // con el musculo primario equivocado (y con alternativas absurdas: unas
+  // elevaciones laterales sustituyendo a unas elevaciones de pantorrilla).
+  if (tiene('pantorrilla', 'gemelo', 'soleo', 'talon', 'calf')) {
+    add('gemelos'); // "Elevacion de Pantorrilla en Prensa": ni hombro ni cuadriceps
+    return s;
+  }
+  if (tiene('nordico')) {
+    add('isquios'); // "Curl Nordico" no es un curl de biceps
+    add('gluteos');
+    return s;
+  }
+  if (tiene('zancada lateral', 'cossack')) {
+    add('aductores'); // aductor en posicion elongada, no hombro
+    add('gluteos');
+    add('cuadriceps');
+    return s;
+  }
+  if (tiene('sentadilla sumo')) {
+    add('aductores');
+    add('cuadriceps');
+    add('gluteos');
+    return s;
+  }
+  if (tiene('caminata lateral')) {
+    add('gluteos'); // gluteo medio, no hombro
+    return s;
+  }
+  if (tiene('fondos en banco')) {
+    add('triceps'); // primario el triceps, no el pecho
+    add('pecho');
+    return s;
+  }
+  if (tiene('pallof')) {
+    add('abdomen'); // anti-rotacion: core, aunque se llame "press"
+    return s;
+  }
+
   if (tiene('curl de isquios', 'curl femoral')) {
     add('isquios');
     add('gluteos');
-  } else if (tiene('peso muerto rumano', 'rumano', 'pdr', 'buenos dias', 'peso muerto', 'isquios', 'femoral')) {
-    add('isquios');
+  } else if (tiene('peso muerto sumo')) {
     add('gluteos');
+    add('aductores');
+    add('isquios');
+    add('lumbar');
+  } else if (tiene('peso muerto rumano', 'rumano', 'pdr', 'buenos dias', 'isquios', 'femoral')) {
+    add('isquios'); // el rumano SI es isquio-primario (cadera, rodilla fija)
+    add('gluteos');
+    add('lumbar');
+  } else if (tiene('peso muerto')) {
+    add('gluteos'); // el convencional es gluteo-primario
+    add('isquios');
     add('lumbar');
   }
   if (tiene('hip thrust', 'puente de gluteo', 'patada de gluteo')) {
     add('gluteos');
     add('isquios');
   }
-  if (tiene('press militar', 'press arnold', 'arnold', 'militar', 'press de hombro')) {
+  if (tiene('press militar', 'press arnold', 'arnold', 'militar', 'press de hombro', 'press hombro')) {
     add('hombros');
     add('triceps');
   }
-  if (tiene('elevacion', 'elevaciones', 'lateral')) add('hombros');
+  // Acotado a los vuelos de hombro reales: 'elevacion' y 'lateral' a secas
+  // capturaban "Elevaciones de Pantorrilla" y "Caminata Lateral".
+  if (tiene('elevacion lateral', 'elevaciones laterales', 'elevacion frontal',
+            'elevaciones frontales', 'vuelo lateral')) add('hombros');
   if (tiene('face pull', 'pec deck invertido', 'pajaro', 'posterior')) {
     add('hombros');
     add('trapecios');
   }
-  if (tiene('press de banca', 'banca', 'press inclinado', 'press plano', 'pec deck', 'apertura', 'peck', 'aperturas')) {
+  if (tiene('press de banca', 'banca', 'press inclinado', 'press plano', 'press pecho',
+            'pec deck', 'apertura', 'peck', 'cruce de poleas', 'cruce')) {
     add('pecho');
     add('triceps');
     add('hombros');
@@ -103,10 +158,15 @@ export function musculosDe(nombre: string): MuscleId[] {
     add('biceps');
   }
   if (tiene('encogimiento', 'shrug', 'trapecio')) add('trapecios');
-  if (tiene('curl invertido', 'martillo', 'muneca', 'antebrazo')) add('antebrazos');
+  if (tiene('curl invertido', 'muneca', 'antebrazo')) add('antebrazos');
+  if (tiene('martillo')) {
+    add('biceps'); // el martillo es braquial/biceps primario; antebrazo secundario
+    add('antebrazos');
+  }
   if (tiene('curl') && !tiene('isquios', 'femoral')) add('biceps');
   if (tiene('triceps', 'press frances', 'frances', 'copa', 'patada de triceps', 'press cerrado', 'close grip')) add('triceps');
-  if (tiene('sentadilla', 'prensa', 'hack', 'zancada', 'bulgara', 'split', 'extension de cuadriceps', 'extensiones de cuadriceps', 'cuadriceps')) {
+  if (tiene('sentadilla', 'prensa', 'hack', 'zancada', 'bulgara', 'split', 'step up', 'subida al cajon',
+            'extension de cuadriceps', 'extensiones de cuadriceps', 'cuadriceps')) {
     add('cuadriceps');
     add('gluteos');
   }

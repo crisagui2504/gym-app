@@ -185,11 +185,22 @@ def _ganancia(ej, acumulado: dict[str, float]) -> float:
     tras unas dominadas (dorsal), un remo (espalda alta) gana a otro jalon
     (dorsal de nuevo) — el problema real que reporto la usuaria.
 
-    v al cuadrado: manda el musculo OBJETIVO del ejercicio; las etiquetas
-    accesorias (0.25) casi no puntuan. Redondeo a 0.1: los casi-empates los
-    resuelve el orden canonico de preferencia + rotacion del mesociclo."""
-    return round(sum(v * v / (1.0 + acumulado.get(s, 0.0))
-                     for s, v in db.estimulo_de(ej).items()), 1)
+    Se puntua el MEJOR objetivo (max), no la suma de todos los submusculos.
+    Sumar premiaba al ejercicio con mas etiquetas: bastaba un 0.25 accesorio
+    para romper un empate que debia resolver la rotacion, y en el bloque de
+    aislamiento ganaba el candidato MENOS aislado (el press cerrado le ganaba
+    a la extension sobre cabeza por sus etiquetas de pecho y se llevaba las 6
+    posiciones de la rotacion, anulandola). Las etiquetas accesorias siguen
+    acumulando fatiga en `acumulado`; lo que no hacen es elegir el ejercicio.
+
+    v al cuadrado: manda el objetivo real (v >= 0.75); un accesorio de 0.25
+    apenas puntua. Redondeo a 0.1: los casi-empates los resuelve el orden
+    canonico de preferencia + rotacion del mesociclo."""
+    est = db.estimulo_de(ej)
+    if not est:
+        return 0.0  # cardio: no aporta estimulo hipertrofico
+    return round(max(v * v / (1.0 + acumulado.get(s, 0.0))
+                     for s, v in est.items()), 1)
 
 
 def _elegir(patron: str, bloque: str, usados: set[str], orden_pref: int = 0,

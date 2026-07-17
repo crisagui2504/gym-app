@@ -816,6 +816,110 @@ etiqueta, clasificación y catálogo de alternativas).
 9.0 · aductores 4.5 series efectivas. Las 3 suites (motor, funcional, QA 35/35)
 siguen en verde.
 
+## AY. Top-3 por submúsculo y el criterio de selección (posición elongada)
+
+**Criterio aplicado.** La evidencia 2024 sobre *entrenamiento en posición
+elongada* (stretch-mediated hypertrophy) es hoy el mejor discriminador entre
+dos ejercicios del mismo músculo: entrenar el músculo estirado produce ~5–15 %
+más hipertrofia. Se auditó el catálogo con ese criterio y se reordenó `pref`
+(el orden canónico de preferencia) donde contradecía la evidencia:
+
+| Submúsculo | Antes (pref 1) | Ahora (pref 1) | Motivo |
+|---|---|---|---|
+| Isquios | Curl tumbado | **Curl sentado** | Maeo 2021: cadera flexionada = isquio elongado, ~2× hipertrofia |
+| Tríceps | Extensión en polea | **Extensión sobre cabeza** | La cabeza larga (la mayor) solo se estira con el hombro flexionado |
+| Bíceps | Curl con barra EZ | **Curl inclinado** | Hombro en extensión = bíceps elongado |
+
+Base ampliada de 81 → **96 ejercicios**. Todos los submúsculos (20) tienen ya
+≥3 opciones primarias. Nuevos: cruce de poleas bajo-alto, press inclinado en
+máquina, pullover en polea, sentadilla frontal, hiperextensión con lastre e
+inversa, pájaros, pantorrilla en prensa, encogimientos en polea, Pallof press,
+curl inclinado, curl predicador, press cerrado, curl nórdico, zancada lateral.
+
+## AZ. El bug que anulaba la rotación (`_ganancia` sumaba submúsculos)
+
+`_ganancia` sumaba `v²/(1+acumulado)` sobre **todos** los submúsculos, así que
+**el ejercicio con más etiquetas puntuaba más alto**. Consecuencias reales:
+
+- **La rotación del tríceps estaba muerta**: `Press Cerrado con Barra` ganaba
+  las **6** posiciones de rotación (ganancia 1.3 vs 1.0) porque sus etiquetas
+  accesorias `pecho_inf 0.5` + `delt_ant 0.25` le inflaban la puntuación. En el
+  bloque de **aislamiento** el motor premiaba al candidato **menos aislado**, y
+  encima metía un press de pecho justo después de los presses de pecho.
+- Bastaba un accesorio de `0.25` para romper un empate que debía resolver la
+  rotación: los tres pref=1 por evidencia (curl sentado, curl inclinado,
+  extensión sobre cabeza) **nunca se elegían**.
+
+**Corrección:** la ganancia puntúa el **mejor objetivo** (`max`), no la suma.
+Las etiquetas accesorias siguen acumulando fatiga en `acumulado` (la
+anti-redundancia dominadas→remo sigue verificada en los 3 ciclos); lo que ya no
+hacen es *elegir* el ejercicio. Rotación restaurada en isquios, bíceps y
+tríceps, y el pref por evidencia manda.
+
+## BA. Cardio que estimulaba abdomen (estímulo fantasma)
+
+`Elíptica`, `Bicicleta` y `Caminata` están etiquetadas `musculo="abdomen"`, y
+`estimulo_de()` cae al fallback `{musculo: 1.0}` cuando no hay entrada en
+`ESTIMULOS`. Un *finisher* de cardio sumaba por tanto **1.0 de abdomen** al
+acumulado del día y hundía la ganancia del abdominal real. Corregido con perfil
+vacío: el cardio no genera hipertrofia de ningún submúsculo.
+
+## BB. El aductor era código muerto
+
+`AISL_ADUCTOR` estaba definido, con 3 ejercicios y etiqueta… pero **ningún día
+lo referenciaba**: el aductor no se entrenaba nunca de forma directa. El
+abductor, en cambio, estaba en los dos días de pierna. Se **alternan**: aductor
+en el día A, abductor en el B (coste cero en duración, el bloque C ya iba
+lleno). El aductor mayor es el músculo más grande de la cadera tras el glúteo y
+ningún compuesto lo lleva a posición elongada.
+
+## BC. Clasificación del front: 12 primarios erróneos (preexistentes)
+
+Ejecutando `musculosDe()` contra los 96 nombres reales: **15 sin clasificar y
+12 con el músculo primario equivocado**. Dos fallos sistemáticos:
+
+1. **El matcher de palabra rompía los plurales.** `contieneClave('dominadas',
+   'dominada')` exigía frontera de palabra tras la clave y la `s` no lo es →
+   *Dominadas*, *Zancadas*, *Encogimientos* y *Pájaros* **no clasificaban**.
+   Corregido admitiendo el plural (`(e?s)?`).
+2. **`'elevacion'` y `'lateral'` a secas capturaban de todo**: *Elevaciones de
+   Pantorrilla* y *Elevaciones de Piernas Colgado* salían como **hombros**
+   primario (de ahí que se ofrecieran elevaciones laterales como alternativa de
+   un ejercicio de gemelo). Acotado a los vuelos de hombro reales.
+
+Otros corregidos: *Curl Nórdico* → isquios (no bíceps), *Press Cerrado* →
+tríceps, *Fondos en Banco* → tríceps, *Curl Martillo* → bíceps (no antebrazo),
+*Peso Muerto Convencional/Sumo* → glúteo primario, *Zancada/Sentadilla Sumo* →
+aductores. **Resultado: 93/93 ejercicios de fuerza con el primario correcto**
+(los 3 de cardio devuelven `[]` a propósito).
+
+## BD. Catálogo inalcanzable — pendiente de decisión
+
+Barriendo **825 configuraciones** (5 enfoques × 3 splits × 5 ciclos × 11 combos
+de equipo excluido), 85/96 ejercicios son alcanzables. Los **11 restantes no
+salen con ninguna configuración**, porque hay **tres zonas con plantilla fija**
+que se saltan el motor de selección por evidencia:
+
+| Zona | Cómo se programa | Inalcanzables |
+|---|---|---|
+| Core | lista fija en `_dia_cardio`, y **solo en días de cardio** | Rueda Abdominal, Pallof Press |
+| Antebrazo | mapa fijo `ANTEBRAZO_SEMANA` por semana | Curl Invertido, Curl de Muñeca Inverso (extensores) |
+| Cardio | `Eliptica` fija | Bicicleta, Caminata |
+
+Y dos patrones que **ningún día pide en bloque C**:
+
+- **Lumbar (los 3)**: al dejar `Extensiones Lumbares` «solo en C» para arreglar
+  el colapso lumbar de Legs B, el efecto real fue **quitarlo del plan por
+  completo**. Hoy el lumbar solo recibe etiquetas secundarias del RDL.
+- **Pullover en polea**: `TIRON_VERTICAL` en C no lo pide nadie. Engancharlo a
+  un día de tirón reintroduciría la redundancia dorsal (dominadas + pullover)
+  que se corrigió en su día.
+
+Son decisiones de entrenamiento, no de código, y quedan **abiertas**: ¿se
+quiere trabajo lumbar directo pese al RDL/peso muerto? ¿el core debe pasar por
+el motor razonado (y existir fuera de los días de cardio)? Los extensores de
+muñeca (salud del codo) no se entrenan nunca.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
@@ -827,6 +931,11 @@ siguen en verde.
 - Iraki J, Fitschen P, Espinar S, Helms E (2019). *Nutrition recommendations for bodybuilders in the off-season.* Sports (Basel).
 - Helms ER et al. (2014). *Evidence-based recommendations for natural bodybuilding contest preparation: nutrition and supplementation.* JISSN.
 - Schoenfeld BJ, Aragon AA (2018). *How much protein can the body use in a single meal for muscle-building?* JISSN (distribución de proteína por comida).
+- Maeo S et al. (2021). *Greater hamstrings muscle hypertrophy but similar damage protection after training at long versus short muscle lengths.* Med Sci Sports Exerc (curl sentado > tumbado).
+- Maeo S et al. (2023). *Greater triceps brachii hypertrophy after overhead versus lying triceps extension training.* Eur J Sport Sci (cabeza larga en posición elongada).
+- Sato S et al. (2021). *Elbow joint angles in elbow flexor unilateral resistance exercise training determine its effects on muscle strength and thickness.* Eur J Appl Physiol (mitad baja/estirada del curl).
+- Pedrosa GF et al. (2022). *Partial range of motion training at long muscle length elicits favourable adaptations.* Eur J Sport Sci.
+- Kassiano W et al. (2023). *Marching to the beat of the muscle: stretch-mediated hypertrophy — a review of training at long muscle lengths.* J Strength Cond Res.
 
 ## Verificación
 

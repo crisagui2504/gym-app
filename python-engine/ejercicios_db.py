@@ -64,6 +64,8 @@ EJERCICIOS: list[Ejercicio] = [
     Ejercicio("Pec Deck (Aperturas Maquina)",      EMPUJE_HORIZONTAL, "pecho",  "maquina",   ("C",), None, 7),
     Ejercicio("Aperturas con Mancuernas",          EMPUJE_HORIZONTAL, "pecho",  "mancuerna", ("C",), None, 8),
     Ejercicio("Cruce de Poleas",                   EMPUJE_HORIZONTAL, "pecho",  "polea",     ("C",), None, 9),
+    Ejercicio("Cruce de Poleas Bajo-Alto",         EMPUJE_HORIZONTAL, "pecho",  "polea",     ("C",), None, 10),
+    Ejercicio("Press Inclinado en Maquina",        EMPUJE_HORIZONTAL, "pecho",  "maquina",   ("B",), None, 11),
 
     # ===================== EMPUJE VERTICAL (hombro) ===========================
     Ejercicio("Press Militar Mancuernas (Sentado)", EMPUJE_VERTICAL, "hombros", "mancuerna", ("A", "B"), 25.0, 1),
@@ -83,16 +85,18 @@ EJERCICIOS: list[Ejercicio] = [
     Ejercicio("Dominadas",                         TIRON_VERTICAL, "dorsales", "peso_corporal", ("A", "B"), None, 2),
     Ejercicio("Jalon Unilateral en Polea",         TIRON_VERTICAL, "dorsales", "polea",     ("B",), None, 3),
     Ejercicio("Jalon Agarre Neutro",               TIRON_VERTICAL, "dorsales", "polea",     ("B",), None, 4),
+    Ejercicio("Pullover en Polea Alta",            TIRON_VERTICAL, "dorsales", "polea",     ("C",), None, 5),
 
     # ===================== DOMINANTE DE RODILLA (cuadriceps) ==================
     Ejercicio("Sentadilla Libre con Barra",        DOMINANTE_RODILLA, "cuadriceps", "barra",     ("A", "B"), None, 1),
     Ejercicio("Prensa de Piernas 45 grados",       DOMINANTE_RODILLA, "cuadriceps", "maquina",   ("A", "B"), None, 2),
     Ejercicio("Hack Squat (Maquina)",              DOMINANTE_RODILLA, "cuadriceps", "maquina",   ("A", "B"), None, 3),
-    Ejercicio("Sentadilla Bulgara con Mancuernas", DOMINANTE_RODILLA, "cuadriceps", "mancuerna", ("B",), None, 4),
-    Ejercicio("Zancadas con Mancuernas",           DOMINANTE_RODILLA, "cuadriceps", "mancuerna", ("B",), None, 5),
-    Ejercicio("Sentadilla con Mancuernas (Goblet)", DOMINANTE_RODILLA, "cuadriceps", "mancuerna", ("B",), None, 6),
-    Ejercicio("Step Up con Mancuernas",            DOMINANTE_RODILLA, "cuadriceps", "mancuerna", ("B",), None, 7),
-    Ejercicio("Extensiones de Cuadriceps (Maquina)", DOMINANTE_RODILLA, "cuadriceps", "maquina", ("C",), None, 8),
+    Ejercicio("Sentadilla Frontal con Barra",      DOMINANTE_RODILLA, "cuadriceps", "barra",     ("A", "B"), None, 4),
+    Ejercicio("Sentadilla Bulgara con Mancuernas", DOMINANTE_RODILLA, "cuadriceps", "mancuerna", ("B",), None, 5),
+    Ejercicio("Zancadas con Mancuernas",           DOMINANTE_RODILLA, "cuadriceps", "mancuerna", ("B",), None, 6),
+    Ejercicio("Sentadilla con Mancuernas (Goblet)", DOMINANTE_RODILLA, "cuadriceps", "mancuerna", ("B",), None, 7),
+    Ejercicio("Step Up con Mancuernas",            DOMINANTE_RODILLA, "cuadriceps", "mancuerna", ("B",), None, 8),
+    Ejercicio("Extensiones de Cuadriceps (Maquina)", DOMINANTE_RODILLA, "cuadriceps", "maquina", ("C",), None, 9),
 
     # ===================== DOMINANTE DE CADERA (isquios/gluteo) ===============
     Ejercicio("Hip Thrust con Barra",              DOMINANTE_CADERA, "gluteos", "barra",     ("A", "B"), None, 1),
@@ -103,13 +107,19 @@ EJERCICIOS: list[Ejercicio] = [
     # accesorio de lumbar, solo Bloque C: no debe competir como compuesto de
     # volumen con los pesos muertos (la espalda baja ya trabaja estabilizando)
     Ejercicio("Extensiones Lumbares en Maquina",   DOMINANTE_CADERA, "lumbar",  "maquina",   ("C",), None, 6),
+    Ejercicio("Hiperextension con Lastre",         DOMINANTE_CADERA, "lumbar",  "peso_corporal", ("C",), None, 7),
+    Ejercicio("Hiperextension Inversa",            DOMINANTE_CADERA, "lumbar",  "maquina",   ("C",), None, 8),
 
     # ===================== AISLAMIENTO ISQUIOS (flexion de rodilla) ===========
     # El RDL/hip thrust NO cubre la flexion de rodilla: el curl femoral es el
     # unico que carga la cabeza corta del biceps femoral. Patron propio para
     # que el generador nunca lo deje fuera.
-    Ejercicio("Curl de Isquios Tumbado (Maquina)", AISL_ISQUIOS, "isquios", "maquina", ("C",), None, 1),
-    Ejercicio("Curl de Isquios Sentado (Maquina)", AISL_ISQUIOS, "isquios", "maquina", ("C",), None, 2),
+    # pref por evidencia (Maeo 2021): el curl SENTADO trabaja el isquio con la
+    # cadera flexionada = musculo mas elongado -> casi el doble de hipertrofia
+    # que el tumbado. El nordico anade sobrecarga excentrica.
+    Ejercicio("Curl de Isquios Sentado (Maquina)", AISL_ISQUIOS, "isquios", "maquina", ("C",), None, 1),
+    Ejercicio("Curl de Isquios Tumbado (Maquina)", AISL_ISQUIOS, "isquios", "maquina", ("C",), None, 2),
+    Ejercicio("Curl Nordico",                      AISL_ISQUIOS, "isquios", "peso_corporal", ("C",), None, 3),
 
     # ===================== AISLAMIENTO HOMBRO (deltoides lateral) =============
     Ejercicio("Elevaciones Laterales Mancuernas",  AISL_HOMBRO, "hombros", "mancuerna", ("C",), None, 1),
@@ -121,20 +131,30 @@ EJERCICIOS: list[Ejercicio] = [
     # elevaciones laterales y el deltoide posterior queda sin entrenar.
     Ejercicio("Face Pull Polea Alta",              AISL_HOMBRO_POST, "hombros", "polea",   ("C",), None, 1),
     Ejercicio("Pec Deck Invertido",                AISL_HOMBRO_POST, "hombros", "maquina", ("C",), None, 2),
+    Ejercicio("Pajaros con Mancuernas",            AISL_HOMBRO_POST, "hombros", "mancuerna", ("C",), None, 3),
 
     # ===================== AISLAMIENTO BICEPS =================================
-    Ejercicio("Curl con Barra EZ",                 AISL_BICEPS, "biceps", "barra",     ("C",), None, 1),
-    Ejercicio("Curl con Mancuernas",               AISL_BICEPS, "biceps", "mancuerna", ("C",), None, 2),
-    Ejercicio("Curl Martillo con Mancuernas",      AISL_BICEPS, "biceps", "mancuerna", ("C",), None, 3),
-    Ejercicio("Curl Polea Baja Cuerda",            AISL_BICEPS, "biceps", "polea",     ("C",), None, 4),
-    Ejercicio("Curl Concentrado",                  AISL_BICEPS, "biceps", "mancuerna", ("C",), None, 5),
+    # pref por evidencia: el curl INCLINADO carga el biceps en posicion
+    # elongada (hombro en extension) y el PREDICADOR enfatiza la mitad baja
+    # (estirada) del recorrido -> mas hipertrofia que el curl de pie.
+    Ejercicio("Curl Inclinado con Mancuernas",     AISL_BICEPS, "biceps", "mancuerna", ("C",), None, 1),
+    Ejercicio("Curl con Barra EZ",                 AISL_BICEPS, "biceps", "barra",     ("C",), None, 2),
+    Ejercicio("Curl Predicador con Barra EZ",      AISL_BICEPS, "biceps", "barra",     ("C",), None, 3),
+    Ejercicio("Curl Martillo con Mancuernas",      AISL_BICEPS, "biceps", "mancuerna", ("C",), None, 4),
+    Ejercicio("Curl con Mancuernas",               AISL_BICEPS, "biceps", "mancuerna", ("C",), None, 5),
+    Ejercicio("Curl Polea Baja Cuerda",            AISL_BICEPS, "biceps", "polea",     ("C",), None, 6),
+    Ejercicio("Curl Concentrado",                  AISL_BICEPS, "biceps", "mancuerna", ("C",), None, 7),
 
     # ===================== AISLAMIENTO TRICEPS ================================
-    Ejercicio("Extension Triceps Polea Cuerda",    AISL_TRICEPS, "triceps", "polea",     ("C",), None, 1),
-    Ejercicio("Extension Triceps Polea Barra",     AISL_TRICEPS, "triceps", "polea",     ("C",), None, 2),
-    Ejercicio("Press Frances con Barra EZ",        AISL_TRICEPS, "triceps", "barra",     ("C",), None, 3),
-    Ejercicio("Extension Triceps sobre Cabeza",    AISL_TRICEPS, "triceps", "mancuerna", ("C",), None, 4),
-    Ejercicio("Fondos en Banco",                   AISL_TRICEPS, "triceps", "peso_corporal", ("C",), None, 5),
+    # pref por evidencia: los movimientos SOBRE LA CABEZA estiran la cabeza
+    # larga del triceps (la porcion mas grande) -> mas hipertrofia que la
+    # extension en polea con el brazo pegado al costado.
+    Ejercicio("Extension Triceps sobre Cabeza",    AISL_TRICEPS, "triceps", "mancuerna", ("C",), None, 1),
+    Ejercicio("Press Frances con Barra EZ",        AISL_TRICEPS, "triceps", "barra",     ("C",), None, 2),
+    Ejercicio("Extension Triceps Polea Cuerda",    AISL_TRICEPS, "triceps", "polea",     ("C",), None, 3),
+    Ejercicio("Extension Triceps Polea Barra",     AISL_TRICEPS, "triceps", "polea",     ("C",), None, 4),
+    Ejercicio("Press Cerrado con Barra",           AISL_TRICEPS, "triceps", "barra",     ("C",), None, 5),
+    Ejercicio("Fondos en Banco",                   AISL_TRICEPS, "triceps", "peso_corporal", ("C",), None, 6),
 
     # ===================== ABDUCTOR / GLUTEO MEDIO ===========================
     # El gluteo medio no lo entrena ningun compuesto (sentadilla y peso muerto
@@ -147,6 +167,7 @@ EJERCICIOS: list[Ejercicio] = [
     # ===================== ADUCTOR ===========================================
     Ejercicio("Aduccion de Cadera en Maquina",     AISL_ADUCTOR, "aductores", "maquina",   ("C",), None, 1),
     Ejercicio("Sentadilla Sumo con Mancuerna",     AISL_ADUCTOR, "aductores", "mancuerna", ("C",), None, 2),
+    Ejercicio("Zancada Lateral con Mancuerna",     AISL_ADUCTOR, "aductores", "mancuerna", ("C",), None, 3),
 
     # ===================== GLUTEO AISLADO (patada / kickback) ================
     Ejercicio("Patada de Gluteo en Polea",         AISL_GLUTEO, "gluteos", "polea",         ("C",), None, 1),
@@ -163,10 +184,12 @@ EJERCICIOS: list[Ejercicio] = [
     # ===================== TRAPECIO (encogimientos) ==========================
     Ejercicio("Encogimientos con Mancuernas",      TRAPECIO, "trapecios", "mancuerna", ("C",), None, 1),
     Ejercicio("Encogimientos con Barra",           TRAPECIO, "trapecios", "barra",     ("C",), None, 2),
+    Ejercicio("Encogimientos en Polea",            TRAPECIO, "trapecios", "polea",     ("C",), None, 3),
 
     # ===================== PANTORRILLA =======================================
     Ejercicio("Elevaciones de Pantorrilla De Pie", PANTORRILLA, "gemelos", "maquina", ("C",), None, 1),
     Ejercicio("Elevaciones de Pantorrilla Sentado", PANTORRILLA, "gemelos", "maquina", ("C",), None, 2),
+    Ejercicio("Elevacion de Pantorrilla en Prensa", PANTORRILLA, "gemelos", "maquina", ("C",), None, 3),
 
     # ===================== ANTEBRAZO =========================================
     Ejercicio("Curl Invertido con Barra EZ",       ANTEBRAZO, "antebrazos", "barra",         ("C",), None, 1),
@@ -181,6 +204,7 @@ EJERCICIOS: list[Ejercicio] = [
     Ejercicio("Elevaciones de Piernas Colgado",    CORE, "abdomen", "peso_corporal", ("C",), None, 2),
     Ejercicio("Crunch en Polea Alta",              CORE, "abdomen", "polea",         ("C",), None, 3),
     Ejercicio("Rueda Abdominal",                   CORE, "abdomen", "peso_corporal", ("C",), None, 4),
+    Ejercicio("Pallof Press en Polea",             CORE, "abdomen", "polea",         ("C",), None, 5),
 
     # ===================== CARDIO ============================================
     Ejercicio("Eliptica",                          CARDIO, "abdomen", "maquina", ("C",), None, 1),
@@ -248,6 +272,8 @@ ESTIMULOS: dict[str, dict[str, float]] = {
     "Pec Deck (Aperturas Maquina)":       {"pecho_inf": 1.0, "pecho_sup": 0.25},
     "Aperturas con Mancuernas":           {"pecho_inf": 1.0, "pecho_sup": 0.25},
     "Cruce de Poleas":                    {"pecho_inf": 1.0, "pecho_sup": 0.25},
+    "Cruce de Poleas Bajo-Alto":          {"pecho_sup": 1.0, "delt_ant": 0.25},
+    "Press Inclinado en Maquina":         {"pecho_sup": 1.0, "delt_ant": 0.5, "triceps": 0.5},
     # ── Empuje vertical ──────────────────────────────────────────────────────
     "Press Militar Mancuernas (Sentado)": {"delt_ant": 1.0, "delt_lat": 0.5, "triceps": 0.5, "pecho_sup": 0.25},
     "Press Arnold con Mancuernas":        {"delt_ant": 1.0, "delt_lat": 0.5, "triceps": 0.5},
@@ -264,6 +290,8 @@ ESTIMULOS: dict[str, dict[str, float]] = {
     "Dominadas":                          {"dorsal": 1.0, "espalda_alta": 0.5, "biceps": 0.5, "abdomen": 0.25},
     "Jalon Unilateral en Polea":          {"dorsal": 1.0, "espalda_alta": 0.25, "biceps": 0.5},
     "Jalon Agarre Neutro":                {"dorsal": 1.0, "biceps": 0.5},
+    # pullover: dorsal aislado, sin biceps (brazo extendido)
+    "Pullover en Polea Alta":             {"dorsal": 1.0, "pecho_inf": 0.25, "abdomen": 0.25},
     # ── Dominante de rodilla ─────────────────────────────────────────────────
     "Sentadilla Libre con Barra":         {"cuadriceps": 1.0, "gluteo": 0.75, "aductor": 0.5, "lumbar": 0.25},
     "Prensa de Piernas 45 grados":        {"cuadriceps": 1.0, "gluteo": 0.5, "aductor": 0.25},
@@ -272,6 +300,7 @@ ESTIMULOS: dict[str, dict[str, float]] = {
     "Zancadas con Mancuernas":            {"cuadriceps": 1.0, "gluteo": 0.75},
     "Sentadilla con Mancuernas (Goblet)": {"cuadriceps": 1.0, "gluteo": 0.5, "abdomen": 0.25},
     "Step Up con Mancuernas":             {"cuadriceps": 1.0, "gluteo": 0.75},
+    "Sentadilla Frontal con Barra":       {"cuadriceps": 1.0, "gluteo": 0.5, "abdomen": 0.5, "lumbar": 0.25},
     "Extensiones de Cuadriceps (Maquina)": {"cuadriceps": 1.0},
     # ── Dominante de cadera ──────────────────────────────────────────────────
     "Hip Thrust con Barra":               {"gluteo": 1.0, "isquios": 0.5, "cuadriceps": 0.25},
@@ -280,9 +309,12 @@ ESTIMULOS: dict[str, dict[str, float]] = {
     "Peso Muerto Convencional":           {"gluteo": 1.0, "isquios": 0.75, "lumbar": 0.75, "cuadriceps": 0.25, "antebrazo": 0.5},
     "Peso Muerto Sumo con Barra":         {"gluteo": 1.0, "aductor": 0.75, "isquios": 0.5, "cuadriceps": 0.5, "lumbar": 0.5},
     "Extensiones Lumbares en Maquina":    {"lumbar": 1.0, "gluteo": 0.5, "isquios": 0.5},
+    "Hiperextension con Lastre":          {"lumbar": 1.0, "gluteo": 0.5, "isquios": 0.5},
+    "Hiperextension Inversa":             {"lumbar": 1.0, "gluteo": 0.75, "isquios": 0.5},
     # ── Isquios (flexion de rodilla) ─────────────────────────────────────────
     "Curl de Isquios Tumbado (Maquina)":  {"isquios": 1.0, "gemelo": 0.25},
     "Curl de Isquios Sentado (Maquina)":  {"isquios": 1.0},
+    "Curl Nordico":                       {"isquios": 1.0, "gemelo": 0.25},
     # ── Hombro lateral ───────────────────────────────────────────────────────
     "Elevaciones Laterales Mancuernas":   {"delt_lat": 1.0, "trapecio_sup": 0.25},
     "Elevaciones Laterales Polea Baja":   {"delt_lat": 1.0, "trapecio_sup": 0.25},
@@ -290,6 +322,7 @@ ESTIMULOS: dict[str, dict[str, float]] = {
     # ── Hombro posterior / manguito ──────────────────────────────────────────
     "Face Pull Polea Alta":               {"delt_post": 1.0, "espalda_alta": 0.5, "trapecio_sup": 0.25, "manguito": 0.5},
     "Pec Deck Invertido":                 {"delt_post": 1.0, "espalda_alta": 0.5},
+    "Pajaros con Mancuernas":             {"delt_post": 1.0, "espalda_alta": 0.25},
     # ── Rotadores / manguito ─────────────────────────────────────────────────
     "Rotacion Externa en Polea":          {"manguito": 1.0, "delt_post": 0.25},
     "Rotacion Externa con Mancuerna":     {"manguito": 1.0, "delt_post": 0.25},
@@ -301,6 +334,8 @@ ESTIMULOS: dict[str, dict[str, float]] = {
     # ── Aductor ──────────────────────────────────────────────────────────────
     "Aduccion de Cadera en Maquina":      {"aductor": 1.0},
     "Sentadilla Sumo con Mancuerna":      {"aductor": 1.0, "cuadriceps": 0.5, "gluteo": 0.5},
+    # zancada lateral: estira el aductor de la pierna de apoyo bajo carga
+    "Zancada Lateral con Mancuerna":      {"aductor": 1.0, "gluteo": 0.5, "cuadriceps": 0.5},
     # ── Gluteo aislado (patada / kickback) ───────────────────────────────────
     "Patada de Gluteo en Polea":          {"gluteo": 1.0, "isquios": 0.25},
     "Patada de Gluteo en Maquina":        {"gluteo": 1.0, "isquios": 0.25},
@@ -308,7 +343,10 @@ ESTIMULOS: dict[str, dict[str, float]] = {
     # ── Trapecio ─────────────────────────────────────────────────────────────
     "Encogimientos con Mancuernas":       {"trapecio_sup": 1.0, "antebrazo": 0.25},
     "Encogimientos con Barra":            {"trapecio_sup": 1.0, "antebrazo": 0.25},
+    "Encogimientos en Polea":             {"trapecio_sup": 1.0},
     # ── Biceps ───────────────────────────────────────────────────────────────
+    "Curl Inclinado con Mancuernas":      {"biceps": 1.0},
+    "Curl Predicador con Barra EZ":       {"biceps": 1.0, "antebrazo": 0.25},
     "Curl con Barra EZ":                  {"biceps": 1.0, "antebrazo": 0.25},
     "Curl con Mancuernas":                {"biceps": 1.0, "antebrazo": 0.25},
     "Curl Martillo con Mancuernas":       {"biceps": 0.75, "antebrazo": 0.75},
@@ -319,10 +357,12 @@ ESTIMULOS: dict[str, dict[str, float]] = {
     "Extension Triceps Polea Barra":      {"triceps": 1.0},
     "Press Frances con Barra EZ":         {"triceps": 1.0},
     "Extension Triceps sobre Cabeza":     {"triceps": 1.0},
+    "Press Cerrado con Barra":            {"triceps": 1.0, "pecho_inf": 0.5, "delt_ant": 0.25},
     "Fondos en Banco":                    {"triceps": 1.0, "pecho_inf": 0.25, "delt_ant": 0.25},
     # ── Pantorrilla ──────────────────────────────────────────────────────────
     "Elevaciones de Pantorrilla De Pie":  {"gemelo": 1.0},
     "Elevaciones de Pantorrilla Sentado": {"gemelo": 1.0},
+    "Elevacion de Pantorrilla en Prensa": {"gemelo": 1.0},
     # ── Antebrazo ────────────────────────────────────────────────────────────
     "Curl Invertido con Barra EZ":        {"antebrazo": 1.0, "biceps": 0.5},
     "Farmer's Carry":                     {"antebrazo": 1.0, "trapecio_sup": 0.5, "abdomen": 0.25},
@@ -335,6 +375,12 @@ ESTIMULOS: dict[str, dict[str, float]] = {
     "Elevaciones de Piernas Colgado":     {"abdomen": 1.0, "antebrazo": 0.25},
     "Crunch en Polea Alta":               {"abdomen": 1.0},
     "Rueda Abdominal":                    {"abdomen": 1.0, "dorsal": 0.25},
+    # cardio: no aporta estimulo hipertrofico a ningun submusculo. Sin esta
+    # entrada, estimulo_de() caeria al fallback {musculo: 1.0} = abdomen.
+    "Eliptica":                           {},
+    "Bicicleta Estatica":                 {},
+    "Caminata Inclinada":                 {},
+    "Pallof Press en Polea":              {"abdomen": 1.0},
 }
 
 
