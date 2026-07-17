@@ -40,12 +40,24 @@ ANTEBRAZO_EN_DIAS = {
     "full_body":   [0, 2],      # FB A y FB C
 }
 
-# Rotacion de antebrazo por semana del mesociclo
-ANTEBRAZO_SEMANA = {
-    1: ("Farmer's Carry", "S1/S3: agarre funcional, 30-40 m por mano."),
-    2: ("Curl de Muneca con Barra (Flexores)", "S2: flexores directos."),
-    3: ("Pinzamiento de Disco", "S3: pinch grip, 20-30 seg por mano."),
-    4: ("Rodillo de Muneca (Wrist Roller)", "S4 PICO: antebrazo completo."),
+# Antebrazo: metadatos de EJECUCION (no un calendario). Que ejercicio toca cada
+# semana lo decide _elegir con el estimulo acumulado, no una tabla fija.
+ANTEBRAZO_SIN_REPS = frozenset({
+    "Farmer's Carry", "Pinzamiento de Disco", "Rodillo de Muneca (Wrist Roller)",
+})
+ANTEBRAZO_NOTA = {
+    "Farmer's Carry": "agarre funcional, 30-40 m por mano.",
+    "Pinzamiento de Disco": "pinch grip, 20-30 seg por mano.",
+    "Rodillo de Muneca (Wrist Roller)": "antebrazo completo, subir y bajar controlado.",
+    "Curl de Muneca con Barra (Flexores)": "flexores directos. RIR 1-2.",
+    "Curl de Muneca Inverso (Extensores)": ("extensores de muneca. Peso ligero y "
+                                            "excentrico lento: salud del codo "
+                                            "(epicondilitis), no fuerza."),
+    "Curl Invertido con Barra EZ": "braquiorradial + extensores. RIR 1-2.",
+    "Curl Zottman con Mancuernas": ("sube supinado, BAJA pronado y lento: el "
+                                    "excentrico es el objetivo."),
+    "Extension de Muneca con Banda": ("excentrico lento (3-4 s). Prevencion de "
+                                      "epicondilitis: sin dolor, no buscar fallo."),
 }
 
 
@@ -466,15 +478,35 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
         if not es_tri_pareado:
             n_c += 1
 
-    # ── ANTEBRAZO — siempre al final, rotando por semana ─────────────────────
+    # ── ANTEBRAZO — al final, elegido por el motor (una semana cada uno) ──────
+    # Antes era una plantilla fija de 4 nombres por semana: los extensores de
+    # muneca NO se entrenaban nunca. Eso importa mas que la estetica — cada remo,
+    # dominada y peso muerto entrena los FLEXORES en isometrico (agarre), asi que
+    # se hipertrofian solos mientras los extensores quedan debiles tirando de la
+    # insercion del codo (epicondilitis lateral).
+    #
+    # Ahora se elige con el mismo motor que el resto: como `est_dia` ya trae la
+    # carga de agarre acumulada del dia, la ganancia marginal del ejercicio de
+    # extensores es la mas alta y sale primero SIN reglas especiales. El balance
+    # flexor/extensor emerge de los datos, no de una lista escrita a mano.
     if con_antebrazo:
-        for sem, (nombre_ej, nota) in ANTEBRAZO_SEMANA.items():
-            ej = next((e for e in db.EJERCICIOS if e.nombre == nombre_ej), None)
-            if ej:
-                reps = (None, None) if "Carry" in nombre_ej or "Pinzamiento" in nombre_ej or "Rodillo" in nombre_ej else (12, 15)
-                filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
-                                  "Tradicional", 3, reps[0], reps[1], DESC["aislamiento"],
-                                  None, nota, semanas=(sem,)))
+        usados_ante: set[str] = set()
+        est_ante = dict(est_dia)  # parte de la fatiga real de agarre del dia
+        for sem in (1, 2, 3, 4):
+            ej = _elegir(db.ANTEBRAZO, "C", usados_ante, orden_pref=ciclo,
+                         excluidos=excluidos, acumulado=est_ante)
+            if not ej:
+                break
+            usados_ante.add(ej.nombre)
+            for sub, v in db.estimulo_de(ej).items():
+                est_ante[sub] = est_ante.get(sub, 0.0) + v * 3
+            sin_reps = ej.nombre in ANTEBRAZO_SIN_REPS
+            filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
+                              "Tradicional", 3,
+                              None if sin_reps else 12, None if sin_reps else 15,
+                              DESC["aislamiento"], None,
+                              f"S{sem}: {ANTEBRAZO_NOTA.get(ej.nombre, 'RIR 1-2.')}",
+                              semanas=(sem,)))
         orden += 1
 
     return filas

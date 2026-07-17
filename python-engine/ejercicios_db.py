@@ -198,6 +198,12 @@ EJERCICIOS: list[Ejercicio] = [
     Ejercicio("Curl de Muneca Inverso (Extensores)", ANTEBRAZO, "antebrazos", "barra",       ("C",), None, 4),
     Ejercicio("Pinzamiento de Disco",              ANTEBRAZO, "antebrazos", "peso_corporal", ("C",), None, 5),
     Ejercicio("Rodillo de Muneca (Wrist Roller)",  ANTEBRAZO, "antebrazos", "peso_corporal", ("C",), None, 6),
+    # zottman: sube supinado (biceps) y BAJA pronado -> excentrico de
+    # braquiorradial y extensores en el mismo movimiento
+    Ejercicio("Curl Zottman con Mancuernas",       ANTEBRAZO, "antebrazos", "mancuerna",     ("C",), None, 7),
+    # extension excentrica de muneca con banda (Tyler 2010): el ejercicio
+    # con mas evidencia para la epicondilitis lateral (codo de tenista)
+    Ejercicio("Extension de Muneca con Banda",     ANTEBRAZO, "antebrazos", "peso_corporal", ("C",), None, 8),
 
     # ===================== CORE ==============================================
     Ejercicio("Plancha Frontal",                   CORE, "abdomen", "peso_corporal", ("C",), None, 1),
@@ -256,7 +262,12 @@ SUBMUSCULOS = {
     "espalda": ["dorsal", "espalda_alta", "trapecio_sup", "lumbar"],
     "hombro":  ["delt_ant", "delt_lat", "delt_post", "manguito"],
     "pecho":   ["pecho_sup", "pecho_inf"],
-    "brazo":   ["biceps", "triceps", "antebrazo"],
+    # el antebrazo NO es un bloque: los flexores de muneca (agarre) se
+    # hipertrofian solos con cada remo, dominada y peso muerto, mientras que
+    # los extensores quedan debiles y tiran de la insercion del codo
+    # (epicondilitis lateral). Separarlos permite al motor ver el desbalance.
+    "brazo":   ["biceps", "triceps", "braquiorradial",
+                "flexor_muneca", "extensor_muneca"],
     "pierna":  ["cuadriceps", "isquios", "gluteo", "gluteo_med", "aductor", "gemelo"],
     "core":    ["abdomen"],
 }
@@ -280,16 +291,16 @@ ESTIMULOS: dict[str, dict[str, float]] = {
     "Press Militar con Barra":            {"delt_ant": 1.0, "delt_lat": 0.5, "triceps": 0.5, "trapecio_sup": 0.25},
     "Press Hombro en Maquina":            {"delt_ant": 1.0, "delt_lat": 0.5, "triceps": 0.5},
     # ── Tiron horizontal (remos: espalda alta con dorsal fuerte) ────────────
-    "Remo con Mancuerna a 1 Mano":        {"espalda_alta": 1.0, "dorsal": 0.75, "biceps": 0.5, "delt_post": 0.25},
-    "Remo con Barra Agarre Prono":        {"espalda_alta": 1.0, "dorsal": 0.75, "biceps": 0.5, "lumbar": 0.25},
-    "Remo en Polea Baja Agarre Neutro":   {"dorsal": 1.0, "espalda_alta": 0.75, "biceps": 0.5},
-    "Remo en Maquina Martillo":           {"espalda_alta": 1.0, "dorsal": 0.75, "biceps": 0.5},
-    "Remo en Punta (T-Bar)":              {"espalda_alta": 1.0, "dorsal": 0.75, "biceps": 0.5, "lumbar": 0.25},
+    "Remo con Mancuerna a 1 Mano":        {"espalda_alta": 1.0, "dorsal": 0.75, "biceps": 0.5, "delt_post": 0.25, "flexor_muneca": 0.5},
+    "Remo con Barra Agarre Prono":        {"espalda_alta": 1.0, "dorsal": 0.75, "biceps": 0.5, "lumbar": 0.25, "flexor_muneca": 0.5},
+    "Remo en Polea Baja Agarre Neutro":   {"dorsal": 1.0, "espalda_alta": 0.75, "biceps": 0.5, "flexor_muneca": 0.25},
+    "Remo en Maquina Martillo":           {"espalda_alta": 1.0, "dorsal": 0.75, "biceps": 0.5, "flexor_muneca": 0.25},
+    "Remo en Punta (T-Bar)":              {"espalda_alta": 1.0, "dorsal": 0.75, "biceps": 0.5, "lumbar": 0.25, "flexor_muneca": 0.5},
     # ── Tiron vertical (dorsal ancho casi puro) ──────────────────────────────
-    "Jalon al Pecho Agarre Amplio":       {"dorsal": 1.0, "espalda_alta": 0.25, "biceps": 0.5},
-    "Dominadas":                          {"dorsal": 1.0, "espalda_alta": 0.5, "biceps": 0.5, "abdomen": 0.25},
-    "Jalon Unilateral en Polea":          {"dorsal": 1.0, "espalda_alta": 0.25, "biceps": 0.5},
-    "Jalon Agarre Neutro":                {"dorsal": 1.0, "biceps": 0.5},
+    "Jalon al Pecho Agarre Amplio":       {"dorsal": 1.0, "espalda_alta": 0.25, "biceps": 0.5, "flexor_muneca": 0.25},
+    "Dominadas":                          {"dorsal": 1.0, "espalda_alta": 0.5, "biceps": 0.5, "abdomen": 0.25, "flexor_muneca": 0.75},
+    "Jalon Unilateral en Polea":          {"dorsal": 1.0, "espalda_alta": 0.25, "biceps": 0.5, "flexor_muneca": 0.25},
+    "Jalon Agarre Neutro":                {"dorsal": 1.0, "biceps": 0.5, "flexor_muneca": 0.25},
     # pullover: dorsal aislado, sin biceps (brazo extendido)
     "Pullover en Polea Alta":             {"dorsal": 1.0, "pecho_inf": 0.25, "abdomen": 0.25},
     # ── Dominante de rodilla ─────────────────────────────────────────────────
@@ -304,10 +315,10 @@ ESTIMULOS: dict[str, dict[str, float]] = {
     "Extensiones de Cuadriceps (Maquina)": {"cuadriceps": 1.0},
     # ── Dominante de cadera ──────────────────────────────────────────────────
     "Hip Thrust con Barra":               {"gluteo": 1.0, "isquios": 0.5, "cuadriceps": 0.25},
-    "Peso Muerto Rumano con Barra":       {"isquios": 1.0, "gluteo": 0.75, "lumbar": 0.5, "antebrazo": 0.25, "espalda_alta": 0.25},
-    "Peso Muerto Rumano con Mancuernas":  {"isquios": 1.0, "gluteo": 0.75, "lumbar": 0.5, "antebrazo": 0.25},
-    "Peso Muerto Convencional":           {"gluteo": 1.0, "isquios": 0.75, "lumbar": 0.75, "cuadriceps": 0.25, "antebrazo": 0.5},
-    "Peso Muerto Sumo con Barra":         {"gluteo": 1.0, "aductor": 0.75, "isquios": 0.5, "cuadriceps": 0.5, "lumbar": 0.5},
+    "Peso Muerto Rumano con Barra":       {"isquios": 1.0, "gluteo": 0.75, "lumbar": 0.5, "flexor_muneca": 0.5, "espalda_alta": 0.25},
+    "Peso Muerto Rumano con Mancuernas":  {"isquios": 1.0, "gluteo": 0.75, "lumbar": 0.5, "flexor_muneca": 0.5},
+    "Peso Muerto Convencional":           {"gluteo": 1.0, "isquios": 0.75, "lumbar": 0.75, "cuadriceps": 0.25, "flexor_muneca": 0.75},
+    "Peso Muerto Sumo con Barra":         {"gluteo": 1.0, "aductor": 0.75, "isquios": 0.5, "cuadriceps": 0.5, "lumbar": 0.5, "flexor_muneca": 0.75},
     "Extensiones Lumbares en Maquina":    {"lumbar": 1.0, "gluteo": 0.5, "isquios": 0.5},
     "Hiperextension con Lastre":          {"lumbar": 1.0, "gluteo": 0.5, "isquios": 0.5},
     "Hiperextension Inversa":             {"lumbar": 1.0, "gluteo": 0.75, "isquios": 0.5},
@@ -341,16 +352,16 @@ ESTIMULOS: dict[str, dict[str, float]] = {
     "Patada de Gluteo en Maquina":        {"gluteo": 1.0, "isquios": 0.25},
     "Puente de Gluteo a 1 Pierna":        {"gluteo": 1.0, "isquios": 0.5},
     # ── Trapecio ─────────────────────────────────────────────────────────────
-    "Encogimientos con Mancuernas":       {"trapecio_sup": 1.0, "antebrazo": 0.25},
-    "Encogimientos con Barra":            {"trapecio_sup": 1.0, "antebrazo": 0.25},
+    "Encogimientos con Mancuernas":       {"trapecio_sup": 1.0, "flexor_muneca": 0.5},
+    "Encogimientos con Barra":            {"trapecio_sup": 1.0, "flexor_muneca": 0.5},
     "Encogimientos en Polea":             {"trapecio_sup": 1.0},
     # ── Biceps ───────────────────────────────────────────────────────────────
     "Curl Inclinado con Mancuernas":      {"biceps": 1.0},
-    "Curl Predicador con Barra EZ":       {"biceps": 1.0, "antebrazo": 0.25},
-    "Curl con Barra EZ":                  {"biceps": 1.0, "antebrazo": 0.25},
-    "Curl con Mancuernas":                {"biceps": 1.0, "antebrazo": 0.25},
-    "Curl Martillo con Mancuernas":       {"biceps": 0.75, "antebrazo": 0.75},
-    "Curl Polea Baja Cuerda":             {"biceps": 1.0, "antebrazo": 0.25},
+    "Curl Predicador con Barra EZ":       {"biceps": 1.0, "flexor_muneca": 0.25},
+    "Curl con Barra EZ":                  {"biceps": 1.0, "flexor_muneca": 0.25},
+    "Curl con Mancuernas":                {"biceps": 1.0, "flexor_muneca": 0.25},
+    "Curl Martillo con Mancuernas":       {"biceps": 0.75, "braquiorradial": 1.0},
+    "Curl Polea Baja Cuerda":             {"biceps": 1.0, "flexor_muneca": 0.25},
     "Curl Concentrado":                   {"biceps": 1.0},
     # ── Triceps ──────────────────────────────────────────────────────────────
     "Extension Triceps Polea Cuerda":     {"triceps": 1.0},
@@ -364,15 +375,19 @@ ESTIMULOS: dict[str, dict[str, float]] = {
     "Elevaciones de Pantorrilla Sentado": {"gemelo": 1.0},
     "Elevacion de Pantorrilla en Prensa": {"gemelo": 1.0},
     # ── Antebrazo ────────────────────────────────────────────────────────────
-    "Curl Invertido con Barra EZ":        {"antebrazo": 1.0, "biceps": 0.5},
-    "Farmer's Carry":                     {"antebrazo": 1.0, "trapecio_sup": 0.5, "abdomen": 0.25},
-    "Curl de Muneca con Barra (Flexores)": {"antebrazo": 1.0},
-    "Curl de Muneca Inverso (Extensores)": {"antebrazo": 1.0},
-    "Pinzamiento de Disco":               {"antebrazo": 1.0},
-    "Rodillo de Muneca (Wrist Roller)":   {"antebrazo": 1.0},
+    # el curl invertido es braquiorradial de motor y extensores en isometrico
+    "Curl Invertido con Barra EZ":        {"braquiorradial": 1.0, "extensor_muneca": 0.75, "biceps": 0.5},
+    "Farmer's Carry":                     {"flexor_muneca": 1.0, "trapecio_sup": 0.5, "abdomen": 0.25},
+    "Curl de Muneca con Barra (Flexores)": {"flexor_muneca": 1.0},
+    "Curl de Muneca Inverso (Extensores)": {"extensor_muneca": 1.0},
+    "Pinzamiento de Disco":               {"flexor_muneca": 1.0},
+    # el rodillo va en las dos direcciones: flexion Y extension
+    "Rodillo de Muneca (Wrist Roller)":   {"flexor_muneca": 1.0, "extensor_muneca": 1.0},
+    "Curl Zottman con Mancuernas":        {"braquiorradial": 1.0, "extensor_muneca": 0.75, "biceps": 0.75},
+    "Extension de Muneca con Banda":      {"extensor_muneca": 1.0},
     # ── Core ─────────────────────────────────────────────────────────────────
     "Plancha Frontal":                    {"abdomen": 1.0},
-    "Elevaciones de Piernas Colgado":     {"abdomen": 1.0, "antebrazo": 0.25},
+    "Elevaciones de Piernas Colgado":     {"abdomen": 1.0, "flexor_muneca": 0.5},
     "Crunch en Polea Alta":               {"abdomen": 1.0},
     "Rueda Abdominal":                    {"abdomen": 1.0, "dorsal": 0.25},
     # cardio: no aporta estimulo hipertrofico a ningun submusculo. Sin esta

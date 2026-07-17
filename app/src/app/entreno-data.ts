@@ -158,7 +158,9 @@ export function musculosDe(nombre: string): MuscleId[] {
     add('biceps');
   }
   if (tiene('encogimiento', 'shrug', 'trapecio')) add('trapecios');
-  if (tiene('curl invertido', 'muneca', 'antebrazo')) add('antebrazos');
+  // zottman / invertido / muneca = antebrazo de motor (braquiorradial y
+  // extensores), aunque el nombre lleve la palabra "curl"
+  if (tiene('curl invertido', 'zottman', 'muneca', 'antebrazo')) add('antebrazos');
   if (tiene('martillo')) {
     add('biceps'); // el martillo es braquial/biceps primario; antebrazo secundario
     add('antebrazos');

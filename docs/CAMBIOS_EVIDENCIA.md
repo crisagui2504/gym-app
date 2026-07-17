@@ -979,6 +979,66 @@ ciclos: (24) ninguna sesión mezcla axial + lumbar directo **y** el lumbar
 directo sí llega a programarse —no es código muerto—; (25) el aislamiento
 saturado no se añade; (26) el core rota y no repite en la semana.
 
+## BF. El antebrazo: partir el submúsculo para que el balance emerja solo
+
+Última plantilla fija (`ANTEBRAZO_SEMANA`: 4 nombres por semana). Consecuencia
+clínica, no estética: **los extensores de muñeca no se entrenaban nunca**. Cada
+remo, dominada y peso muerto entrena los **flexores** en isométrico (el agarre),
+así que se hipertrofian solos, mientras los extensores quedan débiles tirando de
+la inserción del codo → epicondilitis lateral (codo de tenista), que es
+tendinopatía **del extensor** (ECRB).
+
+**El problema no era la plantilla, era el modelo.** Enchufar el patrón a
+`_elegir` sin más no habría balanceado nada: `antebrazo` era **un solo
+submúsculo**, así que los 6 ejercicios empataban a `{antebrazo: 1.0}` y la
+rotación era ciega. El motor no puede equilibrar lo que no distingue.
+
+### 1. Partición anatómica del submúsculo
+
+| Submúsculo | Qué es | Ejemplos |
+|---|---|---|
+| `flexor_muneca` | flexores + agarre | curl de muñeca, farmer's, pinzamiento |
+| `extensor_muneca` | extensores (sitio de la epicondilitis) | curl de muñeca inverso, banda |
+| `braquiorradial` | flexor del codo alojado en el antebrazo | curl invertido, martillo, zottman |
+
+### 2. Etiquetar el agarre en los tirones (la pieza que faltaba)
+
+Los remos y dominadas **no etiquetaban agarre en absoluto**, así que los
+flexores nunca acumulaban y el desbalance era invisible. Ahora sí: dominadas
+`flexor_muneca 0.75` (colgarse del peso corporal), remos con peso libre `0.5`,
+polea/máquina `0.25`, peso muerto `0.5–0.75`.
+
+### 3. El resultado emerge de los datos, sin reglas especiales
+
+```
+Pull A: flexor_muneca=8.00   extensor_muneca=0.00   <- agarre de remos/dominadas
+   S1: Curl de Muneca Inverso (Extensores)   {extensor_muneca: 1.0}
+   S2: Curl Invertido con Barra EZ           {braquiorradial: 1.0, extensor_muneca: 0.75}
+   S3: Farmer's Carry                        {flexor_muneca: 1.0}
+   S4: Rodillo de Muneca                     {flexor_muneca: 1.0, extensor_muneca: 1.0}
+```
+
+El motor pone los extensores primero **porque ve flexores a 8.0 y extensores a
+0.0**. No hay ninguna regla que diga «entrena extensores»: sale de la ganancia
+marginal, igual que el resto del cuerpo. Y no sobrecorrige: una vez entrenados,
+su ganancia baja y los flexores recuperan turno (farmer's y pinzamiento siguen
+apareciendo). **0 de 225 semanas se quedan sin estímulo de extensores** (antes,
+225 de 225).
+
+### 4. Dos ejercicios nuevos (estándar de ≥3 opciones primarias)
+
+- **Curl Zottman con Mancuernas**: sube supinado, baja pronado → excéntrico de
+  braquiorradial y extensores en un solo movimiento.
+- **Extensión de Muñeca con Banda**: excéntrico lento, el ejercicio con más
+  evidencia para la epicondilitis lateral (Tyler 2010). Nota explícita en el
+  plan: sin dolor, no buscar el fallo — es prehab, no volumen.
+
+Catálogo: **98 ejercicios**, alcanzables 95/98 en el barrido de 5 ciclos (los 3
+restantes: `Extensiones Lumbares` sale en el ciclo 14; `Press Hombro en Máquina`
+y `Pullover en Polea` siguen sin un bloque que los pida). Test 27 de regresión:
+ninguna semana sin extensores, la rotación cubre todo el catálogo, y el balance
+emerge del acumulado (no de una regla escrita a mano).
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
@@ -995,6 +1055,9 @@ saturado no se añade; (26) el core rota y no repite en la semana.
 - Sato S et al. (2021). *Elbow joint angles in elbow flexor unilateral resistance exercise training determine its effects on muscle strength and thickness.* Eur J Appl Physiol (mitad baja/estirada del curl).
 - Pedrosa GF et al. (2022). *Partial range of motion training at long muscle length elicits favourable adaptations.* Eur J Sport Sci.
 - Kassiano W et al. (2023). *Marching to the beat of the muscle: stretch-mediated hypertrophy — a review of training at long muscle lengths.* J Strength Cond Res.
+- Tyler TF, Thomas GC, Nicholas SJ, McHugh MP (2010). *Addition of isolated wrist extensor eccentric exercise to standard treatment for chronic lateral epicondylosis: a prospective randomized trial.* J Shoulder Elbow Surg (excéntrico de extensores de muñeca).
+- Cullinane FL, Boocock MG, Trevelyan FC (2014). *Is eccentric exercise an effective treatment for lateral epicondylitis? A systematic review.* Clin Rehabil.
+- Coombes BK, Bisset L, Vicenzino B (2015). *Management of lateral elbow tendinopathy: one size does not fit all.* J Orthop Sports Phys Ther.
 
 ## Verificación
 

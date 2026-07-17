@@ -514,6 +514,45 @@ for ciclo in range(5):
         check("el core no repite ejercicio dentro de la misma semana", False, f"c{ciclo}: {_c}")
         break
 
+print("\n== 27. Antebrazo: el motor balancea flexores vs extensores (salud del codo) ==")
+_ante = {e.nombre for e in db.por_patron(db.ANTEBRAZO, "C")}
+_sin_ext, _vistos_ante, _combos = 0, set(), 0
+for enfoque in ("recomposicion", "volumen", "definicion", "powerbuilding", "fuerza"):
+    for split in ("upper_lower", "ppl", "full_body"):
+        for ciclo in range(15):
+            p = generar_plan({"enfoque": enfoque, "split": split}, ciclo=ciclo)
+            _combos += 1
+            ext = 0.0
+            for f in p:
+                ej = next((x for x in db.EJERCICIOS if x.nombre == f.ejercicio), None)
+                if not ej:
+                    continue
+                if ej.patron == db.ANTEBRAZO:
+                    _vistos_ante.add(f.ejercicio)
+                ext += db.estimulo_de(ej).get("extensor_muneca", 0.0) * f.series
+            if ext == 0:
+                _sin_ext += 1
+check("ninguna semana se queda sin estimulo de extensores de muneca",
+      _sin_ext == 0, f"{_sin_ext}/{_combos} semanas sin extensores")
+check("la rotacion cubre TODO el catalogo de antebrazo (no hay plantilla fija)",
+      _vistos_ante == _ante, f"faltan: {sorted(_ante - _vistos_ante)}")
+
+# el balance debe EMERGER del acumulado, no de una regla escrita a mano
+_p = generar_plan({"enfoque": "recomposicion", "split": "ppl"}, ciclo=0)
+_pull = [f for f in _p if f.nombre_dia == "Pull A" and f.tecnica]
+_flex = sum(db.estimulo_de(next(x for x in db.EJERCICIOS if x.nombre == f.ejercicio))
+            .get("flexor_muneca", 0.0) * f.series
+            for f in _pull
+            if next((x for x in db.EJERCICIOS if x.nombre == f.ejercicio)).patron != db.ANTEBRAZO)
+_s1 = [f for f in _pull if f.ejercicio in _ante and f.semanas == (1,)]
+check("el agarre de remos/dominadas acumula carga de flexores en un dia de tiron",
+      _flex > 0, f"flexor_muneca={_flex}")
+check("con los flexores ya cargados, el motor elige EXTENSORES primero (S1)",
+      bool(_s1) and db.estimulo_de(
+          next(x for x in db.EJERCICIOS if x.nombre == _s1[0].ejercicio)
+      ).get("extensor_muneca", 0.0) > 0,
+      f"S1 eligio: {_s1[0].ejercicio if _s1 else None}")
+
 print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")
