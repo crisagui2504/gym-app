@@ -1220,6 +1220,89 @@ deportes de corte.
   split (el ejercicio fijo dejó de tener Top Set). Ahora recibe un plan explícito
   y saca el ejercicio de ese plan: un test no debe depender de la config personal.
 
+## BI. El reingreso era un acantilado, no una rampa (2026-09-23)
+
+Lo detectó el usuario, no una prueba: *«¿es normal que el entrenamiento de hoy lo
+sintiera muy liviano y además muy corto?»*. Sí lo era —estaba en la semana de
+reingreso, **6 series frente a las 18 de un miércoles normal (33 %)**— pero al
+mirarlo apareció un defecto de razonamiento y un error mío de medición.
+
+### Corrección de un dato mal medido
+
+En la sesión anterior se afirmó que el plan prescribía **24.8 series ponderadas de
+cuádriceps** por semana y que eso era «el doble de lo necesario», con una
+recomendación de recortar el volumen un 35 %. **Era falso y el recorte habría
+sido un error.** Se midió el artefacto equivocado: la salida de `generar_plan()`
+contiene filas alternativas para S1, S2 y S3-S4 (las suma como si coexistieran) y
+es *previa* a `_recortar_duracion`. El volumen realmente prescrito, medido sobre
+`generar_filas`, es glúteo 15.2 · cuádriceps 12.8 · dorsal 10.5 — **dentro del
+rango de 10-20 series/músculo/semana**. 18 series y ~64 min por sesión. El
+recorte habría dejado al usuario por debajo del umbral productivo.
+
+Lección: medir siempre sobre `generar_filas` (lo que se sube al servidor), nunca
+sobre la plantilla de `generar_plan`.
+
+### Deload y reingreso son problemas distintos
+
+`reingreso` hacía simplemente `semana = 5`, o sea reutilizaba la semana de
+descarga tal cual. Pero:
+
+| | Deload (tras 4 semanas duras) | Reingreso (tras 61 días) |
+|---|---|---|
+| Estado | fatiga acumulada | descansado y **desentrenado** |
+| Objetivo | **disipar** fatiga | recuperar estímulo y hábito |
+| Volumen | cortar a fondo (correcto) | suficiente, no mínimo |
+| Carga | mantener algo de intensidad | baja, proteger tejido conectivo |
+
+Tras dos meses de pausa no hay fatiga que disipar. Aplicar el deload entero daba
+**un acantilado**: 33 % de volumen una semana y 100 % la siguiente.
+
+```
+ANTES:  22 series  ->  66 series        (x3 en una semana)
+AHORA:  22 series  ->  40  ->  66       (rampa de 2 semanas)
+```
+
+Ese salto de x3 es donde uno se lesiona o lo vuelve a dejar — y en este caso el
+cuello de botella documentado es precisamente la adherencia (9 sesiones en 5
+semanas y luego 61 días de pausa).
+
+### Implementación
+
+`fase_reingreso(df, objetivo)` devuelve 0 / 1 / 2 leyendo el historial: busca la
+última pausa > 10 días y cuenta las semanas desde que se retomó.
+
+- **Fase 1** — ~1/3 del volumen (1 serie en A/B, sin Bloque C), carga **−10 %**,
+  cero fallo.
+- **Fase 2** — ~2/3 del volumen (`round(series * 2/3)`), **Bloque C de vuelta**
+  (es una rampa, no una descarga), carga **−5 %**, cero fallo. El trabajo al
+  fallo no reaparece hasta la S3.
+- **Fase 0** — normal.
+
+`reingreso` pasó de `bool` a `int` sin romper a los llamadores antiguos:
+`True == 1` en Python, así que `reingreso=True` sigue siendo la fase 1.
+
+Se **autocorrige**: si se vuelve a fallar una semana, el gap reaparece y la fase
+vuelve a 1. Verificado contra el historial real del servidor: semana del 21-sep →
+fase 1, del 28-sep → fase 2, del 5-oct → fase 0 si se entrena de forma
+consistente.
+
+### Lo que sigue abierto
+
+De la revisión como entrenador, lo único que se sostiene tras corregir el error de
+medición: **el 50 % de las series están a RPE ≥ 9** (media 8.6, 12 series a RPE
+10) en un atleta con sentadilla a 0.55× peso corporal, es decir novato. Y la
+progresión sólo sube la carga si la última sesión cerró el rango con **RPE ≤ 8**,
+así que el propio esfuerzo excesivo bloquea la subida de peso la mitad de las
+veces. El volumen y los 4 días se dejan como están.
+
+### Tests
+
+**29 nuevo**: fase 1 < fase 2 < normal (es rampa); la fase 2 queda por encima del
+50 % del volumen normal y la fase 1 por debajo del 45 %; fase 1 sin Bloque C y
+fase 2 con él; ninguna fase lleva series al fallo; y la detección de fase desde el
+historial en los 4 escenarios (pausa abierta, vuelta reciente, dos semanas
+entrenadas, historial continuo).
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

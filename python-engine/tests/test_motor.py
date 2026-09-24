@@ -633,6 +633,53 @@ _p_ppl = generar_plan({"enfoque": "recomposicion", "split": "ppl",
 check("si el deporte choca con un dia de pesas, la nota avisa",
       any("OJO" in (f.notas or "") for f in _p_ppl if f.bloque == "Deporte"))
 
+print("\n== 29. Reingreso en RAMPA, no en acantilado ==")
+def _es_tec(t):  # tecnica que lleva al fallo
+    return any(k in (t or "").lower() for k in ("amrap", "rest", "drop"))
+_plan_r = generar_plan({"enfoque": "recomposicion", "split": "upper_lower",
+                        "prioridades": [], "duracion_min": 75}, ciclo=0)
+def _series(df_, semana_, fase_):
+    fs = pl.generar_filas(df_, "2026-09-28", semana_, plan=_plan_r, reingreso=fase_)
+    return sum(float(f["series_objetivo"] or 0) for f in fs if f["tecnica"])
+def _df_fechas(fechas):
+    d = pd.DataFrame([{"fecha_entreno": pd.Timestamp(x), "ejercicio": "Press de Banca con Barra",
+                       "tecnica": "Top Set", "numero_serie": 1, "peso_kg": 40.0,
+                       "reps_hechas": 8, "rpe": 8, "tonelaje_serie": 320} for x in fechas])
+    d["fecha_entreno"] = pd.to_datetime(d["fecha_entreno"]); return d
+
+_f1, _f2, _f0 = _series(df1, 5, 1), _series(df1, 1, 2), _series(df1, 1, 0)
+check("fase 1 < fase 2 < normal (es una rampa)", _f1 < _f2 < _f0,
+      f"fase1={_f1} fase2={_f2} normal={_f0}")
+check("la fase 2 no es un salto brutal: queda por encima del 50% del normal",
+      _f2 >= _f0 * 0.5, f"fase2={_f2} vs normal={_f0}")
+check("la fase 1 SI recorta a fondo (es la primera semana de vuelta)",
+      _f1 <= _f0 * 0.45, f"fase1={_f1} vs normal={_f0}")
+# el Bloque C vuelve en fase 2: es una rampa, no una descarga
+_c2 = [f for f in pl.generar_filas(df1, "2026-09-28", 1, plan=_plan_r, reingreso=2)
+       if f["tecnica"] and "C -" in f["bloque"]]
+_c1 = [f for f in pl.generar_filas(df1, "2026-09-28", 5, plan=_plan_r, reingreso=1)
+       if f["tecnica"] and "C -" in f["bloque"]]
+check("fase 1 sin Bloque C, fase 2 CON Bloque C", not _c1 and bool(_c2),
+      f"c_fase1={len(_c1)} c_fase2={len(_c2)}")
+# ninguna fase del reingreso lleva trabajo al fallo
+for _fa, _se in ((1, 5), (2, 1)):
+    _fallo = [f for f in pl.generar_filas(df1, "2026-09-28", _se, plan=_plan_r, reingreso=_fa)
+              if f["tecnica"] and _es_tec(f["tecnica"])]
+    check(f"reingreso fase {_fa}: cero series al fallo", not _fallo, str(_fallo[:2]))
+# deteccion de fase a partir del historial
+check("pausa abierta >10 dias -> fase 1",
+      pl.fase_reingreso(_df_fechas(["2026-07-22"]), date(2026, 9, 21)) == 1)
+check("vuelta la semana pasada -> fase 2",
+      pl.fase_reingreso(_df_fechas(["2026-07-22", "2026-09-21", "2026-09-23"]),
+                        date(2026, 9, 28)) == 2)
+check("dos semanas entrenadas -> ya normal (fase 0)",
+      pl.fase_reingreso(_df_fechas(["2026-07-22", "2026-09-21", "2026-09-23",
+                                    "2026-09-28", "2026-09-30"]),
+                        date(2026, 10, 5)) == 0)
+check("historial continuo sin pausas -> fase 0",
+      pl.fase_reingreso(_df_fechas(["2026-09-21", "2026-09-23", "2026-09-25"]),
+                        date(2026, 9, 28)) == 0)
+
 print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")

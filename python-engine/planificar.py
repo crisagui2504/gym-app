@@ -162,6 +162,38 @@ def dias_desde_ultimo(df: pd.DataFrame, objetivo: date) -> int | None:
     return (objetivo - ultimo).days
 
 
+def fase_reingreso(df: pd.DataFrame, objetivo: date, umbral: int = 10) -> int:
+    """En que semana de la vuelta estamos tras una pausa larga.
+
+    0 = sin reingreso en curso (entrenamiento normal)
+    1 = primera semana de vuelta  -> ~1/3 del volumen, carga -10%
+    2 = segunda semana de vuelta  -> ~2/3 del volumen, carga -5%
+
+    Por que una RAMPA y no un deload: un deload y un reingreso son problemas
+    distintos. El deload llega tras semanas duras y sirve para DISIPAR fatiga
+    acumulada, asi que cortar el volumen a fondo es el objetivo. Tras dos meses
+    de pausa no hay fatiga que disipar: estas descansado y DESENTRENADO. Lo que
+    hace falta es carga baja (tejido conectivo, agujetas) pero volumen
+    suficiente para recuperar estimulo y habito. Antes `reingreso` reutilizaba
+    la semana de deload tal cual, asi que la vuelta era un ACANTILADO: 1/3 del
+    volumen una semana y 100% la siguiente (x3 de golpe), que es justo el salto
+    donde se lesiona uno o lo vuelve a dejar."""
+    if df.empty or "fecha_entreno" not in df or df["fecha_entreno"].notna().sum() == 0:
+        return 0
+    fechas = sorted({d.date() for d in df["fecha_entreno"].dropna()})
+    # Pausa todavia abierta: la semana objetivo es la primera de vuelta
+    if (objetivo - fechas[-1]).days > umbral:
+        return 1
+    # Ultima pausa larga DENTRO del historial: cuando se retomo
+    reinicio = next((b for a, b in reversed(list(zip(fechas, fechas[1:])))
+                     if (b - a).days > umbral), None)
+    if reinicio is None:
+        return 0
+    lunes_reinicio = reinicio - timedelta(days=reinicio.weekday())
+    fase = (objetivo - lunes_reinicio).days // 7 + 1
+    return fase if fase in (1, 2) else 0
+
+
 def fatiga_global(df: pd.DataFrame) -> bool:
     """Deload reactivo global: RPE promedio semanal >= 9 en las ultimas 2
     semanas con datos. Es la misma senal que muestra el dashboard en la
@@ -239,10 +271,14 @@ def nota_semana(semana: int) -> str:
 
 
 def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
-                  plan: list[Fila] | None = None, reingreso: bool = False) -> list[dict]:
+                  plan: list[Fila] | None = None,
+                  reingreso: bool | int = False) -> list[dict]:
+    """reingreso: 0/False normal, 1 = primera semana de vuelta (~1/3 del
+    volumen, -10% carga), 2 = segunda (~2/3, -5%). Ver fase_reingreso()."""
     ultima, record, estancados = ultimas_y_records(df)
     filas: list[dict] = []
     top_del_dia: dict[tuple[int, str], float | None] = {}
+    _fase = int(reingreso or 0)  # True -> 1, asi los llamadores antiguos siguen valiendo
 
     # plan base segun la config del usuario (enfoque/split/prioridades)
     if plan is None:
@@ -269,9 +305,12 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
 
         # S5 Deload: cero series al fallo. Las tecnicas de intensidad se
         # sustituyen por trabajo tradicional lejos del fallo (RIR 3-4).
-        if semana == 5 and _es(f.tecnica, "amrap", "rest", "drop"):
+        # La fase 2 del reingreso tampoco lleva fallo: volver de una pausa larga
+        # y buscar el fallo en la 2da semana es como se acaba con una lesion.
+        if (semana == 5 or _fase == 2) and _es(f.tecnica, "amrap", "rest", "drop"):
             tecnica_out = "Tradicional"
-            nota = "S5 DELOAD: sin fallo, deja 3-4 reps en reserva."
+            nota = ("S5 DELOAD: sin fallo, deja 3-4 reps en reserva." if semana == 5
+                    else "REINGRESO: sin fallo todavia, deja 2-3 reps en reserva.")
 
         marca = marca_anterior(lp) if semana != 5 else ""
 
@@ -310,14 +349,25 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                 reps_max_out = f.reps_max + delta
                 nota = f"Sube el objetivo: {reps_min_out}-{reps_max_out} reps. {nota or ''}".strip()
 
-        # ── Deload de REINGRESO: tras >10 dias de pausa, la vuelta es suave.
-        # Reduce la carga ~10% para reacostumbrar tejidos y SNC sin lesionarte.
-        if reingreso and peso and peso > 0:
-            peso = redondear(peso * 0.9)
-            nota = f"REINGRESO: -10% de carga tras la pausa. Sube la proxima semana. {nota or ''}".strip()[:255]
+        # ── REINGRESO en RAMPA: fase 1 = -10% de carga, fase 2 = -5% ────────
+        # La carga baja protege tejido conectivo mientras se readapta; el
+        # volumen lo gradua `series_real` mas abajo.
+        if _fase and peso and peso > 0:
+            factor, pct = (0.9, 10) if _fase == 1 else (0.95, 5)
+            peso = redondear(peso * factor)
+            sig = ("Semana 2 de la vuelta: sube el volumen." if _fase == 1
+                   else "Ultima semana suave: la proxima ya es normal.")
+            nota = f"REINGRESO: -{pct}% de carga. {sig} {nota or ''}".strip()[:255]
 
-        # ── S5 Deload: reducir a 1 serie en Bloque A y B ────────────────────
-        series_real = 1 if semana == 5 and "C -" not in f.bloque and f.tecnica else f.series
+        # ── Volumen: deload y fase 1 a 1 serie; fase 2 a dos tercios ────────
+        # La fase 2 SI conserva el Bloque C (semana != 5): es una rampa, no una
+        # descarga. Techo en 1 serie para no dejar un ejercicio en cero.
+        if (semana == 5 or _fase == 1) and "C -" not in f.bloque and f.tecnica:
+            series_real = 1
+        elif _fase == 2 and f.tecnica:
+            series_real = max(1, round(f.series * 2 / 3))
+        else:
+            series_real = f.series
 
         filas.append(
             {
@@ -418,13 +468,16 @@ def main() -> None:
     # Deload de REINGRESO: si pasaron mas de 10 dias sin entrenar (enfermedad,
     # viaje, faltas), la primera semana de vuelta es deload con carga reducida.
     # Es el escenario mas probable de lesion: volver con el peso de antes.
-    reingreso = False
+    # RAMPA de reingreso en 2 semanas (no un acantilado del 33% al 100%)
+    reingreso = fase_reingreso(historial, objetivo)
     gap = dias_desde_ultimo(historial, objetivo)
-    if gap is not None and gap > 10:
-        print(f"DELOAD DE REINGRESO: {gap} dias desde el ultimo entreno. "
-              "Semana de vuelta suave (volumen de deload + carga -10%).")
+    if reingreso == 1:
+        print(f"REINGRESO 1/2: {gap} dias desde el ultimo entreno. "
+              "Vuelta suave (~1/3 del volumen, carga -10%, sin fallo).")
         semana = 5
-        reingreso = True
+    elif reingreso == 2:
+        print("REINGRESO 2/2: segunda semana de vuelta "
+              "(~2/3 del volumen, carga -5%, sin fallo). La proxima ya es normal.")
 
     # Deload reactivo global: si la fatiga acumulada es alta (RPE semanal >= 9
     # dos semanas seguidas), se adelanta la descarga sin esperar a la S5.
