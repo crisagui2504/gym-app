@@ -28,7 +28,17 @@ from plan_template import Fila
 # ── Layout de cada split: que dia de la semana (1=Lun..7=Dom) ────────────────
 # pesas: dia_semana de cada DiaPlan (en orden). libres: dias para cardio/descanso.
 LAYOUTS: dict[str, dict] = {
-    "upper_lower": {"pesas": [1, 3, 5, 6], "libres": [2, 4, 7]},
+    # Upper/Lower con basquet los martes y jueves: gym Lun/Mie/Vie/Dom, descanso
+    # el sabado. Los numeros van EMPAREJADOS POSICIONALMENTE con
+    # SPLITS["upper_lower"].dias_pesas = [Torso A, Pierna A, Torso Bombeo,
+    # Pierna Bombeo], de ahi el orden 1,5,3,7 (no es un typo):
+    #   Torso A -> 1 (Lun) | Pierna A -> 5 (Vie)
+    #   Torso Bombeo -> 3 (Mie) | Pierna Bombeo -> 7 (Dom)
+    # O sea: TORSO al principio de la semana y PIERNA al final. Asi los dias de
+    # basquet (Mar y Jue) caen entre dias de torso y llegan con las piernas
+    # descansadas: aterrizar un salto con agujetas de sentadilla es riesgo de
+    # rodilla y tobillo. Ademas las dos sesiones de pierna quedan a 48 h.
+    "upper_lower": {"pesas": [1, 5, 3, 7], "libres": [2, 4, 6]},
     # PPL: descanso el JUEVES. Con 6 dias de pesas solo cabe 1 dia libre, y el
     # jueves es el unico que parte la semana en los dos bloques naturales del
     # split (A: Lun-Mie / B: Vie-Dom). Con el martes quedarian 5 dias seguidos.
@@ -38,7 +48,7 @@ LAYOUTS: dict[str, dict] = {
 
 # Dias de pesas (indice 0-based) que reciben trabajo de antebrazo (no consecutivos)
 ANTEBRAZO_EN_DIAS = {
-    "upper_lower": [1, 2],      # Pierna A (Mie) y Torso Bombeo (Vie)
+    "upper_lower": [1, 2],      # Pierna A (Vie) y Torso Bombeo (Mie)
     "ppl":         [2, 5],      # Pull A (Mie) y Pull B (Dom) en orden Push/Piernas/Pull
     "full_body":   [0, 2],      # FB A y FB C
 }
@@ -572,6 +582,25 @@ def _dia_cardio(dia_sem: int, enf: Enfoque, ciclo: int = 0,
     return filas
 
 
+def _dia_deporte(dia_sem: int, dep: dict, choca_con_pesas: bool = False) -> list[Fila]:
+    """Dia de deporte fuera del gym (basquet, futbol...).
+
+    Aparece en el plan para que la semana sea la real, y sobre todo para que el
+    motor NO mande cardio encima: un deporte de equipo ya es acondicionamiento
+    intervalado. La nota avisa de lo que el deporte castiga de verdad."""
+    nombre = dep.get("nombre") or "Deporte"
+    mins = dep.get("minutos") or 90
+    # Red de seguridad: si se cambia de split (p. ej. a PPL, que ocupa 6 dias),
+    # el deporte puede caer encima de un dia de pesas sin que nadie avise.
+    aviso = (" OJO: este dia el plan TAMBIEN trae sesion de gym. Si es dia de "
+             "pierna, muevela: saltar con agujetas de sentadilla es riesgo de "
+             "rodilla y tobillo." if choca_con_pesas else "")
+    return [Fila(dia_sem, nombre, "Deporte", 1, nombre, None, 0, None, None, None, None,
+                 f"{mins} min. Cuenta como tu acondicionamiento (no hace falta "
+                 "cardio extra). Carga pierna: gemelo, cuadriceps y aductor, mas "
+                 "los aterrizajes. Calienta tobillo y cadera antes." + aviso)]
+
+
 def _dia_descanso(dia_sem: int) -> list[Fila]:
     return [Fila(dia_sem, "Descanso Activo", "Descanso", 1, "Descanso Activo", None, 0,
                  None, None, None, None,
@@ -609,15 +638,26 @@ def generar_plan(config: dict | None = None, ciclo: int | None = None) -> list[F
                             excluidos=excluidos, ciclo=ciclo,
                             usados_c_semana=usados_c_semana)
 
+    # DEPORTE fuera del gym (basquet, futbol...): se pinta como dia propio.
+    deporte = cfg.get("deporte") or {}
+    dias_deporte = {d for d in (deporte.get("dias") or [])}
+    for dia_sem in sorted(dias_deporte):
+        filas += _dia_deporte(dia_sem, deporte,
+                              choca_con_pesas=dia_sem in set(layout["pesas"]))
+
     # Dias libres -> cardio (hasta enf.cardio_dias) y luego descanso.
+    # Los dias de deporte se descuentan: el deporte YA es el acondicionamiento y
+    # mandarle 40 min de eliptica encima a hora y media de basquet es sumar
+    # fatiga sin estimulo nuevo.
     # SIEMPRE se reserva al menos un dia de descanso real: el cardio no puede
     # ocupar todos los dias libres. Con PPL (6 dias de pesas -> 1 solo libre) y
     # un enfoque que pide 2 dias de cardio, la semana se quedaba con CERO dias
     # de descanso: 7 dias seguidos de actividad. La recuperacion es parte del
     # estimulo, no el hueco que sobra.
-    n_cardio = min(enf.cardio_dias, max(0, len(layout["libres"]) - 1))
+    libres = [d for d in layout["libres"] if d not in dias_deporte]
+    n_cardio = min(enf.cardio_dias, max(0, len(libres) - 1))
     usados_core: set[str] = set()  # el core no repite entre dias de cardio
-    for j, dia_sem in enumerate(layout["libres"]):
+    for j, dia_sem in enumerate(libres):
         if j < n_cardio:
             filas += _dia_cardio(dia_sem, enf, ciclo=ciclo, excluidos=excluidos,
                                  usados_core=usados_core)

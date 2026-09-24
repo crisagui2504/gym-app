@@ -435,18 +435,27 @@ check("el Top Set real cambia de rango entre ciclos", len(set(rangos_ts.values()
 
 print("\n== 22. Deload de reingreso tras >10 dias de pausa ==")
 hoy2 = date.today()
+# El plan se pasa EXPLICITO y el ejercicio se saca de ese plan: antes la prueba
+# llamaba a generar_filas() sin `plan`, asi que usaba config_usuario.json y se
+# rompia en cuanto el usuario cambiaba de split (el ejercipio fijo dejaba de
+# tener Top Set). Un test no debe depender de la config personal.
+plan_re = generar_plan({"enfoque": "recomposicion", "split": "ppl",
+                        "prioridades": [], "duracion_min": 90}, ciclo=0)
+ej_top = next(f.ejercicio for f in plan_re
+              if f.bloque.startswith("A") and "Top" in (f.tecnica or ""))
 def df_gap(dias):
     d = pd.Timestamp(hoy2 - timedelta(days=dias))
-    df = pd.DataFrame([{"fecha_entreno": d, "ejercicio":"Press de Banca con Barra",
+    df = pd.DataFrame([{"fecha_entreno": d, "ejercicio": ej_top,
                         "tecnica":"Top Set","numero_serie":1,"peso_kg":40.0,"reps_hechas":8,"rpe":8,
                         "tonelaje_serie":320}])
     df["fecha_entreno"]=pd.to_datetime(df["fecha_entreno"]); return df
 check("gap >10 dias se detecta", pl.dias_desde_ultimo(df_gap(15), hoy2) == 15)
-filas_re = pl.generar_filas(df_gap(15), hoy2.isoformat(), 5, reingreso=True)
-banca_re = [f for f in filas_re if f["ejercicio"]=="Press de Banca con Barra" and "top" in (f["tecnica"] or "").lower()]
-check("reingreso reduce la carga ~10%", banca_re and banca_re[0]["peso_sugerido"] == pl.redondear(40*0.9),
-      f"{banca_re[0]['peso_sugerido'] if banca_re else 'sin fila'}")
-check("reingreso avisa en la nota", banca_re and "REINGRESO" in (banca_re[0]["notas"] or ""))
+filas_re = pl.generar_filas(df_gap(15), hoy2.isoformat(), 5, plan=plan_re, reingreso=True)
+top_re = [f for f in filas_re if f["ejercicio"] == ej_top
+          and "top" in (f["tecnica"] or "").lower()]
+check("reingreso reduce la carga ~10%", top_re and top_re[0]["peso_sugerido"] == pl.redondear(40*0.9),
+      f"{top_re[0]['peso_sugerido'] if top_re else 'sin fila'} ({ej_top})")
+check("reingreso avisa en la nota", top_re and "REINGRESO" in (top_re[0]["notas"] or ""))
 
 print("\n== 23. Sinergia: prioridades del mismo patron alternan entre dias A/B ==")
 plan_syn = generar_plan({"enfoque":"recomposicion","split":"ppl",
@@ -579,6 +588,50 @@ check("con los flexores ya cargados, el motor elige EXTENSORES primero (S1)",
           next(x for x in db.EJERCICIOS if x.nombre == _s1[0].ejercicio)
       ).get("extensor_muneca", 0.0) > 0,
       f"S1 eligio: {_s1[0].ejercicio if _s1 else None}")
+
+print("\n== 28. Deporte externo (basquet): dia propio y sin cardio encima ==")
+_DEP = {"nombre": "Basquetbol", "dias": [2, 4], "minutos": 90}
+_dep_ok, _cardio_encima, _sin_dia = True, [], []
+for enfoque in ("recomposicion", "volumen", "definicion", "powerbuilding", "fuerza"):
+    for split in ("upper_lower", "ppl", "full_body"):
+        p = generar_plan({"enfoque": enfoque, "split": split, "deporte": _DEP}, ciclo=0)
+        dias_dep = {f.dia for f in p if f.bloque == "Deporte"}
+        dias_card = {f.dia for f in p if f.bloque == "Cardio"}
+        if dias_dep != set(_DEP["dias"]):
+            _sin_dia.append(f"{enfoque}/{split}: {sorted(dias_dep)}")
+        if dias_dep & dias_card:
+            _cardio_encima.append(f"{enfoque}/{split}: {sorted(dias_dep & dias_card)}")
+check("los dias de deporte aparecen en el plan", not _sin_dia, str(_sin_dia))
+check("NUNCA se prescribe cardio el mismo dia que el deporte",
+      not _cardio_encima, str(_cardio_encima))
+# upper_lower es el caso disenado: basquet Mar/Jue, gym Lun/Mie/Vie/Dom, descanso Sab
+_p_ul = generar_plan({"enfoque": "recomposicion", "split": "upper_lower",
+                      "deporte": _DEP}, ciclo=0)
+_nom = {}
+for f in _p_ul:
+    _nom.setdefault(f.dia, f.nombre_dia)
+check("Upper/Lower con basquet: torso al inicio, pierna al final, descanso sabado",
+      _nom.get(1, "").startswith("Torso") and _nom.get(3, "").startswith("Torso")
+      and _nom.get(5, "").startswith("Pierna") and _nom.get(7, "").startswith("Pierna")
+      and _nom.get(2) == "Basquetbol" and _nom.get(4) == "Basquetbol"
+      and _nom.get(6) == "Descanso Activo", str(_nom))
+# Invariante de SEGURIDAD: ningun dia de pierna puede ser la VISPERA del
+# deporte. Ese es el que lesiona: llegar a la cancha con agujetas de sentadilla
+# empeora la mecanica de aterrizaje (rodilla/tobillo).
+# El dia DESPUES del deporte si se permite y es deliberado: con 4 dias de gym
+# (Lun/Mie/Vie/Dom) y basquet Mar/Jue, el unico dia de gym totalmente libre de
+# basquet es el domingo, asi que las dos sesiones de pierna no pueden estarlo.
+# Se elige que una caiga de "resaca" (Vie) antes que de vispera: perder algo de
+# rendimiento en el levantamiento es preferible a saltar con las piernas tocadas.
+_pierna = {d for d, n in _nom.items() if n.startswith("Pierna")}
+_visperas = sorted(d for d in _pierna if (d + 1) in set(_DEP["dias"]))
+check("ningun dia de pierna es VISPERA de un dia de basquet",
+      not _visperas, f"dias de pierna en vispera del deporte: {_visperas}")
+# la red de seguridad avisa si el deporte cae sobre un dia de pesas (p.ej. PPL)
+_p_ppl = generar_plan({"enfoque": "recomposicion", "split": "ppl",
+                       "deporte": _DEP}, ciclo=0)
+check("si el deporte choca con un dia de pesas, la nota avisa",
+      any("OJO" in (f.notas or "") for f in _p_ppl if f.bloque == "Deporte"))
 
 print()
 if FALLOS:

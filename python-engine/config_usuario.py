@@ -18,6 +18,10 @@ DEFAULT_CONFIG: dict = {
     "duracion_min": 90,  # 60 | 75 | 90 | 120 -> ajusta cuantos ejercicios por dia
     "tema": "oscuro",    # "oscuro" | "claro"
     "equipo_excluido": [],  # equipo que tu gym NO tiene: "barra" | "mancuerna" | "polea" | "maquina"
+    # Deporte fuera del gym (basquet, futbol...). Es un dato de tu semana, no del
+    # split, asi que vive aqui. El generador lo pinta como dia propio y NO manda
+    # cardio encima: el deporte ya es el acondicionamiento. dias: 1=Lun..7=Dom.
+    "deporte": None,     # p.ej. {"nombre": "Basquetbol", "dias": [2, 4], "minutos": 90}
 }
 
 

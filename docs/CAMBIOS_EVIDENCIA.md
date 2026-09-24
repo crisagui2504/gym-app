@@ -1041,6 +1041,13 @@ emerge del acumulado (no de una regla escrita a mano).
 
 ## BG. Descanso real en el calendario + reinicio de mesociclo (2026-09-23)
 
+> **Parcialmente superada por la tanda BH**, el mismo día: el usuario aclaró que
+> los martes y jueves juega **básquet hora y media**, así que no son días de
+> descanso sino de deporte. Eso invalidó la elección de PPL (sólo quedan 5 días
+> de gym, y PPL necesita 6) y el calendario descrito aquí. Lo que sigue vigente:
+> la reserva de un día de descanso real, el core fuera de los días de cardio, el
+> reinicio del mesociclo y los tests que dejaron de fijar días a mano.
+
 Petición: descansar **martes y jueves** y arrancar un mesociclo nuevo hoy.
 
 ### El conflicto que había que resolver primero
@@ -1126,6 +1133,92 @@ funcionar. Añadido además: ningún split puede quedarse sin core.
 
 **Semana en vivo verificada contra el servidor:** Lun Push A · Mar Legs A · Mié
 Pull A · **Jue Descanso Activo** · Vie Push B · Sáb Legs B · Dom Pull B.
+
+## BH. Básquet 2×/semana: el deporte como variable del plan (2026-09-23)
+
+Dato nuevo: **martes y jueves, básquet hora y media**. No son días de descanso,
+son días de entrenamiento fuera del gym. Eso cambió tres cosas de golpe.
+
+### 1. PPL dejó de ser posible
+
+Si martes y jueves no hay gym, quedan 5 días (Lun, Mié, Vie, Sáb, Dom) y PPL
+necesita 6. Ya no era una preferencia: era aritmética. Y el plan que se había
+subido una hora antes ponía **`Legs A` el martes** — pierna pesada el mismo día
+que hora y media de saltos. Split → **Upper/Lower 4 días**.
+
+### 2. El calendario se ordena alrededor del deporte
+
+```
+Lun Torso A · Mar BÁSQUET · Mié Torso Bombeo · Jue BÁSQUET
+Vie Pierna A · Sáb DESCANSO · Dom Pierna Bombeo
+```
+
+`LAYOUTS["upper_lower"]["pesas"] = [1, 5, 3, 7]`. El orden **no es un typo**: se
+empareja posicionalmente con `dias_pesas = [Torso A, Pierna A, Torso Bombeo,
+Pierna Bombeo]`, así que Torso A→Lun, Pierna A→Vie, Torso Bombeo→Mié, Pierna
+Bombeo→Dom. Es decir: **torso al principio de la semana y pierna al final.**
+
+El criterio es de seguridad, no de comodidad. El básquet es un deporte de salto,
+frenada y cambio de dirección: llegar a la cancha con agujetas de sentadilla
+degrada la mecánica de aterrizaje (riesgo de rodilla y tobillo). Con lunes y
+miércoles de torso, **los dos días de básquet caen siempre tras un día que no
+toca pierna**. Las dos sesiones de pierna quedan además a 48 h (Vie y Dom).
+
+**Compromiso asumido y explícito:** el viernes de pierna cae el día *después* del
+básquet del jueves. Con 4 días de gym, el único día totalmente libre de básquet
+es el domingo, así que las dos sesiones de pierna no pueden estarlo. Se elige que
+una caiga de «resaca» antes que de «víspera»: perder algo de rendimiento en el
+levantamiento es preferible a saltar con las piernas tocadas. El test 28 asserta
+exactamente eso — **ningún día de pierna en víspera** — y no la versión fuerte,
+que el propio test destapó como falsa.
+
+### 3. El deporte es una variable, no un hueco
+
+`deporte` vive en `config_usuario.json` (es un dato de la semana del usuario, no
+del split):
+
+```json
+"deporte": {"nombre": "Basquetbol", "dias": [2, 4], "minutos": 90}
+```
+
+- Se pinta como día propio (`bloque: "Deporte"`), así la semana en la app es la
+  real. `tecnica=None` y `series=0`: no contamina el estímulo ni los cálculos.
+- **Descuenta días de cardio.** Recomposición pide `cardio_dias=2` y los días
+  libres eran justo martes y jueves: el motor habría prescrito 40 min de elíptica
+  **encima** de hora y media de básquet. Un deporte de equipo ya es
+  acondicionamiento intervalado. Resultado: cardio prescrito = **ninguno**.
+- La nota avisa de lo que el deporte castiga de verdad (gemelo, cuádriceps,
+  aductor y los aterrizajes) y recuerda calentar tobillo y cadera.
+
+### Red de seguridad
+
+Si se cambia el split desde el dashboard, el deporte puede caer encima de un día
+de pesas sin que nadie avise. Verificado: con PPL + básquet, la semana se queda
+**sin ningún día de descanso** y el martes colisiona. Ahora la nota del día de
+deporte lo dice (`OJO: este dia el plan TAMBIEN trae sesion de gym…`) y el test
+28 comprueba que el aviso salta.
+
+### Carga de pierna: observación abierta
+
+El plan ya pone ~**25 series ponderadas de cuádriceps y 24.5 de glúteo** por
+semana, más 10.8 de aductor y 5.0 de gemelo. El básquet añade encima saltos y
+cambios de dirección sobre esos mismos músculos. No se ha tocado el volumen
+—nadie lo pidió— pero es el primer sitio donde mirar si aparecen molestias de
+rodilla o el rendimiento en cancha baja. Candidatos a recortar: **gemelo** (el
+básquet lo machaca de sobra) y una serie de cuádriceps. En el otro sentido, el
+**curl nórdico** (isquios, ya en el catálogo) y el trabajo de **aductor** ganan
+valor: isquios fuertes y aductores sanos son prevención de ACL y de pubalgia en
+deportes de corte.
+
+### Tests
+
+- **28 nuevo**: los días de deporte aparecen; **nunca** hay cardio el mismo día;
+  el calendario Upper/Lower es el diseñado; ningún día de pierna en víspera de
+  básquet; el aviso de colisión salta.
+- **22 arreglado (defecto de diseño)**: `generar_filas` se llamaba **sin `plan`**,
+  así que el test usaba `config_usuario.json` y se rompió en cuanto cambió el
+  split (el ejercicio fijo dejó de tener Top Set). Ahora recibe un plan explícito
+  y saca el ejercicio de ese plan: un test no debe depender de la config personal.
 
 ## Referencias principales
 
