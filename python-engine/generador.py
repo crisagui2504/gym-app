@@ -28,15 +28,18 @@ from plan_template import Fila
 # ── Layout de cada split: que dia de la semana (1=Lun..7=Dom) ────────────────
 # pesas: dia_semana de cada DiaPlan (en orden). libres: dias para cardio/descanso.
 LAYOUTS: dict[str, dict] = {
-    "upper_lower": {"pesas": [1, 2, 5, 6], "libres": [3, 7, 4]},
-    "ppl":         {"pesas": [1, 2, 3, 4, 5, 6], "libres": [7]},
+    "upper_lower": {"pesas": [1, 3, 5, 6], "libres": [2, 4, 7]},
+    # PPL: descanso el JUEVES. Con 6 dias de pesas solo cabe 1 dia libre, y el
+    # jueves es el unico que parte la semana en los dos bloques naturales del
+    # split (A: Lun-Mie / B: Vie-Dom). Con el martes quedarian 5 dias seguidos.
+    "ppl":         {"pesas": [1, 2, 3, 5, 6, 7], "libres": [4]},
     "full_body":   {"pesas": [1, 3, 5], "libres": [2, 4, 7, 6]},
 }
 
 # Dias de pesas (indice 0-based) que reciben trabajo de antebrazo (no consecutivos)
 ANTEBRAZO_EN_DIAS = {
-    "upper_lower": [1, 2],      # Pierna A (Mar) y Torso Bombeo (Vie)
-    "ppl":         [2, 5],      # Pull A (Mie) y Pull B (Sab) en orden Push/Piernas/Pull
+    "upper_lower": [1, 2],      # Pierna A (Mie) y Torso Bombeo (Vie)
+    "ppl":         [2, 5],      # Pull A (Mie) y Pull B (Dom) en orden Push/Piernas/Pull
     "full_body":   [0, 2],      # FB A y FB C
 }
 
@@ -404,7 +407,12 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
         # descanso). Antes, con n_ejercicios_c bajo (Definicion), el triceps se
         # recortaba y quedaba un biceps "en superserie" sin pareja.
         es_tri_pareado = patron == db.AISL_TRICEPS and tiene_bi
-        exento = (patron in (db.AISL_HOMBRO, db.AISL_HOMBRO_POST, db.ROTADORES, db.PANTORRILLA)
+        # CORE exento como la pantorrilla y los rotadores: es trabajo corto y de
+        # poca fatiga que ningun compuesto cubre. Sin la exencion se recortaba en
+        # los enfoques con n_ejercicios_c bajo (Definicion = 2) y el abdomen se
+        # quedaba otra vez en cero.
+        exento = (patron in (db.AISL_HOMBRO, db.AISL_HOMBRO_POST, db.ROTADORES,
+                             db.PANTORRILLA, db.CORE)
                   or es_tri_pareado)
         if n_c >= b.n_ejercicios_c and not exento:
             continue
@@ -456,6 +464,16 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
             filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
                               "Tradicional", b.series_c, reps_lo, reps_hi, DESC["aislamiento"],
                               ej.peso_base, extra.strip()))
+        elif patron == db.CORE:
+            # nunca rest-pause/drop, y los isometricos (plancha, Pallof) no
+            # llevan repeticiones: se miden en tiempo bajo tension
+            iso = ej.nombre in CORE_ISOMETRICO
+            filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
+                              "Tradicional", b.series_c,
+                              None if iso else 15, None if iso else 20,
+                              DESC["core"], ej.peso_base,
+                              "Isometrico: aguanta sin perder la postura." if iso
+                              else "Core. Controlado, sin tirar de la lumbar."))
         elif "Rest" in b.tecnica_c or "Drop" in b.tecnica_c:
             # tecnica de intensidad solo en S3-S4 y solo en la ULTIMA serie;
             # S1-S2 tradicional lejos del fallo (gestion de fatiga)
@@ -591,10 +609,16 @@ def generar_plan(config: dict | None = None, ciclo: int | None = None) -> list[F
                             excluidos=excluidos, ciclo=ciclo,
                             usados_c_semana=usados_c_semana)
 
-    # Dias libres -> cardio (hasta enf.cardio_dias) y luego descanso
+    # Dias libres -> cardio (hasta enf.cardio_dias) y luego descanso.
+    # SIEMPRE se reserva al menos un dia de descanso real: el cardio no puede
+    # ocupar todos los dias libres. Con PPL (6 dias de pesas -> 1 solo libre) y
+    # un enfoque que pide 2 dias de cardio, la semana se quedaba con CERO dias
+    # de descanso: 7 dias seguidos de actividad. La recuperacion es parte del
+    # estimulo, no el hueco que sobra.
+    n_cardio = min(enf.cardio_dias, max(0, len(layout["libres"]) - 1))
     usados_core: set[str] = set()  # el core no repite entre dias de cardio
     for j, dia_sem in enumerate(layout["libres"]):
-        if j < enf.cardio_dias:
+        if j < n_cardio:
             filas += _dia_cardio(dia_sem, enf, ciclo=ciclo, excluidos=excluidos,
                                  usados_core=usados_core)
         else:

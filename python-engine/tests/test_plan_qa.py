@@ -14,6 +14,7 @@ import pandas as pd
 
 import ejercicios_db as db
 import planificar as pl
+from enfoques import SPLITS
 from generador import (generar_plan, _region_de, REGION_CAP, ciclo_mesociclo,
                        _ondular_reps)
 from generador import MAX_AXIAL_SESION
@@ -177,10 +178,13 @@ p = generar_plan(cfg(split="ppl"))
 nombre_dia = {}
 for f in p:
     nombre_dia.setdefault(f.dia, f.nombre_dia)
-esperado = {1: "Push A", 2: "Legs A", 3: "Pull A", 4: "Push B", 5: "Legs B", 6: "Pull B"}
-orden_ok = all(nombre_dia.get(d) == n for d, n in esperado.items())
+# secuencia en orden de calendario, no numeros de dia fijos (los descansos se
+# pueden mover); detecta ademas que no se pierda ningun dia del split
+esperado_seq = [d.nombre for d in SPLITS["ppl"].dias_pesas]
+secuencia = [nombre_dia[d] for d in sorted(nombre_dia) if nombre_dia[d] in set(esperado_seq)]
+orden_ok = secuencia == esperado_seq
 ab_dias = sorted({f.dia for f in p if PAT.get(f.ejercicio) == db.ANTEBRAZO})
-pull_dias = [d for d, n in esperado.items() if "Pull" in n]
+pull_dias = sorted(d for d, n in nombre_dia.items() if "Pull" in n)
 caso("GEN-10", orden_ok and ab_dias == pull_dias, f"orden={orden_ok}, antebrazo en {ab_dias} (pull={pull_dias})")
 
 # GEN-11 aislamientos no repetidos en la semana

@@ -256,15 +256,22 @@ plan_ppl3 = generar_plan({"enfoque": "recomposicion", "split": "ppl",
 nombre_por_dia = {}
 for f in plan_ppl3:
     nombre_por_dia.setdefault(f.dia, f.nombre_dia)
-esperado = {1: "Push A", 2: "Legs A", 3: "Pull A", 4: "Push B", 5: "Legs B", 6: "Pull B"}
-check("orden semanal Push/Piernas/Pull x2",
-      all(nombre_por_dia.get(d) == n for d, n in esperado.items()),
-      f"{ {d: nombre_por_dia.get(d) for d in range(1, 7)} }")
-pull_dias = [d for d, n in esperado.items() if "Pull" in n]
+# Se comprueba la SECUENCIA de los dias de pesas en orden de calendario, no unos
+# numeros de dia fijos: asi el test sobrevive a un cambio de dias de descanso y
+# sigue detectando lo que de verdad importa — que no falte ningun dia del split
+# (el zip de generar_plan truncaria en silencio si el layout tuviera menos
+# huecos que dias_pesas, y se perderia Pull B con su frecuencia 2x).
+esperado_seq = [d.nombre for d in SPLITS["ppl"].dias_pesas]
+secuencia = [nombre_por_dia[d] for d in sorted(nombre_por_dia)
+             if nombre_por_dia[d] in set(esperado_seq)]
+check("orden semanal Push/Piernas/Pull x2 (y ningun dia del split perdido)",
+      secuencia == esperado_seq, f"{secuencia} != {esperado_seq}")
+pull_dias = sorted(d for d, n in nombre_por_dia.items() if "Pull" in n)
 antebrazo_dias = sorted({f.dia for f in plan_ppl3
                          if NOMBRE_A_PATRON.get(f.ejercicio) == db.ANTEBRAZO})
 check("antebrazos siguen en los dias de Pull (no consecutivos)",
-      antebrazo_dias == pull_dias, f"antebrazo en {antebrazo_dias}, pull en {pull_dias}")
+      antebrazo_dias == pull_dias and all(b - a > 1 for a, b in zip(pull_dias, pull_dias[1:])),
+      f"antebrazo en {antebrazo_dias}, pull en {pull_dias}")
 
 print("\n== 17. Rotacion de ejercicios por mesociclo (variedad sin perder el metodo) ==")
 cfg_rot = {"enfoque": "recomposicion", "split": "ppl", "prioridades": [], "duracion_min": 90}
@@ -447,7 +454,10 @@ plan_syn = generar_plan({"enfoque":"recomposicion","split":"ppl",
 def primer_ej(dia):
     return next((f.ejercicio for f in plan_syn if f.dia==dia and f.bloque.startswith("A")
                  and "Top" in (f.tecnica or "")), None)
-push_a, push_b = primer_ej(1), primer_ej(4)
+# los dias se localizan por NOMBRE, no por numero: el calendario puede cambiar
+def dia_de(nombre):
+    return next((f.dia for f in plan_syn if f.nombre_dia == nombre), None)
+push_a, push_b = primer_ej(dia_de("Push A")), primer_ej(dia_de("Push B"))
 pat_a = NOMBRE_A_PATRON.get(push_a); pat_b = NOMBRE_A_PATRON.get(push_b)
 check("Push A y Push B priorizan patrones DISTINTOS (no se fatigan igual)",
       pat_a != pat_b and pat_a in (db.EMPUJE_HORIZONTAL, db.EMPUJE_VERTICAL)
@@ -500,19 +510,36 @@ check("un objetivo fresco NO marca saturado",
       not gen._saturado(_ej_sat, {"isquios": 0.0}, 2))
 
 print("\n== 26. Core: se elige con el motor y rota (no es lista fija) ==")
-_core_vistos = set()
-for ciclo in range(5):
-    p = generar_plan({"enfoque": "definicion", "split": "ppl"}, ciclo=ciclo)
-    _core_vistos |= {f.ejercicio for f in p if f.bloque == "Core"}
+# el core se busca por PATRON, no por la etiqueta del bloque: segun el split vive
+# en el dia de cardio ("Core") o en el Bloque C de un dia de pesas (PPL, que no
+# tiene dia de cardio porque su unico dia libre es descanso).
+_CORE_EJ = {e.nombre for e in db.por_patron(db.CORE, "C")}
+_core_vistos, _core_poca_var = set(), None
+for split in ("ppl", "upper_lower"):
+    for ciclo in range(5):
+        p = generar_plan({"enfoque": "definicion", "split": split}, ciclo=ciclo)
+        _u = {(f.dia, f.ejercicio) for f in p if f.ejercicio in _CORE_EJ}
+        _core_vistos |= {e for _, e in _u}
+        # La semana debe usar tantos ejercicios DISTINTOS como permita el
+        # catalogo. No se exige "cero repetidos": Upper/Lower tiene 6 huecos de
+        # core (2 dias x 3) y el catalogo son 5, asi que un repetido es
+        # inevitable y lo cubre el fallback de _elegir. Lo que se vigila es que
+        # `usados_core` siga forzando la variedad maxima posible.
+        _distintos = len({e for _, e in _u})
+        if _u and _distintos != min(len(_u), len(_CORE_EJ)):
+            _core_poca_var = (f"{split}/c{ciclo}: {_distintos} distintos de "
+                              f"{len(_u)} huecos -> {sorted(_u)}")
 check("el core cubre mas de los 3 nombres que estaban hardcodeados",
       len(_core_vistos) > 3, f"vistos={sorted(_core_vistos)}")
-check("el core no repite ejercicio dentro de la misma semana", True)
-for ciclo in range(5):
-    p = generar_plan({"enfoque": "definicion", "split": "ppl"}, ciclo=ciclo)
-    _c = [f.ejercicio for f in p if f.bloque == "Core"]
-    if len(_c) != len(set(_c)):
-        check("el core no repite ejercicio dentro de la misma semana", False, f"c{ciclo}: {_c}")
-        break
+check("el core usa la maxima variedad que permite el catalogo en la semana",
+      _core_poca_var is None, str(_core_poca_var))
+# el abdomen no puede quedarse en cero en ningun split (el core no depende de
+# que el enfoque tenga dias de cardio)
+_sin_core = [f"{e}/{s}" for e in ("recomposicion", "definicion", "fuerza")
+             for s in ("ppl", "upper_lower", "full_body")
+             if not any(f.ejercicio in _CORE_EJ
+                        for f in generar_plan({"enfoque": e, "split": s}, ciclo=0))]
+check("ningun split se queda sin trabajo de core", not _sin_core, str(_sin_core))
 
 print("\n== 27. Antebrazo: el motor balancea flexores vs extensores (salud del codo) ==")
 _ante = {e.nombre for e in db.por_patron(db.ANTEBRAZO, "C")}

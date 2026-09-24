@@ -1039,6 +1039,94 @@ y `Pullover en Polea` siguen sin un bloque que los pida). Test 27 de regresión:
 ninguna semana sin extensores, la rotación cubre todo el catálogo, y el balance
 emerge del acumulado (no de una regla escrita a mano).
 
+## BG. Descanso real en el calendario + reinicio de mesociclo (2026-09-23)
+
+Petición: descansar **martes y jueves** y arrancar un mesociclo nuevo hoy.
+
+### El conflicto que había que resolver primero
+
+Quitando martes y jueves quedan 5 días, y **PPL necesita 6**. Peor: el `zip` de
+`generar_plan` empareja `split.dias_pesas` con `layout["pesas"]` y **truncaría en
+silencio** — se perdería `Pull B` y el tirón bajaría a 1×/semana, rompiendo la
+frecuencia 2× (Schoenfeld 2019). Decisión del usuario: **mantener PPL 6 días**,
+así que sólo cabe un día libre.
+
+**Descanso el JUEVES**, porque es el único que parte la semana en los dos bloques
+naturales del split — A: Lun-Mié (Push/Legs/Pull) · **Jue libre** · B: Vie-Dom.
+Con el martes quedarían 5 días seguidos de entrenamiento.
+
+### PPL no tenía NINGÚN día de descanso
+
+Al revisarlo apareció un agujero de fondo: `libres` para PPL era `[7]` (1 día) y
+recomposición pide `cardio_dias=2`, así que el reparto asignaba **cardio al
+domingo y cero descanso**: 7 días seguidos de actividad. Corregido reservando
+siempre al menos un día de descanso real:
+
+```python
+n_cardio = min(enf.cardio_dias, max(0, len(layout["libres"]) - 1))
+```
+
+Sólo cambia PPL (Upper/Lower y Full Body tienen 3 y 4 días libres y mantienen sus
+2 de cardio). **Verificado: 0 de 825 configuraciones se quedan sin descanso.**
+La recuperación es parte del estímulo, no el hueco que sobra.
+
+### Regresión detectada por los tests: PPL se quedó sin core
+
+Quitar el día de cardio de PPL **borró el core** (abdomen semanal 0.8, sólo
+etiquetas indirectas), porque el core vivía únicamente en `_dia_cardio` — el
+agujero ya documentado en la tanda BD. Cerrado en la raíz:
+
+- `P.CORE` entra en el Bloque C de **Push A y Push B** (su bloque C es el más
+  holgado: no compite con el lumbar ni con los accesorios de pierna).
+- `CORE` pasa a ser **exento** del recorte por duración, como pantorrilla y
+  rotadores: es trabajo corto y de poca fatiga que ningún compuesto cubre. Sin la
+  exención se recortaba en Definición (`n_ejercicios_c=2`) y el abdomen volvía a
+  cero.
+- Rama propia para el core en el Bloque C: nunca rest-pause/drop, y los
+  isométricos (plancha, Pallof) no llevan repeticiones.
+
+Resultado: core 2×/semana, abdomen 8.5–9.2 series ponderadas. **0 de 825
+configuraciones sin core.**
+
+### Reinicio del mesociclo: por qué el ancla es el lunes SIGUIENTE
+
+La última sesión registrada es del **2026-07-22: 61 días de pausa**, así que el
+*deload de reingreso* se activa y fuerza la semana a descarga (−10 % de carga).
+Eso tiene una consecuencia no obvia en el ancla:
+
+| `MES_INICIO` | Esta semana (21-sep) | Siguiente (28-sep) |
+|---|---|---|
+| 2026-09-21 | deload forzado | **S2 — se pierde la S1** |
+| **2026-09-28** | deload de reingreso | **S1 limpia** |
+
+Anclar en el lunes de esta semana haría que el mesociclo saltara a **S2**, y la S3
+(«supera la S1») se quedaría sin la semana base que debe superar. Con el ancla en
+el **2026-09-28**: esta semana es la vuelta suave y el lunes 28 arranca la S1.
+`ciclo_mesociclo` = 0 → rotación de ejercicios reiniciada.
+
+El historial se **conserva** (143 filas): borrarlo dejaría al motor sin pesos de
+referencia y sin poder calcular el deload. El `DELETE` de `actualizar_plan.php` es
+`WHERE semana_inicio = :s` y el historial sobrevive por `ON DELETE SET NULL`.
+
+### Tests: dejar de fijar el calendario a mano
+
+4 tests fallaron por asertar días concretos (`{1:"Push A", …, 6:"Pull B"}`), no la
+intención. Reescritos para comprobar la **secuencia** de los días de pesas en
+orden de calendario, derivada de `SPLITS["ppl"].dias_pesas`: así sobreviven a
+cualquier cambio de descansos **y además detectan el truncamiento del `zip`** (si
+faltara un día del split, la secuencia no cuadra). Los días se localizan por
+nombre, no por número.
+
+El test 26 del core también era mío y era **demasiado estricto**: exigía cero
+repetidos en la semana, imposible en Upper/Lower (6 huecos de core y 5 ejercicios
+en catálogo → un repetido es inevitable y lo cubre el *fallback* de `_elegir`).
+Ahora vigila el invariante real: que la semana use **la máxima variedad que
+permite el catálogo**, que es lo que rompería si `usados_core` dejara de
+funcionar. Añadido además: ningún split puede quedarse sin core.
+
+**Semana en vivo verificada contra el servidor:** Lun Push A · Mar Legs A · Mié
+Pull A · **Jue Descanso Activo** · Vie Push B · Sáb Legs B · Dom Pull B.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

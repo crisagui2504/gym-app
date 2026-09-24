@@ -227,9 +227,13 @@ SPLITS: dict[str, Split] = {
         descripcion="Empuje / Pierna / Tiron x2. Las piernas separan los dos dias de "
                     "torso: hombros, codos y agarre llegan mas frescos a cada sesion.",
         dias_pesas=[
+            # P.CORE en los dias de Push: el PPL tiene 6 dias de pesas y solo un
+            # dia libre, que es DESCANSO -> no hay dia de cardio donde meter el
+            # core. Va en Push porque su Bloque C es el mas holgado (no compite
+            # con el lumbar ni con los accesorios de pierna).
             DiaPlan("Push A", "push",
                     [P.EMPUJE_VERTICAL, P.EMPUJE_HORIZONTAL], [P.EMPUJE_HORIZONTAL],
-                    [P.AISL_HOMBRO, P.AISL_TRICEPS, P.ROTADORES]),
+                    [P.AISL_HOMBRO, P.AISL_TRICEPS, P.ROTADORES, P.CORE]),
             # aductor en Legs A y abductor en Legs B: alternados, no el abductor
             # dos veces. El aductor mayor es el musculo mas grande de la cadera
             # despues del gluteo y ningun compuesto lo lleva a posicion elongada.
@@ -248,7 +252,7 @@ SPLITS: dict[str, Split] = {
             # el musculo con menos volumen del plan y tiene angulos distintos.
             DiaPlan("Push B", "push",
                     [P.EMPUJE_HORIZONTAL, P.EMPUJE_VERTICAL], [P.EMPUJE_HORIZONTAL],
-                    [P.AISL_HOMBRO, P.AISL_TRICEPS, P.ROTADORES]),
+                    [P.AISL_HOMBRO, P.AISL_TRICEPS, P.ROTADORES, P.CORE]),
             # Bloque B = unilateral de cuadriceps/gluteo (no otra bisagra): el
             # peso muerto pesado del Bloque A ya cubre la cadena posterior, y la
             # espalda baja no acumula carga axial redundante. Ademas da variedad
