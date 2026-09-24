@@ -9,7 +9,7 @@
     </header>
 
     <!-- Barra de progreso de la sesion -->
-    <div class="progress-wrap" *ngIf="!cargando() && progreso().total > 0 && !esDiaDescanso()">
+    <div class="progress-wrap" *ngIf="!cargando() && progreso().total > 0 && !esDiaDescanso() && !esDiaDeporte()">
       <div class="progress-track">
         <div class="progress-fill" [style.width.%]="progreso().pct"></div>
       </div>
@@ -29,7 +29,7 @@
     <p class="status" *ngIf="cargando()">Cargando rutina...</p>
 
     <!-- ===== READINESS: como llegas hoy ===== -->
-    <section class="readiness panel" *ngIf="!cargando() && ejercicios().length > 0 && !esDiaDescanso()">
+    <section class="readiness panel" *ngIf="!cargando() && ejercicios().length > 0 && !esDiaDescanso() && !esDiaDeporte()">
       <p class="readiness-q">¿Cómo llegás hoy?</p>
       <div class="readiness-opts">
         <button type="button" [class.active]="readiness() === 'bien'" (click)="setReadiness('bien')">😃 Bien</button>
@@ -57,7 +57,7 @@
     </section>
 
     <!-- ===== CALENTAMIENTO ===== -->
-    <section class="warmup panel" *ngIf="!cargando() && ejercicios().length > 0">
+    <section class="warmup panel" *ngIf="!cargando() && ejercicios().length > 0 && !esDiaDeporte()">
       <button class="warmup-head" type="button" (click)="toggleCalentamiento()">
         <span class="warmup-badge">WU</span>
         <span class="warmup-title">
@@ -106,9 +106,9 @@
         <div class="week-day" *ngFor="let d of semana()" [class.descanso]="d.descanso" [class.hoy]="d.hoy">
           <div class="week-day-info">
             <span class="week-dia">{{ diasLabel[d.cal - 1] }}<span class="week-hoy" *ngIf="d.hoy"> · hoy</span></span>
-            <span class="week-sesion">{{ d.descanso ? '🛌 Descanso' : d.nombre }}</span>
+            <span class="week-sesion">{{ d.descanso ? '🛌 Descanso' : (d.deporte ? '🏀 ' + d.nombre : d.nombre) }}</span>
           </div>
-          <button class="rest-here-btn" type="button" *ngIf="!d.descanso" (click)="descansarEn(d.cal)">Descansar acá</button>
+          <button class="rest-here-btn" type="button" *ngIf="!d.descanso && !d.deporte" (click)="descansarEn(d.cal)">Descansar acá</button>
           <span class="week-rest-tag" *ngIf="d.descanso">Descanso</span>
         </div>
       </div>
@@ -122,8 +122,16 @@
       <p class="rest-sub">¿Cambiaste de planes? Tocá 📅 arriba para mover el descanso a otro día.</p>
     </section>
 
+    <!-- ===== DIA DE DEPORTE (basquet, futbol...) ===== -->
+    <section class="rest-day panel-strong" *ngIf="!cargando() && esDiaDeporte()">
+      <div class="rest-icon">🏀</div>
+      <h2>{{ nombreDia() }}</h2>
+      <p>Hoy no toca gimnasio: tu deporte ya es el acondicionamiento, no hace falta cardio extra.</p>
+      <p class="rest-sub">Calentá tobillo y cadera antes de jugar, e hidratá bien. Esto te carga gemelo, cuádriceps y aductor, más los aterrizajes.</p>
+    </section>
+
     <!-- ===== EJERCICIOS ===== -->
-    <section class="exercise-list" *ngIf="!cargando() && !esDiaDescanso()">
+    <section class="exercise-list" *ngIf="!cargando() && !esDiaDescanso() && !esDiaDeporte()">
       <article class="exercise-card panel-strong" *ngFor="let ej of ejercicios()" [class.done]="ejercicioHecho(ej)">
         <div class="card-head">
           <div class="card-title">

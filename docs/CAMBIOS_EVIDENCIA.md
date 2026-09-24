@@ -1365,6 +1365,83 @@ junto con la fase 2 de la rampa.
 - **31**: si se cerró el rango con RPE alto la nota lo explica, y **no** avisa en
   deload S5 ni en las dos fases del reingreso.
 
+## BK. Auditoria del sistema completo (2026-09-23)
+
+Revision de extremo a extremo, no solo de los cambios del dia. Se encontraron
+**tres fallos activos** (dos introducidos ese mismo dia) y **tres pendientes**.
+
+### 1. El front no sabia dibujar el dia de `Deporte` (introducido ese dia)
+
+Al anadir el bloque `Deporte` en el motor no se toco el front. Consecuencias:
+
+- `esDiaDescanso` se calcula con `/descanso/i.test(nombreDia())`, y `"Basquetbol"`
+  no casa, asi que el martes se dibujaba la **vista de sesion completa**.
+- `nSeriesDe("0")` devuelve **1** (por el `Math.max(1, n)`), asi que se generaba
+  una tarjeta *Basquetbol* con **1 serie, 0 kg y slider de RPE** pidiendo
+  registrar una serie de basquet.
+- `descansarEn()` permitia **intercambiar el dia de basquet** con el de descanso:
+  el basquet es un compromiso a hora fija, no una sesion movible.
+
+Arreglos: `esDiaDeporte` derivado del **bloque** (no del nombre — el nombre lo
+pone el usuario en su config); panel propio con el deporte; guardas en barra de
+progreso, readiness, calentamiento y lista de ejercicios; `medidaDe` reconoce
+`deporte` (minutos, sin peso ni RPE) como red de seguridad; y los dias de deporte
+quedan fuera del intercambio de descanso, con etiqueta propia en «Mi semana».
+
+**Verificado en el navegador** sembrando la cache offline del propio app: con el
+dia de deporte hay panel y **0** tarjetas de ejercicio, 0 barras de progreso, 0
+readiness, 0 calentamiento y 0 inputs de peso/RPE; con un dia de gym normal
+vuelven las 2 tarjetas, la barra, el readiness y el calentamiento.
+
+### 2. El bundle desplegado estaba desactualizado
+
+`deploy/` era de las 23:20 y `entreno-data.ts` de las 00:16 del dia siguiente:
+**todas las correcciones de clasificacion del front estaban sin desplegar**.
+Reconstruido (el hash del bundle cambio de `main-Y2SD3QPM` a `main-3QAO3XJC`, o
+sea el contenido era distinto de verdad) y verificado en vivo:
+
+| Ejercicio | Antes | Ahora |
+|---|---|---|
+| Dominadas | *(sin clasificar)* | Dorsales, Trapecios, Biceps |
+| Elevaciones de Pantorrilla | **Hombros** | Gemelos |
+| Curl Nordico | **Biceps** | Isquios, Gluteos |
+| Encogimientos con Barra | *(sin clasificar)* | Trapecios |
+
+Leccion: el typecheck no sustituye al build. Cambiar `app/src` exige reconstruir
+`deploy/` o el telefono sigue con el codigo viejo.
+
+### 3. La automatizacion semanal nunca se activo
+
+`motor_semanal.bat` y `motor_semanal.py` existen (exportan el historial y
+recalculan la rutina, con log en `motor.log`), pero **no hay ninguna tarea
+registrada** en el Programador de tareas. El plan no se autogenera: hay que
+correrlo a mano. Efecto colateral: `historial.csv` local llevaba dos meses sin
+refrescarse (el motor no se ve afectado porque `planificar.py` descarga el
+historial del servidor en cada ejecucion, pero cualquier analisis local si).
+El `.venv` esta sano (pandas, requests, Crypto, dotenv, dash, plotly). Registrar
+la tarea modifica configuracion del sistema, asi que se deja el comando al
+usuario en vez de ejecutarlo.
+
+### Lo que esta bien (comprobado, no supuesto)
+
+- **Nutricion**: no modela las calorias del deporte *a proposito* — la bascula
+  pilota las kcal y reacciona al cambio de peso real. Diseno correcto.
+- **Dashboard**: no filtra por nombre de bloque, asi que `Deporte` no lo rompe.
+- **API**: `actualizar_plan.php` acepta el bloque nuevo sin cambios.
+- **RPE**: la conclusion de la tanda BJ se sostiene con datos del servidor
+  (media 8.54, 50 % >= 9 sobre 149 filas), no solo con el CSV local desfasado.
+
+### Pendientes conocidos
+
+| Tema | Estado |
+|---|---|
+| Tarea programada sin registrar | comando pendiente de ejecutar |
+| 11 commits sin subir a GitHub | solo en local (+OneDrive) |
+| `Press Hombro en Maquina` y `Pullover en Polea` inalcanzables | ningun bloque los pide (tanda BF) |
+| API-09: CSV vacio sin cabeceras | diferido |
+| Cero tests de Angular | diferido |
+| Credenciales / seguridad | **despriorizado por el usuario** |
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

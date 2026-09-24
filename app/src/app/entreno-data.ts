@@ -316,6 +316,18 @@ export function medidaDe(nombre: string, bloque: string | null): Medida {
   const n = norm(nombre);
   const b = norm(bloque || '');
 
+  // --- Deporte (basquet, futbol...): minutos, sin peso ni RPE. Red de
+  // seguridad: si alguna vista llega a dibujarlo como tarjeta, que no pida
+  // registrar kilos ni RPE de una serie de basquet.
+  if (b.startsWith('deporte')) {
+    return {
+      peso: false, rpe: false, cardio: true,
+      cuenta: { label: 'Minutos', unidad: 'min', paso: 15, def: 90 },
+      nota: '🏀 Tu deporte ya es el acondicionamiento: no hace falta cardio extra.',
+      objetivo: '90 min'
+    };
+  }
+
   // --- Cardio: minutos en Zona 2 ---
   if (b.startsWith('cardio') || /(eliptica|bicicleta|bici|caminata|cinta|trotadora|remo ergometro|escaladora|spinning)/.test(n)) {
     return {

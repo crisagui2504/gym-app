@@ -92,9 +92,18 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly diasLabel = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
   readonly mostrarSemana = signal(false);
   readonly cargandoSemana = signal(false);
-  readonly semana = signal<{ cal: number; sesion: number; nombre: string; descanso: boolean; hoy: boolean }[]>([]);
+  readonly semana = signal<{ cal: number; sesion: number; nombre: string; descanso: boolean; deporte: boolean; hoy: boolean }[]>([]);
   private nombresSesion: string[] = [];
+  private bloquesSesion: string[] = [];
   readonly esDiaDescanso = computed(() => /descanso/i.test(this.nombreDia()));
+  /** Dia de DEPORTE (basquet, futbol...): no es gym ni descanso. Se detecta por
+   *  el bloque, no por el nombre — el nombre lo pone el usuario en su config.
+   *  Sin esto se dibujaba una tarjeta de ejercicio con 1 serie a 0 kg y slider
+   *  de RPE pidiendo registrar una serie de basquet (nSeriesDe(0) devuelve 1). */
+  readonly esDiaDeporte = computed(() => {
+    const e = this.ejercicios();
+    return e.length > 0 && e.every((x) => /deporte/i.test(x.bloque || ''));
+  });
   readonly calentamiento = computed<Calentamiento>(() => calentamientoDe(this.nombreDia()));
   readonly aproximacion = computed<{ ejercicio: string; series: ReturnType<typeof seriesAproximacion> } | null>(() => {
     let mejor: EjercicioVM | null = null;
@@ -256,6 +265,7 @@ export class AppComponent implements OnInit, OnDestroy {
       forkJoin(reqs).subscribe({
         next: (arr) => {
           this.nombresSesion = arr.map((r) => (r.rutina[0]?.nombre_dia ?? '—'));
+          this.bloquesSesion = arr.map((r) => (r.rutina[0]?.bloque ?? ''));
           this.reconstruirSemana();
           this.cargandoSemana.set(false);
         },
@@ -275,7 +285,14 @@ export class AppComponent implements OnInit, OnDestroy {
       [1, 2, 3, 4, 5, 6, 7].map((cal) => {
         const s = this.sesionDe(cal);
         const nombre = this.nombresSesion[s - 1] ?? '—';
-        return { cal, sesion: s, nombre, descanso: /descanso/i.test(nombre), hoy: cal === hoy };
+        return {
+          cal, sesion: s, nombre,
+          descanso: /descanso/i.test(nombre),
+          // los dias de deporte son un compromiso fijo (basquet a una hora), no
+          // una sesion movible: no se pueden intercambiar con el descanso
+          deporte: /deporte/i.test(this.bloquesSesion[s - 1] ?? ''),
+          hoy: cal === hoy
+        };
       })
     );
   }
@@ -287,6 +304,12 @@ export class AppComponent implements OnInit, OnDestroy {
 
   /** Pone el descanso en este dia calendario, intercambiando con el dia de descanso actual. */
   descansarEn(cal: number): void {
+    // Un dia de deporte no se intercambia: el basquet es a una hora fija en el
+    // mundo real, no una sesion que se pueda correr de dia.
+    if (this.semana().find((d) => d.cal === cal)?.deporte) {
+      this.mensaje.set('Ese dia es de deporte, no se puede mover. Elegí un día de gym.');
+      return;
+    }
     const m = this.cargarOverrideMap();
     const full: Record<number, number> = {};
     for (let d = 1; d <= 7; d++) full[d] = m[d] ?? d;
