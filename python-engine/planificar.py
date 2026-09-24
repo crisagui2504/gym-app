@@ -335,6 +335,21 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
         else:
             peso = f.peso_base  # cardio / descanso / farmer's carry
 
+        # ── POR QUE no subio la carga ────────────────────────────────────────
+        # Cerrar el rango con RPE alto bloquea la progresion (peso_volumen exige
+        # RPE <= 8; el Top Set, <= 9). Antes el peso se quedaba igual EN SILENCIO
+        # y no habia forma de saber que la causa era el propio esfuerzo: uno
+        # entrena mas duro para progresar y eso es justo lo que lo impide.
+        # No se avisa en deload ni en reingreso: ahi la carga baja a proposito.
+        if (semana != 5 and not _fase and lp and f.tecnica and f.reps_max
+                and not _es(f.tecnica, "back-off", "back off")
+                and f.bloque not in ("Cardio", "Descanso")):
+            umbral = 9 if _es(f.tecnica, "top set") else 8
+            if lp[1] >= f.reps_max and lp[2] > umbral:
+                nota = (f"Cerraste el rango a RPE {lp[2]:.0f}: la carga no sube "
+                        f"hasta que lo cierres a RPE {umbral} o menos "
+                        f"(deja 2-3 reps en reserva). {nota or ''}").strip()
+
         # ── Peso corporal / core: progresion por repeticiones ───────────────
         # Sin carga externa la unica sobrecarga es hacer mas reps: si el rango
         # se completo lejos del fallo, el rango objetivo sube (hasta 30 reps;

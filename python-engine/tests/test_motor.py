@@ -680,6 +680,45 @@ check("historial continuo sin pausas -> fase 0",
       pl.fase_reingreso(_df_fechas(["2026-09-21", "2026-09-23", "2026-09-25"]),
                         date(2026, 9, 28)) == 0)
 
+print("\n== 30. Coherencia RIR prescrito <-> filtro de progresion por RPE ==")
+# El invariante: si el plan pide cerrar a RIR N, el RPE resultante (10 - N) debe
+# permitir que la carga suba. Prescribir RIR 1-2 (= RPE 8-9) mientras
+# peso_volumen exige RPE <= 8 castigaba justo a quien obedecia: cerraba a RIR 1,
+# la carga no subia nunca y a las 3 semanas el motor lo marcaba "estancado".
+_pl_rir = generar_plan({"enfoque": "recomposicion", "split": "upper_lower",
+                        "prioridades": [], "duracion_min": 90}, ciclo=0)
+_mal = [f.notas for f in _pl_rir if f.notas and "RIR 1-2" in f.notas]
+check("ninguna nota prescribe ya RIR 1-2 (contradecia el filtro RPE <= 8)",
+      not _mal, str(_mal[:2]))
+_con_rir = [f for f in _pl_rir if f.notas and "RIR 2-3" in f.notas]
+check("las series de trabajo piden RIR 2-3", len(_con_rir) > 0)
+
+# la carga SI sube cerrando el rango al RIR que se prescribe (RIR 2 = RPE 8)
+class _F:  # fila minima para peso_volumen
+    reps_max = 12; reps_min = 8; peso_base = 20.0
+check("cerrando el rango a RPE 8 (RIR 2, lo prescrito) la carga SUBE",
+      pl.peso_volumen(_F(), (20.0, 12, 8.0), 2.5) > 20.0,
+      str(pl.peso_volumen(_F(), (20.0, 12, 8.0), 2.5)))
+check("cerrando a RPE 9 la carga NO sube (el filtro sigue vigente)",
+      pl.peso_volumen(_F(), (20.0, 12, 9.0), 2.5) == 20.0)
+
+print("\n== 31. El plan explica POR QUE no sube la carga ==")
+_df_r9 = pd.DataFrame([{"fecha_entreno": pd.Timestamp("2026-09-28"),
+                        "ejercicio": "Curl con Barra EZ", "tecnica": "Tradicional",
+                        "numero_serie": i, "peso_kg": 15.0, "reps_hechas": 15,
+                        "rpe": 9, "tonelaje_serie": 225} for i in (1, 2, 3)])
+_df_r9["fecha_entreno"] = pd.to_datetime(_df_r9["fecha_entreno"])
+_fr = pl.generar_filas(_df_r9, "2026-10-05", 2, plan=_pl_rir, reingreso=0)
+_avisos = [f for f in _fr if f["notas"] and "la carga no sube" in f["notas"]]
+check("si cerraste el rango con RPE alto, la nota lo explica", bool(_avisos),
+      f"{len(_avisos)} avisos")
+# y NO debe avisar cuando la carga baja a proposito (deload / reingreso)
+for _sem, _fa, _et in ((5, 0, "deload S5"), (1, 1, "reingreso fase 1"),
+                       (1, 2, "reingreso fase 2")):
+    _fx = pl.generar_filas(_df_r9, "2026-10-05", _sem, plan=_pl_rir, reingreso=_fa)
+    check(f"no avisa en {_et} (ahi la carga baja a proposito)",
+          not [f for f in _fx if f["notas"] and "la carga no sube" in f["notas"]])
+
 print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")

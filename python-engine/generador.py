@@ -12,7 +12,7 @@ un plan semanal completo (list[Fila]) aplicando las reglas del informe v3:
   - Rotacion del Bloque B en la Semana 2 (Seccion 9).
   - Descansos por tecnica segun la tabla del informe (Seccion 7).
   - Gestion de fatiga (evidencia 2022-2025, ver docs/CAMBIOS_EVIDENCIA.md):
-    S1-S2 a RIR 1-2; las tecnicas de intensidad (AMRAP / Rest-Pause / Drop)
+    S1-S2 a RIR 2-3; las tecnicas de intensidad (AMRAP / Rest-Pause / Drop)
     solo en S3-S4 y solo en la ultima serie del ejercicio.
 
 El resultado usa la misma dataclass Fila que consume planificar.py, asi que el
@@ -62,11 +62,11 @@ ANTEBRAZO_NOTA = {
     "Farmer's Carry": "agarre funcional, 30-40 m por mano.",
     "Pinzamiento de Disco": "pinch grip, 20-30 seg por mano.",
     "Rodillo de Muneca (Wrist Roller)": "antebrazo completo, subir y bajar controlado.",
-    "Curl de Muneca con Barra (Flexores)": "flexores directos. RIR 1-2.",
+    "Curl de Muneca con Barra (Flexores)": "flexores directos. RIR 2-3.",
     "Curl de Muneca Inverso (Extensores)": ("extensores de muneca. Peso ligero y "
                                             "excentrico lento: salud del codo "
                                             "(epicondilitis), no fuerza."),
-    "Curl Invertido con Barra EZ": "braquiorradial + extensores. RIR 1-2.",
+    "Curl Invertido con Barra EZ": "braquiorradial + extensores. RIR 2-3.",
     "Curl Zottman con Mancuernas": ("sube supinado, BAJA pronado y lento: el "
                                     "excentrico es el objetivo."),
     "Extension de Muneca con Banda": ("excentrico lento (3-4 s). Prevencion de "
@@ -108,9 +108,9 @@ def _intensidad_s34(ej, tecnica_b: str, nota_fallo: str) -> tuple[str, str]:
     (fallo técnico). El AMRAP/Drop al fallo total solo se prescribe en máquina,
     polea o peso corporal, donde ir al fallo es seguro."""
     if ej.equipo in ("barra", "mancuerna"):
-        return "Tradicional", ("Series previas RIR 1-2. Última serie a RPE 9 "
+        return "Tradicional", ("Series previas RIR 2-3. Última serie a RPE 9 "
                                "(fallo TÉCNICO: pará si la postura se rompe, NO al fallo muscular).")
-    return tecnica_b, f"Series previas RIR 1-2. {nota_fallo}"
+    return tecnica_b, f"Series previas RIR 2-3. {nota_fallo}"
 
 
 def _ondular_reps(rango: tuple[int, int], ciclo: int) -> tuple[int, int]:
@@ -330,10 +330,18 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
                           DESC["back_off"], None, "80% del Top Set."))
         orden += 1
 
-    # ── BLOQUE B — Volumen (RIR 1-2; fallo solo en S3-S4) ───────────────────
+    # ── BLOQUE B — Volumen (RIR 2-3; fallo solo en S3-S4) ───────────────────
     # Evidencia (Refalo 2023, Robinson 2024): entrenar a 1-3 reps en reserva
     # produce hipertrofia comparable al fallo con bastante menos fatiga. El
     # fallo se reserva para la mitad final del mesociclo, cuando el pico lo pide.
+    #
+    # Por que RIR 2-3 y no 1-2: peso_volumen() solo sube la carga si la sesion
+    # anterior cerro el rango con RPE <= 8, o sea RIR 2 o mas. Prescribir RIR 1-2
+    # (= RPE 8-9) contradecia ese filtro: quien obedecia al pie de la letra y
+    # cerraba a RIR 1 no volvia a ver una subida de peso, y a las 3 semanas de
+    # tonelaje plano el motor lo marcaba como "estancado" y le bajaba la carga.
+    # Se castigaba justo al que cumplia. La prescripcion y el filtro ahora dicen
+    # lo mismo, y RIR 2-3 sigue dentro del rango con evidencia (1-3).
     es_bombeo = "Bombeo" in dia.nombre or "B" == dia.nombre[-1:]
     tecnica_b = "Drop Set" if es_bombeo and enf.clave in ("recomposicion", "volumen") else b.tecnica_b
     patrones_b = (patrones_b_dia * b.n_ejercicios_b)[:b.n_ejercicios_b]
@@ -373,7 +381,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
                 filas.append(Fila(dia_sem, dia.nombre, "B - Volumen", orden, ej.nombre,
                                   "Tradicional", b.series_b, b.reps_b[0], b.reps_b[1],
                                   DESC["volumen"], ej.peso_base,
-                                  _nota_pc(ej, "Deja 1-2 reps en reserva (RIR 1-2)."),
+                                  _nota_pc(ej, "Deja 2-3 reps en reserva (RIR 2-3)."),
                                   semanas=(1,)))
                 filas.append(Fila(dia_sem, dia.nombre, "B - Volumen", orden, ej.nombre,
                                   tec_s34, b.series_b, b.reps_b[0], b.reps_b[1],
@@ -384,7 +392,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
                 filas.append(Fila(dia_sem, dia.nombre, "B - Volumen", orden, ej.nombre,
                                   tecnica_b, b.series_b, b.reps_b[0], b.reps_b[1],
                                   DESC["volumen"], ej.peso_base,
-                                  _nota_pc(ej, "Deja 1-2 reps en reserva (RIR 1-2)."),
+                                  _nota_pc(ej, "Deja 2-3 reps en reserva (RIR 2-3)."),
                                   semanas=(1, 3, 4)))
             # alternativo (S2) - rotacion de angulo: estimulo nuevo, sin fallo.
             # respeta el tope axial: la rotacion no debe meter un 2do peso muerto
@@ -395,7 +403,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
                 filas.append(Fila(dia_sem, dia.nombre, "B - Volumen", orden, alt.nombre,
                                   "Tradicional", b.series_b, b.reps_b[0], b.reps_b[1],
                                   DESC["volumen"], alt.peso_base,
-                                  _nota_pc(alt, "S2: rotacion de angulo. RIR 1-2."),
+                                  _nota_pc(alt, "S2: rotacion de angulo. RIR 2-3."),
                                   semanas=(2,)))
             orden += 1
 
@@ -465,11 +473,11 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
         elif patron == db.AISL_BICEPS and tiene_tri:
             filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
                               "Superserie", b.series_c, reps_lo, reps_hi, DESC["superserie"],
-                              ej.peso_base, ("Superserie con triceps. 60 s entre rondas. RIR 1-2." + extra).strip()))
+                              ej.peso_base, ("Superserie con triceps. 60 s entre rondas. RIR 2-3." + extra).strip()))
         elif es_tri_pareado:
             filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
                               "Superserie", b.series_c, reps_lo, reps_hi, DESC["superserie"],
-                              ej.peso_base, ("Superserie con biceps. 60 s entre rondas. RIR 1-2." + extra).strip()))
+                              ej.peso_base, ("Superserie con biceps. 60 s entre rondas. RIR 2-3." + extra).strip()))
         elif patron == db.PANTORRILLA:
             filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
                               "Tradicional", b.series_c, reps_lo, reps_hi, DESC["aislamiento"],
@@ -488,12 +496,12 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
             # tecnica de intensidad solo en S3-S4 y solo en la ULTIMA serie;
             # S1-S2 tradicional lejos del fallo (gestion de fatiga)
             desc_c = DESC["drop_set"] if "Drop" in b.tecnica_c else DESC["rest_pause"]
-            nota_c = ("Ultima serie Rest-Pause: fallo -> 10 s -> fallo. Series previas RIR 1-2."
+            nota_c = ("Ultima serie Rest-Pause: fallo -> 10 s -> fallo. Series previas RIR 2-3."
                       if "Rest" in b.tecnica_c else
-                      "Ultima serie Drop: fallo -> -20% -> fallo. Series previas RIR 1-2.")
+                      "Ultima serie Drop: fallo -> -20% -> fallo. Series previas RIR 2-3.")
             filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
                               "Tradicional", b.series_c, reps_lo, reps_hi, DESC["aislamiento"],
-                              ej.peso_base, ("Deja 1-2 reps en reserva (RIR 1-2)." + extra).strip(),
+                              ej.peso_base, ("Deja 2-3 reps en reserva (RIR 2-3)." + extra).strip(),
                               semanas=(1, 2)))
             filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
                               b.tecnica_c, b.series_c, reps_lo, reps_hi, desc_c,
@@ -501,7 +509,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
         else:
             filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
                               b.tecnica_c, b.series_c, reps_lo, reps_hi, DESC["aislamiento"],
-                              ej.peso_base, ("Deja 1-2 reps en reserva (RIR 1-2)." + extra).strip()))
+                              ej.peso_base, ("Deja 2-3 reps en reserva (RIR 2-3)." + extra).strip()))
         orden += 1
         if not es_tri_pareado:
             n_c += 1
@@ -533,7 +541,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
                               "Tradicional", 3,
                               None if sin_reps else 12, None if sin_reps else 15,
                               DESC["aislamiento"], None,
-                              f"S{sem}: {ANTEBRAZO_NOTA.get(ej.nombre, 'RIR 1-2.')}",
+                              f"S{sem}: {ANTEBRAZO_NOTA.get(ej.nombre, 'RIR 2-3.')}",
                               semanas=(sem,)))
         orden += 1
 

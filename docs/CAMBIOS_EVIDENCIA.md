@@ -1303,6 +1303,68 @@ fase 2 con él; ninguna fase lleva series al fallo; y la detección de fase desd
 historial en los 4 escenarios (pausa abierta, vuelta reciente, dos semanas
 entrenadas, historial continuo).
 
+## BJ. La prescripción contradecía al filtro de progresión (2026-09-23)
+
+El diagnóstico inicial fue equivocado. Parecía que el usuario «entrenaba demasiado
+cerca del fallo» (50 % de series a RPE ≥ 9, media 8.6). En realidad **estaba
+obedeciendo al plan, y el plan se contradecía consigo mismo**:
+
+| | |
+|---|---|
+| El plan prescribía | «Deja 1-2 reps en reserva (**RIR 1-2**)» = RPE 8-9 |
+| `peso_volumen` exigía para subir carga | **RPE ≤ 8** (= RIR 2 o más) |
+
+`peso_volumen` gobierna *Tradicional, AMRAP, Drop, Rest-Pause y Superserie*, o
+sea **los bloques B y C completos**. Así que quien cerraba a RIR 1 —exactamente
+lo prescrito— **no volvía a ver una subida de peso**. Y peor: a las 3 semanas de
+tonelaje plano, `ultimas_y_records` lo marcaba como `estancado` y
+`peso_top_set` le bajaba la carga un 10 %. **El sistema castigaba al que cumplía
+y lo llamaba estancamiento.**
+
+### Arreglo 1: alinear la prescripción con el filtro
+
+`RIR 1-2` → **`RIR 2-3`** en las series de trabajo de los bloques B y C (16
+sustituciones). No se toca el Top Set (su filtro ya admite RPE ≤ 9, coherente con
+un esfuerzo pesado) ni las series al fallo deliberadas de S3-S4, que son el uso
+con evidencia del fallo. RIR 2-3 sigue dentro del rango respaldado (1-3 reps en
+reserva: Refalo 2023, Robinson 2024) y además es lo indicado para un principiante.
+
+Se arregla el sentido correcto: **la prescripción, no el filtro**. Aflojar el
+filtro a RPE ≤ 9 habría premiado el machaque y acumulado fatiga.
+
+### Arreglo 2: decir POR QUÉ no sube la carga
+
+Antes el peso se quedaba igual **en silencio**. Sin señal, la reacción natural es
+apretar más, que es justo lo que lo bloquea. Ahora, si la sesión anterior cerró el
+rango por encima del umbral, la nota lo dice:
+
+> «Cerraste el rango a RPE 9: la carga no sube hasta que lo cierres a RPE 8 o
+> menos (deja 2-3 reps en reserva).»
+
+Umbral por bloque (9 para Top Set, 8 para el resto). **No avisa en deload ni en
+reingreso**, donde la carga baja a propósito. Verificado contra el historial real:
+salta exactamente en los dos ejercicios que estaban clavados (*Curl con Barra EZ*
+y *Curl de Isquios Sentado*, ambos cerrados a RPE 9).
+
+### No se re-subió la semana en curso
+
+`exportar_csv.php` obtiene `bloque`, `nombre_dia` y `semana_inicio` con
+`LEFT JOIN plan_rutina ON p.id = r.plan_id`, y `actualizar_plan.php` borra por
+`semana_inicio`. Re-subir habría puesto `plan_id = NULL` en las series ya
+registradas del lunes y el miércoles, perdiendo su contexto para siempre. La
+progresión no se ve afectada porque `get_historial.php` lee sólo de
+`registro_series`, sin JOIN. La prescripción corregida entra el lunes siguiente,
+junto con la fase 2 de la rampa.
+
+### Tests
+
+- **30**: ninguna nota prescribe ya RIR 1-2; las series de trabajo piden RIR 2-3;
+  cerrando a RPE 8 (lo prescrito) **la carga sube**; cerrando a RPE 9 no sube (el
+  filtro sigue vigente). Este es el invariante que evita que prescripción y filtro
+  vuelvan a divergir.
+- **31**: si se cerró el rango con RPE alto la nota lo explica, y **no** avisa en
+  deload S5 ni en las dos fases del reingreso.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
