@@ -853,6 +853,27 @@ _n = lambda dur: len({(f["dia_semana"], f["ejercicio"]) for f in pl.generar_fila
     df1, "2026-10-12", 1, plan=_pl90, duracion_min=dur) if f["tecnica"]})
 check("60 min recorta mas ejercicios que 120 min", _n(60) < _n(120), f"60={_n(60)} 120={_n(120)}")
 
+print("")
+print("== 38. Peso de partida estimado para ejercicios sin historial ==")
+_U = {("press de banca con barra", "top set"): (40.0, 8, 8.0),
+      ("prensa de piernas 45 grados", "volumen"): (100.0, 10, 8.0),
+      ("extensiones de cuadriceps (maquina)", "volumen"): (30.0, 12, 8.0),
+      ("hip thrust con barra", "top set"): (120.0, 8, 8.0),
+      ("press frances con barra ez", "volumen"): (12.0, 10, 8.0)}
+_e = pl.estimar_peso("Press de Banca con Mancuernas", "volumen", _U)
+check("barra -> mancuernas (peso TOTAL de las dos) con margen conservador",
+      _e is not None and _e[0] <= 40 * 0.8 and _e[1] == "Press de Banca con Barra", str(_e))
+_h = pl.estimar_peso("Hack Squat (Maquina)", "volumen", _U)
+check("un compuesto se estima desde un compuesto, no desde un aislamiento",
+      _h is not None and _h[1] == "Prensa de Piernas 45 grados", str(_h))
+check("una bisagra AXIAL no se estima desde un ejercicio no axial (hip thrust)",
+      pl.estimar_peso("Peso Muerto Rumano con Barra", "top set", _U) is None)
+_pc = pl.estimar_peso("Press Cerrado con Barra", "volumen", _U)
+check("nunca por debajo de la barra vacia", _pc is not None and _pc[0] >= 20, str(_pc))
+check("peso corporal no se estima", pl.estimar_peso("Dominadas", "top set", _U) is None)
+check("sin analogo del mismo patron no se inventa un peso",
+      pl.estimar_peso("Elevaciones Laterales Mancuernas", "volumen", _U) is None)
+
 print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")

@@ -1669,6 +1669,35 @@ tanda BM. El barrido lo reporta como INFO, no como fallo.
 al fallo; Full Body B sin drop sets), 37 (la duracion viaja con el plan) y la
 suite nueva `test_barrido.py`.
 
+## BO. Peso de partida estimado para ejercicios sin historial (2026-10-08)
+
+Resuelta la ambiguedad de la tanda BM: **el usuario registra las mancuernas como
+PESO TOTAL de las dos.** Con eso se puede estimar el peso de partida de un
+ejercicio nuevo desde uno analogo que si tiene historial (`estimar_peso`).
+
+Reglas, todas orientadas a que **la primera sesion salga a RPE 6-7**: quedarse
+corto se corrige solo con la doble progresion; pasarse, no.
+
+- Solo desde un ejercicio del **mismo patron** de movimiento.
+- Conversion por equipo: barra -> mancuernas x0.8 (dos mancuernas suman ~80 % de
+  la barra por la estabilizacion), mancuernas -> barra x1.15. Maquina y polea solo
+  desde la misma clase de equipo: sus palancas no son comparables.
+- Margen de seguridad x0.85 y, si hay varios analogos, **el mas bajo**.
+- **Compuesto solo desde compuesto**: la primera version estimo la prensa desde la
+  extension de cuadriceps (17.5 kg, menos que el carro).
+- **Una bisagra axial solo desde otra axial**: estimar el rumano desde el hip
+  thrust se pasa en avanzados (el hip thrust puede doblarlo) justo donde la carga
+  es espinal.
+- **Nunca por debajo de la barra vacia** (20 kg olimpica, 10 kg EZ).
+- La nota dice que es una estimacion y desde que ejercicio sale.
+
+Efecto sobre el historial real: el ciclo 0 pasa de 11 ejercicios sin peso a 6; el
+ciclo 1 rellena 9 y el 2 rellena 13. El sabado (Torso C) queda sin ninguna casilla
+vacia: press militar con barra 25 kg, press de banca con mancuernas 22.5 kg
+(total), press cerrado 20 kg. Los que siguen en blanco no tienen ningun analogo
+fiable (abductores, aductores, gemelo de pie, patada de gluteo): mejor vacio que
+inventado. Test 38.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

@@ -318,6 +318,70 @@ def nota_semana(semana: int) -> str:
     }[semana]
 
 
+# ── Peso de PARTIDA para un ejercicio sin historial ──────────────────────────
+# Convencion del usuario: las MANCUERNAS se registran como PESO TOTAL de las dos.
+# Conversion de carga entre equipos dentro del MISMO patron de movimiento. Maquina
+# y polea solo desde la misma clase de equipo: sus palancas no son comparables
+# con el peso libre ni entre si de forma fiable.
+_RATIO_EQUIPO: dict[tuple[str, str], float] = {
+    ("barra", "barra"): 1.0,
+    ("mancuerna", "mancuerna"): 1.0,
+    ("barra", "mancuerna"): 0.8,    # dos mancuernas suman ~80% de la barra (estabilizacion)
+    ("mancuerna", "barra"): 1.15,
+    ("polea", "polea"): 1.0,
+    ("maquina", "maquina"): 1.0,
+}
+# La estimacion apunta a una 1a sesion a RPE 6-7: quedarse corto se corrige solo
+# la semana siguiente (doble progresion); pasarse, no.
+MARGEN_ESTIMACION = 0.85
+
+
+def estimar_peso(nombre: str, familia: str, ultima: dict) -> tuple[float, str] | None:
+    """Peso de partida para un ejercicio SIN historial, desde un analogo que si
+    lo tiene (mismo patron, equipo convertible). None si no hay base fiable.
+
+    Sin esto, mas de la mitad de los ejercicios de cada semana salian sin peso
+    (54% en el ciclo 0, 63% en el 2): la rotacion del mesociclo, que existe para
+    evitar el tedio, dejaba cada vez mas casillas en blanco a un principiante que
+    es justo quien peor elige un peso de partida. Si hay varios analogos se toma
+    el MAS BAJO (conservador)."""
+    import ejercicios_db as _db
+    por_norm = {_norm(e.nombre): e for e in _db.EJERCICIOS}
+    ej = por_norm.get(_norm(nombre))
+    if ej is None or ej.equipo == "peso_corporal":
+        return None
+    def _compuesto(e) -> bool:          # entra en Bloque A/B = multiarticular
+        return any(x in e.bloques for x in ("A", "B"))
+    candidatos: list[tuple[int, float, str]] = []
+    for (n_norm, fam), lp in ultima.items():
+        an = por_norm.get(n_norm)
+        if an is None or an.nombre == ej.nombre or an.patron != ej.patron:
+            continue
+        # compuesto solo desde compuesto: comparten patron pero no orden de carga
+        # (una prensa mueve varias veces lo que una extension de cuadriceps)
+        if _compuesto(an) != _compuesto(ej):
+            continue
+        # una bisagra con carga ESPINAL solo desde otra: estimarla desde un hip
+        # thrust (que en avanzados puede doblarla) es pasarse justo donde mas duele
+        if _db.es_axial(ej) and not _db.es_axial(an):
+            continue
+        ratio = _RATIO_EQUIPO.get((an.equipo, ej.equipo))
+        if ratio is None or not lp or not lp[0] or lp[0] <= 0:
+            continue
+        prioridad = 0 if fam == familia else 1   # top set desde top set, etc.
+        candidatos.append((prioridad, lp[0] * ratio * MARGEN_ESTIMACION, an.nombre))
+    if not candidatos:
+        return None
+    mejor_prio = min(c[0] for c in candidatos)
+    _, est, origen = min((c for c in candidatos if c[0] == mejor_prio), key=lambda c: c[1])
+    # nunca por debajo de la barra vacia: una barra olimpica pesa 20 kg y una
+    # EZ unos 10 (sin esto salia un press cerrado de 12.5 kg)
+    if ej.equipo == "barra":
+        est = max(est, 10.0 if "EZ" in ej.nombre else 20.0)
+    est = redondear(est)
+    return (est, origen) if est > 0 else None
+
+
 def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                   plan: list[Fila] | None = None,
                   reingreso: bool | int = False,
@@ -369,8 +433,13 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                 peso = redondear(lp[0]) if lp else f.peso_base
             else:
                 peso = peso_top_set(f, lp, record.get(clave), micro, semana_prog, clave in estancados)
-            top_del_dia[(f.dia, _norm(f.ejercicio))] = peso
             nota = f"{marca} {f.notas or ''} {nota_semana(semana)}".strip()
+            if peso is None:
+                _est = estimar_peso(f.ejercicio, clave[1], ultima)
+                if _est:
+                    peso, origen = _est
+                    nota = f"Peso ESTIMADO desde {origen}: primera vez con este ejercicio. Empieza dejando 3-4 reps en reserva y ajusta. {nota or ''}".strip()
+            top_del_dia[(f.dia, _norm(f.ejercicio))] = peso
 
         elif _es(f.tecnica, "back-off", "back off"):
             ts = top_del_dia.get((f.dia, _norm(f.ejercicio)))
@@ -380,6 +449,11 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
             peso = peso_volumen(f, lp, micro)
             if marca:
                 nota = f"{marca} {nota or ''}".strip()
+            if peso is None:
+                _est = estimar_peso(f.ejercicio, clave[1], ultima)
+                if _est:
+                    peso, origen = _est
+                    nota = f"Peso ESTIMADO desde {origen}: primera vez con este ejercicio. Empieza dejando 3-4 reps en reserva y ajusta. {nota or ''}".strip()
 
         else:
             peso = f.peso_base  # cardio / descanso / farmer's carry
