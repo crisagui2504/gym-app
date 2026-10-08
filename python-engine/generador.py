@@ -377,7 +377,11 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
     # tonelaje plano el motor lo marcaba como "estancado" y le bajaba la carga.
     # Se castigaba justo al que cumplia. La prescripcion y el filtro ahora dicen
     # lo mismo, y RIR 2-3 sigue dentro del rango con evidencia (1-3).
-    es_bombeo = "Bombeo" in dia.nombre or "B" == dia.nombre[-1:]
+    # Dia "bombeo" = 2do dia de un foco pareado (Torso/Pierna Bombeo, Push/Legs/
+    # Pull B). Antes bastaba con que el nombre acabase en "B", y "Full Body B" (que
+    # no tiene pareja) heredaba drop sets por accidente de nomenclatura.
+    es_bombeo = ("Bombeo" in dia.nombre
+                 or (dia.foco in ("push", "pull", "pierna") and dia.nombre.endswith(" B")))
     tecnica_b = "Drop Set" if es_bombeo and enf.clave in ("recomposicion", "volumen") else b.tecnica_b
     patrones_b = (patrones_b_dia * b.n_ejercicios_b)[:b.n_ejercicios_b]
     # en dias de Drop Set el candidato debe permitir bajar el peso -20%:
@@ -540,9 +544,19 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
                               "Tradicional", b.series_c, reps_lo, reps_hi, DESC["aislamiento"],
                               ej.peso_base, ("Deja 2-3 reps en reserva (RIR 2-3)." + extra).strip(),
                               semanas=(1, 2)))
-            filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
-                              b.tecnica_c, b.series_c, reps_lo, reps_hi, desc_c,
-                              ej.peso_base, (nota_c + extra).strip(), semanas=(3, 4)))
+            if ej.nombre in db.FALLO_LIBRE_INSEGURO:
+                # mismo guarda que el Bloque B (_intensidad_s34): fallo TECNICO,
+                # no muscular. Ver FALLO_LIBRE_INSEGURO.
+                filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
+                                  "Tradicional", b.series_c, reps_lo, reps_hi, DESC["aislamiento"],
+                                  ej.peso_base,
+                                  ("Series previas RIR 2-3. Ultima serie a RPE 9 (fallo TECNICO: "
+                                   "para si la postura se rompe, NO al fallo muscular sin ayudante)."
+                                   + extra).strip(), semanas=(3, 4)))
+            else:
+                filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
+                                  b.tecnica_c, b.series_c, reps_lo, reps_hi, desc_c,
+                                  ej.peso_base, (nota_c + extra).strip(), semanas=(3, 4)))
         else:
             filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
                               b.tecnica_c, b.series_c, reps_lo, reps_hi, DESC["aislamiento"],

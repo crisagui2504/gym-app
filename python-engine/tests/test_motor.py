@@ -791,6 +791,68 @@ check("el historial con nombre antiguo llega al ejercicio actual",
 check("un nombre sin alias queda tal cual",
       db.nombre_canonico("Press de Banca con Barra") == "Press de Banca con Barra")
 
+print("")
+print("== 34. Datos sucios del movil: el motor no se envenena ni se cae ==")
+from plan_template import Fila as _Fila
+_top = _Fila(1, "T", "A - Fuerza maxima", 1, "Press de Banca con Barra", "Top Set", 1, 6, 8, 180, 30.0, "")
+def _hist(series):
+    return pd.DataFrame([{"fecha_entreno": pd.Timestamp(f), "ejercicio": "Press de Banca con Barra",
+                          "tecnica": "Top Set", "numero_serie": i, "peso_kg": p, "reps_hechas": 8,
+                          "rpe": r, "tonelaje_serie": 240} for i, (f, p, r) in enumerate(series, 1)])
+def _top_set(df, semana=1):
+    u, rec, _ = pl.ultimas_y_records(df)
+    k = ("press de banca con barra", "top set")
+    return pl.peso_top_set(_top, u.get(k), rec.get(k), 2.5, semana, False) if u.get(k) else None
+_t = _top_set(_hist([("2026-09-28", 30, 8), ("2026-10-01", 30, 8), ("2026-10-05", 30, 8),
+                     ("2026-10-05", 300, 8)]), semana=4)
+check("un typo (300 en vez de 30) no se prescribe, ni siquiera en la S4 de pico",
+      _t is not None and _t < 40, f"prescribe {_t}")
+check("un peso negativo nunca produce una prescripcion negativa",
+      (_top_set(_hist([("2026-10-05", -20, 8)])) or 0) >= 0)
+_df_rpe = pl.sanear_historial(_hist([("2026-10-05", 30, 0), ("2026-10-05", 30, 11)]))
+check("un RPE fuera de 1-10 se trata como dato ausente", _df_rpe["rpe"].isna().all())
+_df_nat = _hist([("2026-10-05", 30, 8)]); _df_nat["fecha_entreno"] = pd.NaT
+try:
+    pl.fatiga_global(_df_nat); pl.decidir_semana(_df_nat, date(2026, 10, 12), date(2026, 9, 28))
+    check("un historial sin ninguna fecha valida no tumba el motor", True)
+except Exception as _ex:
+    check("un historial sin ninguna fecha valida no tumba el motor", False, repr(_ex))
+check("el saneamiento no toca un historial normal",
+      len(pl.sanear_historial(_hist([("2026-09-28", 27.5, 8), ("2026-10-05", 30, 8)]))) == 2)
+
+print("")
+print("== 35. Una sola decision de semana para el motor y el dashboard ==")
+import inspect as _insp, dashboard as _dsh
+check("el dashboard usa decidir_semana (no reimplementa la semana)",
+      "decidir_semana" in _insp.getsource(_dsh._tabla_plan))
+_df_pausa = _hist([("2026-07-22", 30, 8)])
+_sem, _fase, _ = pl.decidir_semana(_df_pausa, date(2026, 9, 21), date(2026, 9, 28))
+check("tras una pausa larga, decidir_semana aplica el reingreso", _fase == 1 and _sem == 5,
+      f"S{_sem} fase{_fase}")
+
+print("")
+print("== 36. Seguridad: peso libre peligroso nunca al fallo muscular (Bloque C) ==")
+import itertools as _it
+_inseguros = []
+for _e, _sp, _c in _it.product(("recomposicion", "volumen", "definicion", "powerbuilding", "fuerza"),
+                               ("upper_lower", "upper_lower_5", "ppl", "full_body"), range(6)):
+    for f in generar_plan({"enfoque": _e, "split": _sp}, ciclo=_c):
+        if f.ejercicio in db.FALLO_LIBRE_INSEGURO and any(
+                k in (f.tecnica or "").lower() for k in ("amrap", "rest", "drop")):
+            _inseguros.append(f"{_e}/{_sp}/c{_c}: {f.ejercicio} {f.tecnica}")
+check("press cerrado / press frances / sentadilla y zancada con mancuerna sin fallo muscular",
+      not _inseguros, str(_inseguros[:3]))
+check("Full Body B ya no hereda drop sets solo por acabar en 'B'",
+      not any(f.tecnica == "Drop Set" for f in generar_plan(
+          {"enfoque": "recomposicion", "split": "full_body"}, ciclo=0) if f.nombre_dia == "Full Body B"))
+
+print("")
+print("== 37. La duracion viaja con el plan (no se lee a escondidas de la config) ==")
+_pl90 = generar_plan({"enfoque": "volumen", "split": "upper_lower", "duracion_min": 90}, ciclo=0)
+_n = lambda dur: len({(f["dia_semana"], f["ejercicio"]) for f in pl.generar_filas(
+    df1, "2026-10-12", 1, plan=_pl90, duracion_min=dur) if f["tecnica"]})
+check("60 min recorta mas ejercicios que 120 min", _n(60) < _n(120), f"60={_n(60)} 120={_n(120)}")
+
 print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")

@@ -535,8 +535,12 @@ const CAL_GENERAL: Calentamiento = {
 /** Rutina de calentamiento adaptada al enfoque del dia. */
 export function calentamientoDe(nombreDia: string): Calentamiento {
   const n = norm(nombreDia);
-  if (['pierna', 'cuadriceps', 'isquios', 'gluteo'].some((k) => n.includes(k))) return CAL_PIERNA;
-  if (['torso', 'hombro', 'pecho', 'espalda', 'bombeo'].some((k) => n.includes(k))) return CAL_TORSO;
+  // Los dias de PPL se llaman en ingles ("Legs A", "Push B", "Pull A"): sin estas
+  // claves los seis caian en el calentamiento GENERICO, y un "Legs A" con sentadilla
+  // pesada no proponia movilidad de tobillo ni cadera. Pierna va antes que torso
+  // ("Pierna Bombeo" contiene "bombeo", que es clave de torso).
+  if (['pierna', 'legs', 'cuadriceps', 'isquios', 'gluteo'].some((k) => n.includes(k))) return CAL_PIERNA;
+  if (['torso', 'push', 'pull', 'hombro', 'pecho', 'espalda', 'bombeo'].some((k) => n.includes(k))) return CAL_TORSO;
   return CAL_GENERAL;
 }
 

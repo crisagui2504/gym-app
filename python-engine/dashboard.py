@@ -699,7 +699,7 @@ def _tabla_logbook(df: pd.DataFrame):
 # ─────────────────────────────────────────────────────────────────────────────
 def _tabla_plan(df: pd.DataFrame) -> dash_table.DataTable | html.Div:
     try:
-        from planificar import generar_filas, ultimas_y_records, lunes_objetivo, semana_mesociclo
+        from planificar import generar_filas, ultimas_y_records, lunes_objetivo, decidir_semana
         from dotenv import load_dotenv
 
         load_dotenv()
@@ -710,8 +710,11 @@ def _tabla_plan(df: pd.DataFrame) -> dash_table.DataTable | html.Div:
             else lunes_objetivo()
         )
         inicio = date.fromisoformat(inicio_env) if inicio_env else objetivo
-        semana = semana_mesociclo(objetivo, inicio)
-        filas = generar_filas(df, objetivo.isoformat(), semana)
+        # misma decision que planificar.py (rampa de reingreso + deload reactivo):
+        # antes el dashboard calculaba solo la semana del calendario y mostraba un
+        # plan distinto del que se subia al telefono
+        semana, reingreso, _avisos = decidir_semana(df, objetivo, inicio)
+        filas = generar_filas(df, objetivo.isoformat(), semana, reingreso=reingreso)
     except Exception as exc:
         return html.Div([
             html.P(f"No se pudo calcular el plan: {exc}",

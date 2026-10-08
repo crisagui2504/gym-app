@@ -438,6 +438,20 @@ BISAGRA_AXIAL: frozenset[str] = frozenset({
 })
 
 
+# Ejercicios de PESO LIBRE donde el fallo muscular sin ayudante es peligroso por
+# lo que pasa AL fallar, no por cuantos musculos trabajan: la barra queda sobre
+# el pecho o cae hacia la cara, o una sentadilla/zancada cargada pierde la postura
+# abajo. En el Bloque B ya se topaban a RPE 9 (todo el peso libre); el Bloque C no
+# tenia ese guarda y en S3-S4 les tocaba rest-pause o drop set al fallo. Un curl,
+# una elevacion lateral o un encogimiento al fallo si son seguros: se suelta y ya.
+FALLO_LIBRE_INSEGURO: frozenset[str] = frozenset({
+    "Press Cerrado con Barra",        # barra sobre el pecho/cuello
+    "Press Frances con Barra EZ",     # "rompecraneos": la barra cae hacia la frente
+    "Sentadilla Sumo con Mancuerna",  # sentadilla cargada: se rompe la postura abajo
+    "Zancada Lateral con Mancuerna",  # zancada cargada: valgo de rodilla, equilibrio
+})
+
+
 def es_axial(e: Ejercicio) -> bool:
     """True si el ejercicio carga axialmente la columna (peso muerto / RDL)."""
     return e.nombre in BISAGRA_AXIAL

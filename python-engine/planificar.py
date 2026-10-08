@@ -110,9 +110,52 @@ def _familia(tec) -> str:
     return "volumen"
 
 
+# Una serie de mas de TYPO_FACTOR x la mediana de su ejercicio se descarta como
+# error de tecleo. Ninguna progresion real multiplica la carga por 2.5 de una
+# sesion a otra (se sube de 1.25 en 1.25 kg); un cero de mas en el movil, si.
+TYPO_FACTOR = 2.5
+
+
+def sanear_historial(df: pd.DataFrame) -> pd.DataFrame:
+    """Filtra del historial lo que no puede ser un registro real.
+
+    El historial lo escribe el usuario desde el movil y ni la app ni el servidor
+    validan rangos (guardar_entreno.php acepta la fecha del cliente y cualquier
+    peso), asi que el motor es la red de seguridad. Sin esto:
+      - un peso NEGATIVO producia un Top Set negativo (-20 -> -17.5 kg)
+      - un typo (300 en vez de 30) prescribia 302.5 kg la semana siguiente, y
+        al quedar como record del mes, la S4 intentaba superarlo hasta 28 dias
+        despues
+      - un historial entero sin fecha valida tumbaba fatiga_global (NaT)
+      - un RPE fuera de 1-10 se tomaba como dato real
+    Idempotente: se puede aplicar mas de una vez sin efecto."""
+    if df is None or df.empty:
+        return df
+    df = df.copy()
+    if "fecha_entreno" in df:
+        df = df[df["fecha_entreno"].notna()]
+    if "peso_kg" in df:
+        df = df[~(pd.to_numeric(df["peso_kg"], errors="coerce") < 0)]
+    if "rpe" in df:
+        rpe = pd.to_numeric(df["rpe"], errors="coerce")
+        df["rpe"] = rpe.where(rpe.between(1, 10))   # fuera de rango -> sin dato
+    if "peso_kg" in df and "ejercicio" in df and not df.empty:
+        from ejercicios_db import nombre_canonico
+        peso = pd.to_numeric(df["peso_kg"], errors="coerce")
+        ej = df["ejercicio"].map(lambda x: _norm(nombre_canonico(x)))
+        con_carga = peso > 0
+        mediana = peso[con_carga].groupby(ej[con_carga]).transform("median")
+        cuenta = peso[con_carga].groupby(ej[con_carga]).transform("size")
+        typo = pd.Series(False, index=df.index)
+        typo.loc[mediana.index] = (cuenta >= 3) & (peso[con_carga] > TYPO_FACTOR * mediana)
+        df = df[~typo]
+    return df
+
+
 def ultimas_y_records(df: pd.DataFrame) -> tuple[dict, dict, set]:
     """Devuelve (ultima, record_mes, estancados) por (ejercicio, familia_tecnica)."""
-    if df.empty or "ejercicio" not in df:
+    df = sanear_historial(df)
+    if df is None or df.empty or "ejercicio" not in df:
         return {}, {}, set()
     df = df.copy()
     # nombre canonico ANTES de normalizar: el historial registrado con un nombre
@@ -202,7 +245,8 @@ def fatiga_global(df: pd.DataFrame) -> bool:
     """Deload reactivo global: RPE promedio semanal >= 9 en las ultimas 2
     semanas con datos. Es la misma senal que muestra el dashboard en la
     pestana de fatiga; ahora el motor tambien actua sobre ella."""
-    if df.empty or "rpe" not in df or df["rpe"].notna().sum() == 0:
+    df = sanear_historial(df)
+    if df is None or df.empty or "rpe" not in df or df["rpe"].notna().sum() == 0:
         return False
     sem = df.set_index("fecha_entreno")["rpe"].resample("W-MON").mean().dropna().tail(2)
     return len(sem) >= 2 and bool((sem >= 9).all())
@@ -276,7 +320,8 @@ def nota_semana(semana: int) -> str:
 
 def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                   plan: list[Fila] | None = None,
-                  reingreso: bool | int = False) -> list[dict]:
+                  reingreso: bool | int = False,
+                  duracion_min: int | None = None) -> list[dict]:
     """reingreso: 0/False normal, 1 = primera semana de vuelta (~1/3 del
     volumen, -10% carga), 2 = segunda (~2/3, -5%). Ver fase_reingreso()."""
     ultima, record, estancados = ultimas_y_records(df)
@@ -407,12 +452,24 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
         )
 
     # Recortar volumen para que la sesion entre en la duracion objetivo
-    from config_usuario import cargar_config
-    return _recortar_duracion(filas, int(cargar_config().get("duracion_min", 90)))
+    # La duracion viaja con el plan. Si no se pasa, se lee de la config (el caso
+    # de produccion, donde plan y duracion salen de la misma config). Antes se
+    # leia SIEMPRE de la config global: un plan generado para 90 min se recortaba
+    # con los 75 del usuario sin que el llamador lo supiera.
+    if duracion_min is None:
+        from config_usuario import cargar_config
+        duracion_min = int(cargar_config().get("duracion_min", 90))
+    return _recortar_duracion(filas, int(duracion_min))
 
 
 # Max de ejercicios (movimientos) de pesas por dia segun la duracion objetivo.
 _CAP_MOVIMIENTOS = {60: 5, 75: 6, 90: 8, 120: 11}
+
+
+def _es_bloque_pesas(bloque: str | None) -> bool:
+    """Bloque A/B/C de pesas. Por PREFIJO ("A - ", "B - ", "C - "): mirar solo la
+    primera letra confundia "Cardio" y "Core" con el Bloque C."""
+    return (bloque or "")[:4] in ("A - ", "B - ", "C - ")
 
 
 def _recortar_duracion(filas: list[dict], duracion_min: int) -> list[dict]:
@@ -429,14 +486,13 @@ def _recortar_duracion(filas: list[dict], duracion_min: int) -> list[dict]:
     for dia, fdia in por_dia.items():
         movs: list[str] = []
         for f in fdia:
-            b = (f["bloque"] or "")[:1]
-            if b in ("A", "B", "C") and f["ejercicio"] not in movs:
+            if _es_bloque_pesas(f["bloque"]) and f["ejercicio"] not in movs:
                 movs.append(f["ejercicio"])
         if len(movs) <= cap:
             continue
         es_super = {f["ejercicio"] for f in fdia if (f["tecnica"] or "") == "Superserie"}
         c_movs = [m for m in movs
-                  if any(f["ejercicio"] == m and (f["bloque"] or "").startswith("C") for f in fdia)]
+                  if any(f["ejercicio"] == m and (f["bloque"] or "").startswith("C -") for f in fdia)]
         # unidades de recorte: los miembros consecutivos de la superserie van juntos
         unidades: list[list[str]] = []
         for m in c_movs:
@@ -470,6 +526,35 @@ def sincronizar_plan(sesion: requests.Session, base_url: str, token: str, semana
     print(r.json())
 
 
+def decidir_semana(historial: pd.DataFrame, objetivo: date, inicio: date) -> tuple[int, int, list[str]]:
+    """Semana del mesociclo que toca de verdad, tras aplicar las reglas de seguridad.
+
+    Devuelve (semana, fase_reingreso, avisos). Es la UNICA fuente de esta decision:
+    antes main() la tenia en linea y el dashboard (_tabla_plan) la reimplementaba
+    sin la rampa de reingreso ni el deload reactivo, asi que tras una pausa o con
+    fatiga alta el dashboard mostraba un plan DISTINTO del que se subia al
+    telefono. Cualquier regla nueva se anade aqui y la ven los dos."""
+    historial = sanear_historial(historial)
+    semana = semana_mesociclo(objetivo, inicio)
+    avisos: list[str] = []
+    # RAMPA de reingreso tras una pausa larga (no un acantilado del 33% al 100%)
+    reingreso = fase_reingreso(historial, objetivo)
+    if reingreso == 1:
+        gap = dias_desde_ultimo(historial, objetivo)
+        avisos.append(f"REINGRESO 1/2: {gap} dias desde el ultimo entreno. "
+                      "Vuelta suave (~1/3 del volumen, carga -10%, sin fallo).")
+        semana = 5
+    elif reingreso == 2:
+        avisos.append("REINGRESO 2/2: segunda semana de vuelta "
+                      "(~2/3 del volumen, carga -5%, sin fallo). La proxima ya es normal.")
+    # Deload reactivo global: RPE semanal >= 9 dos semanas seguidas
+    if semana != 5 and fatiga_global(historial):
+        avisos.append("DELOAD REACTIVO: RPE promedio semanal >= 9 las ultimas 2 semanas. "
+                      "Se adelanta la semana de descarga.")
+        semana = 5
+    return semana, reingreso, avisos
+
+
 def main() -> None:
     base_url, token = api_config()
     objetivo = (
@@ -484,26 +569,10 @@ def main() -> None:
     sesion = sesion_infinityfree(base_url)
     historial = descargar_historial(sesion, base_url, token)
 
-    # Deload de REINGRESO: si pasaron mas de 10 dias sin entrenar (enfermedad,
-    # viaje, faltas), la primera semana de vuelta es deload con carga reducida.
-    # Es el escenario mas probable de lesion: volver con el peso de antes.
-    # RAMPA de reingreso en 2 semanas (no un acantilado del 33% al 100%)
-    reingreso = fase_reingreso(historial, objetivo)
-    gap = dias_desde_ultimo(historial, objetivo)
-    if reingreso == 1:
-        print(f"REINGRESO 1/2: {gap} dias desde el ultimo entreno. "
-              "Vuelta suave (~1/3 del volumen, carga -10%, sin fallo).")
-        semana = 5
-    elif reingreso == 2:
-        print("REINGRESO 2/2: segunda semana de vuelta "
-              "(~2/3 del volumen, carga -5%, sin fallo). La proxima ya es normal.")
-
-    # Deload reactivo global: si la fatiga acumulada es alta (RPE semanal >= 9
-    # dos semanas seguidas), se adelanta la descarga sin esperar a la S5.
-    if semana != 5 and fatiga_global(historial):
-        print("DELOAD REACTIVO: RPE promedio semanal >= 9 las ultimas 2 semanas. "
-              "Se adelanta la semana de descarga.")
-        semana = 5
+    # reingreso tras pausa y deload reactivo: ver decidir_semana()
+    semana, reingreso, avisos = decidir_semana(historial, objetivo, inicio)
+    for a in avisos:
+        print(a)
 
     # el mesociclo de la semana OBJETIVO define la rotacion de ejercicios
     filas = generar_filas(historial, semana_inicio, semana,

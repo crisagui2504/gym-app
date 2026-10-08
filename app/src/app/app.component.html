@@ -184,7 +184,7 @@
                 <label>Peso (kg)</label>
                 <div class="stepper">
                   <button type="button" (click)="ajustar(s, 'peso', -1)">−</button>
-                  <input type="number" inputmode="decimal" step="1.25" [(ngModel)]="s.peso" />
+                  <input type="number" inputmode="decimal" step="1.25" min="0" [(ngModel)]="s.peso" />
                   <button type="button" (click)="ajustar(s, 'peso', 1)">+</button>
                 </div>
               </div>
@@ -192,7 +192,7 @@
                 <label>{{ c.label }}</label>
                 <div class="stepper">
                   <button type="button" (click)="ajustar(s, 'reps', -c.paso)">−</button>
-                  <input type="number" inputmode="numeric" [attr.step]="c.paso" [(ngModel)]="s.reps" />
+                  <input type="number" inputmode="numeric" min="0" [attr.step]="c.paso" [(ngModel)]="s.reps" />
                   <button type="button" (click)="ajustar(s, 'reps', c.paso)">+</button>
                 </div>
               </div>

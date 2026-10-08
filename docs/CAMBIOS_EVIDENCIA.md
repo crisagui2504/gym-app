@@ -1580,6 +1580,95 @@ la tarjeta rota (1 serie, 0 kg, slider de RPE) que se corrigio en la tanda BK y 
 rellenó. Confirma que el bug era real, y que el `deploy/` corregido tiene que
 subirse a InfinityFree.
 
+## BN. Auditoria de futuro: todos los entrenos, todos los datos (2026-10-08)
+
+Peticion: buscar los errores que podrian aparecer en el futuro o con otros tipos
+de entreno. Metodo: en vez de revisar a ojo, un **barrido de invariantes** sobre
+**13.440 semanas** (5 enfoques x 4 splits x con/sin deporte x 12 ciclos de
+mesociclo x 4 duraciones x 7 variantes de semana: S1-S5, deload y las dos fases
+del reingreso), mas pruebas de datos sucios. Queda como suite permanente:
+`tests/test_barrido.py` (~15 s).
+
+### 1. Seguridad: peso libre peligroso al fallo muscular en el Bloque C
+
+El guarda que topa el peso libre a RPE 9 (`_intensidad_s34`) solo existia en el
+Bloque B. En el C, en S3-S4, tocaba rest-pause o drop set **al fallo muscular**
+con barra o mancuerna. El criterio correcto no es cuantos musculos trabaja el
+ejercicio sino **que pasa al fallar**: un curl o una elevacion lateral se sueltan
+y ya, pero en estos cuatro no:
+
+| Ejercicio | Que pasa al fallar sin ayudante |
+|---|---|
+| Press Cerrado con Barra | la barra queda sobre el pecho/cuello |
+| Press Frances con Barra EZ | «rompecraneos»: la barra cae hacia la frente |
+| Sentadilla Sumo con Mancuerna | se rompe la postura abajo, con carga |
+| Zancada Lateral con Mancuerna | valgo de rodilla, perdida de equilibrio |
+
+Lista explicita `FALLO_LIBRE_INSEGURO` (como `BISAGRA_AXIAL`): en S3-S4 su
+ultima serie va a RPE 9 de fallo tecnico. Los aislamientos seguros conservan su
+tecnica de intensidad.
+
+### 2. El dashboard decidia la semana con su propia copia de la logica
+
+`_tabla_plan` reimplementaba el calculo de la semana **sin** la rampa de
+reingreso ni el deload reactivo, que solo vivian en `main()`. Tras una pausa o
+con fatiga alta, el dashboard mostraba un plan **distinto** del que se subia al
+telefono. Ahora hay una unica `decidir_semana()` que usan los dos; cualquier
+regla nueva se anade ahi y la ven ambos.
+
+### 3. Datos sucios del movil
+
+Ni la app ni `guardar_entreno.php` validaban rangos (el PHP solo valida el RPE,
+y acepta la fecha que manda el cliente). Comprobado con datos deliberadamente
+rotos:
+
+| Dato | Antes | Ahora |
+|---|---|---|
+| Peso negativo (-20) | Top Set de **-17.5 kg** | se descarta |
+| Typo 300 en vez de 30 | **302.5 kg** la semana siguiente, y la S4 intentaba superar 300 hasta 28 dias despues | se descarta como typo |
+| Historial entero sin fecha valida | `fatiga_global` revienta (NaT) y no hay plan | sin plan de pausa, sin crash |
+| RPE 0 u 11 | se tomaba como real | se trata como dato ausente |
+
+`sanear_historial()` se aplica en las entradas (`ultimas_y_records`,
+`fatiga_global`, `decidir_semana`). El typo se detecta como una serie de mas de
+`TYPO_FACTOR = 2.5` veces la mediana de su ejercicio (con >= 3 registros):
+ninguna progresion real multiplica la carga por 2.5 entre sesiones. **Aplicado al
+historial real (174 filas): 0 descartadas**, asi que el plan del usuario no
+cambia. Ademas `min="0"` en los campos de peso y reps del movil.
+
+### 4. Logica que adivinaba por el NOMBRE del dia
+
+- **Calentamiento del front**: buscaba «pierna», «torso»... en el nombre. Los dias
+  de PPL se llaman en ingles (*Legs A*, *Push B*, *Pull A*), asi que **los seis
+  caian en el calentamiento generico**: un *Legs A* con sentadilla pesada no
+  proponia movilidad de tobillo ni cadera. Anadidas las claves en ingles.
+- **`es_bombeo`**: bastaba con que el nombre acabase en «B», y *Full Body B* (que
+  no tiene dia pareja) heredaba drop sets por accidente. Ahora exige un foco
+  pareado (push/pull/pierna).
+- **`_recortar_duracion`**: contaba como Bloque C todo lo que empezara por «C»,
+  incluidos **C**ardio y **C**ore. Latente (un dia de cardio tiene 4 elementos y
+  el cupo minimo es 5), corregido por prefijo `"C - "`.
+
+### 5. La duracion se leia a escondidas de la config global
+
+`generar_filas` recortaba siempre con la `duracion_min` de `config_usuario.json`,
+aunque el plan viniera de otra config. Coherente en produccion, pero un plan de
+90 min se recortaba con los 75 del usuario sin que el llamador lo supiera (e hizo
+inutil la mitad del primer barrido). Ahora es un parametro; por defecto, la
+config.
+
+### Pendiente conocido (sin cambios)
+
+Un usuario **sin historial** no tiene peso de partida en varios compuestos (hip
+thrust, jalon, RDL, prensa). Ligado a la ambiguedad mancuerna por mano/total de la
+tanda BM. El barrido lo reporta como INFO, no como fallo.
+
+### Tests
+
+34 (datos sucios), 35 (decision unica de semana), 36 (peso libre peligroso nunca
+al fallo; Full Body B sin drop sets), 37 (la duracion viaja con el plan) y la
+suite nueva `test_barrido.py`.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
