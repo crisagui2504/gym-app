@@ -719,6 +719,59 @@ for _sem, _fa, _et in ((5, 0, "deload S5"), (1, 1, "reingreso fase 1"),
     check(f"no avisa en {_et} (ahi la carga baja a proposito)",
           not [f for f in _fx if f["notas"] and "la carga no sube" in f["notas"]])
 
+
+print("")
+print("== 32. Split de 5 dias y tope semanal de repeticion en A/B ==")
+import collections as _col
+_SP5 = "upper_lower_5"
+check("el split de 5 dias existe y tiene 5 dias de pesas",
+      _SP5 in SPLITS and len(SPLITS[_SP5].dias_pesas) == 5,
+      str([d.nombre for d in SPLITS[_SP5].dias_pesas]))
+check("hereda los 4 dias probados del U/L (no son copias divergentes)",
+      SPLITS[_SP5].dias_pesas[:4] == SPLITS["upper_lower"].dias_pesas)
+check("torso 3x / pierna 2x",
+      [d.foco for d in SPLITS[_SP5].dias_pesas].count("torso") == 3
+      and [d.foco for d in SPLITS[_SP5].dias_pesas].count("pierna") == 2)
+_DEP5 = {"nombre": "Basquetbol", "dias": [2, 4], "minutos": 90}
+_p5 = generar_plan({"enfoque": "recomposicion", "split": _SP5,
+                    "prioridades": ["hombros", "dorsales"], "duracion_min": 75,
+                    "deporte": _DEP5}, ciclo=0)
+_nom5 = {}
+for f in _p5:
+    _nom5.setdefault(f.dia, f.nombre_dia)
+# ningun dia de pierna en vispera del deporte (martes/jueves)
+_pierna5 = {d for d, nm in _nom5.items() if nm.startswith("Pierna")}
+check("5 dias: ningun dia de pierna es VISPERA del deporte",
+      not [d for d in _pierna5 if (d + 1) in set(_DEP5["dias"])],
+      f"pierna en {sorted(_pierna5)}")
+check("5 dias: las dos piernas quedan a 48 h (Vie y Dom)",
+      _pierna5 == {5, 7}, f"{sorted(_pierna5)}")
+
+# TOPE SEMANAL: ningun ejercicio de A/B en mas de MAX_REPES_SEMANA dias
+_malos = []
+for _sp in ("upper_lower", _SP5, "ppl", "full_body"):
+    for _ciclo in range(5):
+        _pp = generar_plan({"enfoque": "recomposicion", "split": _sp,
+                            "prioridades": [], "duracion_min": 90}, ciclo=_ciclo)
+        _dias = _col.defaultdict(set)
+        for f in _pp:
+            if f.tecnica and f.bloque and f.bloque[0] in "AB" and f.semanas is None:
+                _dias[f.ejercicio].add(f.dia)
+        for _ej, _ds in _dias.items():
+            if len(_ds) > gen.MAX_REPES_SEMANA:
+                _malos.append(f"{_sp}/c{_ciclo}: {_ej} en {len(_ds)} dias")
+check(f"ningun ejercicio de A/B se repite en mas de {gen.MAX_REPES_SEMANA} dias",
+      not _malos, str(_malos[:3]))
+
+# el tope obliga a cubrir el pecho SUPERIOR en el 3er dia de torso
+_sup = 0.0
+for f in _p5:
+    _e = next((x for x in db.EJERCICIOS if x.nombre == f.ejercicio), None)
+    if _e and f.tecnica:
+        _sup += db.estimulo_de(_e).get("pecho_sup", 0.0) * f.series
+check("con 3 dias de torso el pecho SUPERIOR ya no queda en cero",
+      _sup > 2.0, f"pecho_sup={_sup:.1f}")
+
 print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")

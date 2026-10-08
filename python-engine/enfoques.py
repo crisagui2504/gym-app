@@ -300,6 +300,38 @@ SPLITS: dict[str, Split] = {
 }
 
 
+# ── Upper/Lower de 5 DIAS ────────────────────────────────────────────────────
+# Reutiliza los 4 dias ya probados del U/L y anade un 3er dia de TORSO. Se
+# define aqui (y no dentro del dict) para NO duplicar los DiaPlan: si cambian
+# los 4 originales, este split hereda el cambio solo.
+#
+# Por que el 5o dia es de torso y no de pierna:
+#   1. Lo fuerza el calendario. Con deporte los martes y jueves, ningun dia de
+#      pierna puede caer en su vispera (lunes/miercoles): aterrizar un salto con
+#      agujetas de sentadilla es riesgo de rodilla y tobillo. Asi que las dos
+#      piernas van viernes y domingo (48 h, con el sabado en medio) y los otros
+#      tres dias son torso.
+#   2. El deporte YA carga pierna (saltos, frenadas, cambios de direccion) y no
+#      carga torso, asi que sesgar el volumen del gym al torso es lo coherente.
+#
+# El 5o dia INVIERTE los bloques: en el U/L de 4 dias el empuje HORIZONTAL y el
+# tiron VERTICAL estan siempre en el Bloque B y nunca ven un Top Set, por eso el
+# pecho era el musculo con menos volumen del plan. Aqui son los pesados y el
+# empuje vertical / tiron horizontal pasan a volumen.
+SPLITS["upper_lower_5"] = Split(
+    clave="upper_lower_5",
+    nombre="Upper / Lower (5 dias pesas)",
+    descripcion="Torso x3 / Pierna x2. Para 5 dias de gym con deporte en los dias "
+                "libres: el deporte ya carga pierna, el gym refuerza el torso. El "
+                "3er dia de torso da al pecho y al dorsal su dia pesado.",
+    dias_pesas=SPLITS["upper_lower"].dias_pesas + [
+        DiaPlan("Torso C - Pecho/Dorsal", "torso",
+                [P.EMPUJE_HORIZONTAL, P.TIRON_VERTICAL],
+                [P.EMPUJE_VERTICAL, P.TIRON_HORIZONTAL],
+                [P.AISL_BICEPS, P.AISL_TRICEPS, P.AISL_HOMBRO_POST, P.CORE]),
+    ],
+)
+
 # Equipo que el usuario puede marcar como NO disponible en su gimnasio
 # (el generador sustituye por alternativas del mismo patron; el peso corporal
 # siempre esta disponible y no se puede excluir)

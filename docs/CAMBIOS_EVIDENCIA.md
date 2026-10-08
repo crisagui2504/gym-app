@@ -1442,6 +1442,88 @@ usuario en vez de ejecutarlo.
 | Cero tests de Angular | diferido |
 | Credenciales / seguridad | **despriorizado por el usuario** |
 
+## BL. Split de 5 dias y el tope semanal de repeticion (2026-10-08)
+
+El usuario pide 5 dias de gym: el basquet no le deja cansado, asi que los martes
+y jueves pasan a ser sus dias suaves y el sabado se recupera para entrenar.
+
+### El calendario dicta torso 3x / pierna 2x
+
+Con 5 dias de gym (Lun/Mie/Vie/Sab/Dom) y basquet los martes y jueves, **ningun
+dia de pierna puede caer en la vispera del deporte** (lunes ni miercoles). Las
+dos piernas van entonces viernes y domingo —48 h, con el sabado en medio— y los
+otros tres dias son torso. No es una preferencia: es lo unico que cabe.
+
+Y encaja: sus prioridades (hombros, dorsales) son de torso, y el basquet ya carga
+pierna. **El volumen de pierna no cambia** (gluteo 15.2, cuadriceps 12.8, isquios
+9.0 series ponderadas/semana, identicos al split de 4 dias); lo que sube es el
+torso, ~+5 en todo: dorsal 10.5 -> 15.8, triceps 10 -> 15, biceps 9.5 -> 14.5,
+pecho_inf 6 -> 10. Total 66 -> 84 series/semana, y nada supera las 20 por musculo.
+
+`SPLITS["upper_lower_5"]` **hereda** los 4 DiaPlan del U/L
+(`SPLITS["upper_lower"].dias_pesas + [Torso C]`) en vez de copiarlos, para que no
+divergan. Layout `pesas = [1, 5, 3, 7, 6]` (emparejado posicionalmente) y
+`libres = [2, 4]`.
+
+### El bug que destapo: el press de banca plano 3 veces por semana
+
+Al medir el split de 5 dias aparecio que **`Press de Banca con Barra` se
+prescribia los TRES dias de torso** y el pecho SUPERIOR se quedaba en 0.8 series
+ponderadas — practicamente cero. Es un fallo **preexistente** (en el U/L de 4
+dias los dos dias de torso tambien hacian banca plana), solo que con 3 dias se
+volvio evidente.
+
+El mecanismo no es una rotacion mal puesta, y por eso no bastaba cambiar
+`orden_pref`: el press militar del Bloque A etiqueta `pecho_sup: 0.25`, que
+acumulado (x3 series = 0.75) deja al press inclinado en **0.6** de ganancia
+marginal frente al **1.0** del plano. **No es un empate: el plano gana siempre.**
+La causa de fondo es que `est_dia` es *por sesion* — el motor optimiza cada dia
+en aislamiento y puede dejar una subregion a cero toda la semana, que es
+exactamente lo contrario de su objetivo declarado («que ninguna subregion se
+sobrecargue ni quede en cero»).
+
+**Arreglo: `MAX_REPES_SEMANA = 2`.** Un mismo ejercicio de Bloque A/B no puede
+aparecer en mas de 2 dias de la semana. El Bloque C ya tenia variedad garantizada
+(`usados_c_semana`), A y B no tenian nada. Con 2 dias por foco (U/L de 4 dias,
+PPL) el tope no se alcanza y el comportamiento es **identico** al de antes; con 3
+dias del mismo foco obliga a que la 3a exposicion sea otro angulo — variacion con
+intencion (Fonseca 2014).
+
+Resultado: `pecho_sup` 0.8 -> **3.8**, el sabado pasa a press inclinado, y la
+cobertura del catalogo sube de 95 a **96/98** alcanzables.
+
+### Interaccion con el sistema de prioridades (no es un bug)
+
+Torso C se diseno invirtiendo los bloques (empuje HORIZONTAL y tiron VERTICAL al
+Bloque A) porque en el U/L de 4 dias esos dos patrones viven siempre en el Bloque
+B y **nunca ven un Top Set**. Pero con «hombros» como prioridad, la promocion de
+prioridad del Bloque B al A devuelve el empuje vertical a A y desplaza al pecho a
+volumen. Es el sistema de prioridades funcionando: el usuario pidio hombros. El
+dorsal si gana su dia pesado (dominadas en Bloque A el sabado) y el pecho gana
+volumen por el tope semanal.
+
+### Cero dias de descanso: decision explicita del usuario
+
+Con 5 dias de gym y 2 de deporte la semana se queda **sin dia de descanso**. La
+garantia de «al menos un dia de descanso real» sigue vigente para las configs sin
+`deporte` (verificado: 0 de 825 sin descanso); aqui la decision es del usuario, y
+su razon es que el basquet le sale suave. Los dias de deporte son sus dias
+faciles de facto.
+
+### Tests
+
+**32**: el split existe con 5 dias y hereda los 4 del U/L sin divergir; torso 3x
+/ pierna 2x; ningun dia de pierna en vispera del deporte; las dos piernas a 48 h;
+**ningun ejercicio de A/B en mas de 2 dias** (barrido de 4 splits x 5 ciclos); y
+con 3 dias de torso el pecho superior ya no queda en cero.
+
+### Nota de metodo
+
+La segunda vez que un error de medicion casi cambia una decision: contar *filas*
+en vez de dias dio «3 ejercicios repetidos 3 veces» cuando en realidad el Top Set
+y el Back-off son dos filas del mismo ejercicio. Medir por `(dia, ejercicio)`
+unicos, no por filas.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

@@ -42,6 +42,14 @@ LAYOUTS: dict[str, dict] = {
     # PPL: descanso el JUEVES. Con 6 dias de pesas solo cabe 1 dia libre, y el
     # jueves es el unico que parte la semana en los dos bloques naturales del
     # split (A: Lun-Mie / B: Vie-Dom). Con el martes quedarian 5 dias seguidos.
+    # Upper/Lower de 5 DIAS (gym Lun/Mie/Vie/Sab/Dom, deporte Mar y Jue).
+    # Emparejado posicionalmente con dias_pesas = [Torso A, Pierna A, Torso
+    # Bombeo, Pierna Bombeo, Torso C], de ahi el orden 1,5,3,7,6:
+    #   Torso A -> 1 (Lun) | Pierna A -> 5 (Vie) | Torso Bombeo -> 3 (Mie)
+    #   Pierna Bombeo -> 7 (Dom) | Torso C -> 6 (Sab)
+    # Las dos piernas quedan viernes y domingo: ninguna en vispera del deporte,
+    # y a 48 h entre si con el sabado (torso) en medio.
+    "upper_lower_5": {"pesas": [1, 5, 3, 7, 6], "libres": [2, 4]},
     "ppl":         {"pesas": [1, 2, 3, 5, 6, 7], "libres": [4]},
     "full_body":   {"pesas": [1, 3, 5], "libres": [2, 4, 7, 6]},
 }
@@ -49,6 +57,7 @@ LAYOUTS: dict[str, dict] = {
 # Dias de pesas (indice 0-based) que reciben trabajo de antebrazo (no consecutivos)
 ANTEBRAZO_EN_DIAS = {
     "upper_lower": [1, 2],      # Pierna A (Vie) y Torso Bombeo (Mie)
+    "upper_lower_5": [1, 2],    # Pierna A (Vie) y Torso Bombeo (Mie)
     "ppl":         [2, 5],      # Pull A (Mie) y Pull B (Dom) en orden Push/Piernas/Pull
     "full_body":   [0, 2],      # FB A y FB C
 }
@@ -184,6 +193,19 @@ REGION_CAP = {"pecho": 2, "press_hombro": 1, "espalda": 3, "cuadriceps": 2, "cad
 # la sentadilla y el peso muerto principal.
 MAX_AXIAL_SESION = 1
 
+# Veces que un MISMO ejercicio de Bloque A/B puede repetirse en la semana.
+# El Bloque C ya tenia variedad garantizada (`usados_c_semana` no repite ningun
+# aislamiento), pero A y B no tenian nada: con 3 dias del mismo foco, el press de
+# banca plano salia los TRES dias y el pecho SUPERIOR se quedaba a cero. Y no lo
+# arreglaba rotar, porque no es un empate: el press militar del Bloque A etiqueta
+# pecho_sup 0.25, que acumulado (x3 series) deja al press inclinado en 0.6 de
+# ganancia frente al 1.0 del plano, asi que el plano gana siempre. El tope obliga
+# a que la 3a exposicion sea otro angulo — variacion con intencion (Fonseca 2014)
+# y el objetivo declarado del modelo de submusculos: que ninguna subregion quede
+# en cero. Con 2 dias por foco (U/L de 4 dias, PPL) el tope no se alcanza y el
+# comportamiento es identico al de antes.
+MAX_REPES_SEMANA = 2
+
 
 def _region_de(ej) -> str | None:
     """Region de un ejercicio segun su submusculo PRIMARIO (el de mayor peso)."""
@@ -259,7 +281,8 @@ def _elegir(patron: str, bloque: str, usados: set[str], orden_pref: int = 0,
 def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
                con_antebrazo: bool, variante: int = 0,
                excluidos: frozenset[str] = frozenset(), ciclo: int = 0,
-               usados_c_semana: set[str] | None = None) -> list[Fila]:
+               usados_c_semana: set[str] | None = None,
+               usados_ab_semana: dict[str, int] | None = None) -> list[Fila]:
     b = enf.bloque
     filas: list[Fila] = []
     usados: set[str] = set()
@@ -268,6 +291,16 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
     # Estimulo acumulado del dia por submusculo (en series efectivas):
     # cada ejercicio elegido lo alimenta y los bloques B/C lo usan para
     # elegir el candidato que MENOS repita lo ya trabajado.
+    # ejercicios de A/B que ya agotaron su cupo semanal (ver MAX_REPES_SEMANA)
+    def _agotados() -> frozenset[str]:
+        if not usados_ab_semana:
+            return frozenset()
+        return frozenset(k for k, v in usados_ab_semana.items() if v >= MAX_REPES_SEMANA)
+
+    def _anotar(nombre: str) -> None:
+        if usados_ab_semana is not None:
+            usados_ab_semana[nombre] = usados_ab_semana.get(nombre, 0) + 1
+
     est_dia: dict[str, float] = {}
     # compuestos por region en la sesion (para el tope anti-redundancia)
     comp_region: dict[str, int] = {}
@@ -309,10 +342,12 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
     # ── BLOQUE A — Top Set + Back-off (musculo prioritario primero) ──────────
     for patron in patrones_a:
         # el 2do dia del mismo foco usa el ejercicio alternativo (variedad)
-        ej = _elegir(patron, "A", usados, orden_pref=variante + ciclo, excluidos=excluidos)
+        ej = _elegir(patron, "A", usados | _agotados(), orden_pref=variante + ciclo,
+                     excluidos=excluidos)
         if not ej:
             continue
         usados.add(ej.nombre)
+        _anotar(ej.nombre)
         _acumular(ej, 3, compuesto=True)  # top set (1) + back-off (2)
         es_prio = (patron == patrones_a[0]
                    and any(db.MUSCULO_A_PATRON.get(m) == patron for m in prioridades))
@@ -353,7 +388,8 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
         # el acumulador elige entonces hip thrust / curl femoral (cadena
         # posterior sin carga espinal) en vez de un 3er peso muerto pesado
         bloq_axial = db.BISAGRA_AXIAL if axiales["n"] >= MAX_AXIAL_SESION else frozenset()
-        ej = _elegir(patron, "B", usados | bloq_axial, orden_pref=ciclo, excluidos=excl_b,
+        ej = _elegir(patron, "B", usados | bloq_axial | _agotados(), orden_pref=ciclo,
+                     excluidos=excl_b,
                      acumulado=est_dia)
         # corte DURO del tope axial: si el fallback de _elegir devolvio igual un
         # peso muerto (no quedaban opciones no-axiales), se omite el hueco antes
@@ -371,6 +407,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
             continue
         if ej:
             usados.add(ej.nombre)
+            _anotar(ej.nombre)
             _acumular(ej, b.series_b, compuesto=True)
             nota_fallo = ("Ultima serie al fallo (AMRAP)." if "AMRAP" in tecnica_b else
                           "Ultima serie Drop: fallo -> -20% -> fallo." if "Drop" in tecnica_b else "")
@@ -635,6 +672,8 @@ def generar_plan(config: dict | None = None, ciclo: int | None = None) -> list[F
     # Aislamientos ya usados en la semana: el Bloque C no repite el mismo
     # ejercicio entre dias (variedad real de angulos/cabezas dentro de la semana)
     usados_c_semana: set[str] = set()
+    # cuantas veces aparecio cada ejercicio de A/B en la semana (tope: MAX_REPES_SEMANA)
+    usados_ab_semana: dict[str, int] = {}
 
     # Dias de pesas (variante = cuantas veces ya aparecio ese foco -> variedad de ejercicio)
     foco_visto: dict[str, int] = {}
@@ -644,7 +683,8 @@ def generar_plan(config: dict | None = None, ciclo: int | None = None) -> list[F
         filas += _dia_pesas(dia_plan, dia_sem, enf, prioridades,
                             con_antebrazo=i in antebrazo_dias, variante=variante,
                             excluidos=excluidos, ciclo=ciclo,
-                            usados_c_semana=usados_c_semana)
+                            usados_c_semana=usados_c_semana,
+                            usados_ab_semana=usados_ab_semana)
 
     # DEPORTE fuera del gym (basquet, futbol...): se pinta como dia propio.
     deporte = cfg.get("deporte") or {}
