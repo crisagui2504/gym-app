@@ -1524,6 +1524,62 @@ en vez de dias dio «3 ejercicios repetidos 3 veces» cuando en realidad el Top 
 y el Back-off son dos filas del mismo ejercicio. Medir por `(dia, ejercicio)`
 unicos, no por filas.
 
+## BM. Historial huerfano por cambios de nombre (2026-10-08)
+
+Al preguntar el usuario si el cambio de split habia reiniciado el mesociclo (no:
+`MES_INICIO` no se toca al cambiar de split, y es lo correcto — la progresion es
+por ejercicio desde el historial, no por semana del ciclo) aparecio que el nuevo
+dia de torso tenia **5 de 7 ejercicios sin peso sugerido**. Al investigar por que,
+salieron dos cosas distintas.
+
+### 1. Ejercicios que perdieron el historial por un renombre (arreglado)
+
+El catalogo renombro ejercicios en tandas anteriores y el historial registrado
+con el nombre viejo quedo **huerfano**: el motor no reconoce que son el mismo,
+los presenta como nuevos y sin peso, y la referencia del usuario se pierde.
+
+| Registrado como | Nombre actual | Referencia recuperada |
+|---|---|---|
+| Remo Sentado en Polea | Remo en Polea Baja Agarre Neutro | top set 35 kg |
+| Remo en Maquina (T-Bar) | Remo en Punta (T-Bar) | top set 27 kg |
+| Elevaciones Laterales | Elevaciones Laterales Mancuernas | (gana el registro mas reciente) |
+
+`ALIAS_HISTORICOS` en `ejercicios_db.py` (fuente unica de los nombres) y
+`nombre_canonico()` se aplica en `ultimas_y_records` **antes** de normalizar la
+clave, asi que el historial antiguo alimenta al ejercicio actual. Solo se mapean
+equivalencias claras (mismo movimiento y agarre): ante la duda, mejor sin peso que
+con uno equivocado. El sabado, el remo en polea pasa de `None` a **25 kg**.
+
+**Regla para el futuro:** renombrar un ejercicio del catalogo sin anadir su alias
+rompe la progresion de quien ya lo entrenaba. El test 33 exige que cada alias
+apunte a un ejercicio que existe.
+
+### 2. Pesos en blanco por la rotacion de mesociclo (abierto)
+
+La mayor parte de los pesos en blanco **no** son renombres: son ejercicios que el
+usuario nunca ha hecho. Medido sobre el plan real:
+
+| Ciclo | Ejercicios en la semana | Sin historial |
+|---|---|---|
+| 0 | 44 | 24 (54 %) |
+| 1 | 42 | 25 (59 %) |
+| 2 | 44 | 28 (63 %) |
+
+La rotacion por mesociclo existe para evitar el tedio (Fonseca 2014), pero **cada
+rotacion deja mas pesos en blanco**, y un principiante que todavia no calibra bien
+el RPE es justo quien peor elige un peso de partida. Un estimador desde un
+ejercicio analogo (mismo patron, mismo equipo) resolveria la mayoria, pero tiene
+una ambiguedad previa que resolver: **no esta definido si las mancuernas se
+registran por mano o en total**, y el historial sugiere que no siempre igual. Con
+esa duda, estimar podria equivocarse x2. Queda abierto.
+
+### Evidencia en produccion del bug del dia de deporte
+
+El historial tiene **«Basquetbol» registrado como sesion el 24-09**: el usuario vio
+la tarjeta rota (1 serie, 0 kg, slider de RPE) que se corrigio en la tanda BK y la
+rellenó. Confirma que el bug era real, y que el `deploy/` corregido tiene que
+subirse a InfinityFree.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

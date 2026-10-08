@@ -115,7 +115,11 @@ def ultimas_y_records(df: pd.DataFrame) -> tuple[dict, dict, set]:
     if df.empty or "ejercicio" not in df:
         return {}, {}, set()
     df = df.copy()
-    df["k"] = list(zip(df["ejercicio"].map(_norm), df["tecnica"].map(_familia)))
+    # nombre canonico ANTES de normalizar: el historial registrado con un nombre
+    # antiguo sigue alimentando al ejercicio actual (ver ALIAS_HISTORICOS)
+    from ejercicios_db import nombre_canonico
+    df["k"] = list(zip(df["ejercicio"].map(lambda x: _norm(nombre_canonico(x))),
+                       df["tecnica"].map(_familia)))
     ultima: dict = {}
     record: dict = {}
     estancados: set = set()

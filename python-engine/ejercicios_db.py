@@ -399,6 +399,27 @@ ESTIMULOS: dict[str, dict[str, float]] = {
 }
 
 
+# ── Alias historicos ─────────────────────────────────────────────────────────
+# Nombres con los que se REGISTRARON ejercicios antes de que el catalogo los
+# renombrara. Sin esto, el historial de esos ejercicios queda huerfano: el motor
+# no reconoce que "Remo Sentado en Polea" y "Remo en Polea Baja Agarre Neutro"
+# son el mismo, lo presenta como nuevo y SIN peso sugerido, y la referencia del
+# usuario (35 kg) se pierde. Solo se mapean equivalencias claras (mismo
+# movimiento y agarre); ante la duda, mejor sin peso que con uno equivocado.
+# Claves en minusculas y sin tildes (como las normaliza el motor).
+ALIAS_HISTORICOS: dict[str, str] = {
+    "remo sentado en polea":   "Remo en Polea Baja Agarre Neutro",
+    "remo en maquina (t-bar)": "Remo en Punta (T-Bar)",
+    "elevaciones laterales":   "Elevaciones Laterales Mancuernas",
+}
+
+
+def nombre_canonico(nombre: str) -> str:
+    """Nombre actual del catalogo para un nombre registrado en el historial."""
+    clave = str(nombre).strip().lower()
+    return ALIAS_HISTORICOS.get(clave, nombre)
+
+
 def estimulo_de(e: Ejercicio) -> dict[str, float]:
     """Perfil de estimulo por submusculo de un ejercicio (con fallback seguro
     al musculo primario si un ejercicio nuevo aun no esta ponderado)."""

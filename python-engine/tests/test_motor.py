@@ -772,6 +772,25 @@ for f in _p5:
 check("con 3 dias de torso el pecho SUPERIOR ya no queda en cero",
       _sup > 2.0, f"pecho_sup={_sup:.1f}")
 
+print("")
+print("== 33. Alias historicos: el historial sobrevive a un cambio de nombre ==")
+# cada alias debe apuntar a un ejercicio que EXISTE en el catalogo
+_catalogo = {e.nombre for e in db.EJERCICIOS}
+_rotos = {k: v for k, v in db.ALIAS_HISTORICOS.items() if v not in _catalogo}
+check("todos los alias apuntan a un ejercicio del catalogo", not _rotos, str(_rotos))
+# un registro con el nombre ANTIGUO alimenta la progresion del nombre actual
+_df_alias = pd.DataFrame([{"fecha_entreno": pd.Timestamp("2026-07-22"),
+                           "ejercicio": "Remo Sentado en Polea", "tecnica": "Top Set",
+                           "numero_serie": 1, "peso_kg": 35.0, "reps_hechas": 10,
+                           "rpe": 7, "tonelaje_serie": 350}])
+_df_alias["fecha_entreno"] = pd.to_datetime(_df_alias["fecha_entreno"])
+_ult_a, _, _ = pl.ultimas_y_records(_df_alias)
+check("el historial con nombre antiguo llega al ejercicio actual",
+      any(k[0] == "remo en polea baja agarre neutro" for k in _ult_a),
+      str(list(_ult_a)))
+check("un nombre sin alias queda tal cual",
+      db.nombre_canonico("Press de Banca con Barra") == "Press de Banca con Barra")
+
 print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")
