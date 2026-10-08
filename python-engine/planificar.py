@@ -131,9 +131,25 @@ def sanear_historial(df: pd.DataFrame) -> pd.DataFrame:
     Idempotente: se puede aplicar mas de una vez sin efecto."""
     if df is None or df.empty:
         return df
-    df = df.copy()
+    # indice limpio: con etiquetas repetidas (p. ej. tras un pd.concat sin
+    # ignore_index) la deteccion de typos fallaba al alinear por indice y tumbaba
+    # todo el planificador
+    df = df.reset_index(drop=True)
     if "fecha_entreno" in df:
         df = df[df["fecha_entreno"].notna()]
+    # Pseudo-ejercicios que la app dejaba "guardar" en dias sin pesas (hasta que
+    # se bloqueo el boton): "Descanso Activo" y el deporte configurado. No son
+    # sesiones de gym y contaban como dias entrenados para la deteccion de pausas.
+    if "ejercicio" in df:
+        pseudo = {"descanso activo"}
+        try:
+            from config_usuario import cargar_config
+            dep = cargar_config().get("deporte") or {}
+            if dep.get("nombre"):
+                pseudo.add(str(dep["nombre"]).strip().lower())
+        except Exception:
+            pass
+        df = df[~df["ejercicio"].astype(str).str.strip().str.lower().isin(pseudo)]
     if "peso_kg" in df:
         df = df[~(pd.to_numeric(df["peso_kg"], errors="coerce") < 0)]
     if "rpe" in df:

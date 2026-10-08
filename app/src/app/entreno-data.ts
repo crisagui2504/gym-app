@@ -436,9 +436,13 @@ export function rpeSignificado(rpe: number): string {
   return 'al fallo · 0 en reserva';
 }
 
-/** RPE objetivo de una serie segun su tecnica. El plan prescribe RIR 1-2 en
- *  las series de trabajo; el fallo solo corresponde a la ultima serie de las
- *  tecnicas de intensidad (AMRAP / Rest-Pause / Drop, semanas 3-4). */
+/** RPE objetivo de una serie segun su tecnica. Tiene que decir LO MISMO que el
+ *  motor: el peso de las series de trabajo (bloques B y C) solo sube si se
+ *  cierran a RPE <= 8, asi que se pide RIR 2-3 (RPE 7-8). Antes este texto decia
+ *  "RPE 8-9 · deja 1-2 reps": el motor se corrigio en la tanda BJ pero el movil
+ *  seguia empujando a la zona que bloquea la progresion. El Top Set admite
+ *  RPE <= 9 en el motor, por eso conserva su objetivo. El fallo solo va en la
+ *  ultima serie de las tecnicas de intensidad (AMRAP / Rest-Pause / Drop, S3-S4). */
 export function rpeObjetivoDe(tecnica: string | null, ultimaSerie: boolean): string {
   const t = norm(tecnica ?? '');
   if (ultimaSerie && (t.includes('amrap') || t.includes('rest') || t.includes('drop'))) {
@@ -446,7 +450,7 @@ export function rpeObjetivoDe(tecnica: string | null, ultimaSerie: boolean): str
   }
   if (t.includes('top set')) return 'RPE 8-9';
   if (t.includes('back')) return 'RPE 7-8';
-  return 'RPE 8-9 · deja 1-2 reps';
+  return 'RPE 7-8 · deja 2-3 reps';
 }
 
 /** Devuelve la explicacion de una tecnica, o null. */

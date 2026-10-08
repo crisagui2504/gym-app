@@ -31,13 +31,17 @@ from generador import generar_plan
 CSV_PATH = pathlib.Path(__file__).resolve().parent / "historial.csv"
 
 # ── Paletas de tema (oscuro / claro) ─────────────────────────────────────────
+# Misma paleta que la app del movil (diseno "Atleta"): White #FEF9F5, Fit Green
+# #AFFB05, Fit Green 40% #CEEC8A, Black 88% #1C1C1C, Black #000000. En el tema
+# claro el lima NO sirve como texto ni como linea de grafica sobre blanco (no se
+# lee), asi que alli el acento es la version oscura del mismo verde.
 TEMAS = {
-    "oscuro": dict(bg="#0b0d13", card="#161922", card2="#1e2230", line="#2a2f42",
-                   text="#eef0f6", muted="#8b90a8", accent="#00e0b5", accent2="#18b3ff",
-                   danger="#ff5d7a", warn="#ffc043", grid="#222740", template="plotly_dark"),
-    "claro":  dict(bg="#f4f6fb", card="#ffffff", card2="#eef1f7", line="#dde2ee",
-                   text="#1b1f2a", muted="#5a6072", accent="#00a98e", accent2="#1488d8",
-                   danger="#e23d5c", warn="#c77f00", grid="#e3e7f0", template="plotly_white"),
+    "oscuro": dict(bg="#000000", card="#1c1c1c", card2="#262626", line="#2e2e2e",
+                   text="#fef9f5", muted="#9c978f", accent="#affb05", accent2="#ceec8a",
+                   danger="#ff6b6b", warn="#ffc043", grid="#262626", template="plotly_dark"),
+    "claro":  dict(bg="#fef9f5", card="#ffffff", card2="#f3eee8", line="#e6e0d9",
+                   text="#000000", muted="#5e5a55", accent="#4f7a00", accent2="#8fd400",
+                   danger="#d93a3f", warn="#b26b00", grid="#ece6df", template="plotly_white"),
 }
 
 
@@ -189,6 +193,11 @@ def _cargar_df() -> tuple[pd.DataFrame, str]:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
         df["fecha_entreno"] = pd.to_datetime(df["fecha_entreno"], errors="coerce")
         df = df.dropna(subset=["fecha_entreno", "ejercicio"])
+        # mismo saneamiento que el motor: sin el, un typo (300 en vez de 30)
+        # disparaba la grafica de tonelaje y los "Descanso Activo" registrados
+        # contaban como sesiones en los KPI
+        from planificar import sanear_historial
+        df = sanear_historial(df)
         if not df.empty:
             return df, "real"
 
@@ -306,7 +315,7 @@ def _fig_records(df: pd.DataFrame) -> go.Figure:
     idx = de.groupby("ejercicio")["e1rm"].idxmax()
     detalle = de.loc[idx].set_index("ejercicio")
     maxv = prs.max() if len(prs) else 0
-    colors = [ACCENT if v == maxv and maxv > 0 else "#2c6f6a" for v in prs.values]
+    colors = [ACCENT if v == maxv and maxv > 0 else "#4a6b12" for v in prs.values]
     textos = []
     for ej, v in prs.items():
         d = detalle.loc[ej]
@@ -343,7 +352,7 @@ def _fig_rpe(df: pd.DataFrame) -> go.Figure:
                   line_width=0, annotation_text="⚠ Zona deload",
                   annotation_position="top left",
                   annotation_font=dict(color=DANGER, size=11))
-    fig.add_hrect(y0=7.5, y1=9.0, fillcolor="rgba(0,224,181,0.06)", line_width=0,
+    fig.add_hrect(y0=7.5, y1=9.0, fillcolor="rgba(175,251,5,0.06)", line_width=0,
                   annotation_text="✓ Zona óptima",
                   annotation_position="bottom right",
                   annotation_font=dict(color=ACCENT, size=11))
@@ -593,7 +602,7 @@ def _fig_tonelaje_semana(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure(go.Scatter(
         x=ton["semana"], y=ton["tonelaje_serie"],
         mode="lines+markers", fill="tozeroy",
-        fillcolor="rgba(0,224,181,0.12)",
+        fillcolor="rgba(175,251,5,0.12)",
         line=dict(color=ACCENT, width=2.5, shape="spline"),
         marker=dict(size=7, color=ACCENT),
         text=[f"{v:,.0f} kg" for v in ton["tonelaje_serie"]],

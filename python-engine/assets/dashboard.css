@@ -6,31 +6,31 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --bg:      #0b0d13;
-  --card:    #161922;
-  --card2:   #1e2230;
-  --line:    #2a2f42;
-  --text:    #eef0f6;
-  --muted:   #8b90a8;
-  --accent:  #00e0b5;
-  --accent2: #18b3ff;
-  --danger:  #ff5d7a;
+  --bg:      #000000;
+  --card:    #1c1c1c;
+  --card2:   #262626;
+  --line:    #2e2e2e;
+  --text:    #fef9f5;
+  --muted:   #9c978f;
+  --accent:  #affb05;
+  --accent2: #ceec8a;
+  --danger:  #ff6b6b;
   --warn:    #ffc043;
 }
 
 /* Tema claro: se activa con la clase .tema-claro en el contenedor raíz.
    Las variables se redefinen y cascadean a todos los descendientes. */
 .tema-claro {
-  --bg:      #f4f6fb;
+  --bg:      #fef9f5;
   --card:    #ffffff;
-  --card2:   #eef1f7;
-  --line:    #dde2ee;
-  --text:    #1b1f2a;
-  --muted:   #5a6072;
-  --accent:  #00a98e;
-  --accent2: #1488d8;
-  --danger:  #e23d5c;
-  --warn:    #c77f00;
+  --card2:   #f3eee8;
+  --line:    #e6e0d9;
+  --text:    #000000;
+  --muted:   #5e5a55;
+  --accent:  #4f7a00;
+  --accent2: #8fd400;
+  --danger:  #d93a3f;
+  --warn:    #b26b00;
 }
 
 html, body {
@@ -44,7 +44,7 @@ html, body {
 /* ---- Scrollbar ---- */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: #2c3146; border-radius: 8px; }
+::-webkit-scrollbar-thumb { background: #2e2e2e; border-radius: 8px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
 /* ---- Tarjetas ---- */
@@ -54,7 +54,7 @@ html, body {
   border-radius: 14px;
   transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease;
 }
-.gym-card:hover { border-color: #00e0b555; }
+.gym-card:hover { border-color: #affb0555; }
 
 .gym-kpi {
   background: linear-gradient(160deg, var(--card2) 0%, var(--card) 70%);
@@ -64,8 +64,8 @@ html, body {
 }
 .gym-kpi:hover {
   transform: translateY(-3px);
-  border-color: #00e0b566;
-  box-shadow: 0 8px 24px -12px #00e0b540;
+  border-color: #affb0566;
+  box-shadow: 0 8px 24px -12px #affb0540;
 }
 
 /* ============================================================
@@ -80,7 +80,7 @@ html, body {
   min-height: 42px !important;
   padding: 0 12px !important;
 }
-.dash-dropdown-trigger:hover { border-color: #00e0b566 !important; }
+.dash-dropdown-trigger:hover { border-color: #affb0566 !important; }
 .dash-dropdown-wrapper:focus-within .dash-dropdown-trigger { border-color: var(--accent) !important; }
 
 .dash-dropdown-value,
@@ -109,7 +109,7 @@ html, body {
 .dash-dropdown-search-icon { color: var(--muted) !important; }
 .dash-dropdown-options { background: var(--card2) !important; }
 .dash-dropdown-option {
-  color: #cfd3e6 !important;
+  color: #c9c4bc !important;
   background: transparent !important;
   padding: 9px 12px !important;
 }
@@ -117,7 +117,7 @@ html, body {
 .dash-dropdown-option.is-highlighted,
 .dash-dropdown-option[aria-selected="true"],
 .dash-dropdown-option[data-selected="true"] {
-  background: #2b3150 !important;
+  background: #2e2e2e !important;
   color: #ffffff !important;
 }
 
@@ -140,8 +140,8 @@ input[type="checkbox"] {
 
 /* ---- Botones ---- */
 .gym-btn {
-  background: linear-gradient(135deg, var(--accent) 0%, #00c2a3 100%);
-  color: #052b23;
+  background: #affb05;
+  color: #000000;
   border: none;
   border-radius: 10px;
   font-weight: 700;
@@ -150,13 +150,13 @@ input[type="checkbox"] {
   cursor: pointer;
   transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
 }
-.gym-btn:hover { filter: brightness(1.08); box-shadow: 0 8px 22px -10px #00e0b5; transform: translateY(-1px); }
+.gym-btn:hover { filter: brightness(1.08); box-shadow: 0 8px 22px -10px #affb05; transform: translateY(-1px); }
 .gym-btn:active { transform: translateY(0); }
 
 .gym-btn-ghost {
   background: transparent;
   color: var(--accent);
-  border: 1px solid #00e0b566;
+  border: 1px solid #affb0566;
   border-radius: 10px;
   font-weight: 600;
   font-size: 13px;
@@ -164,14 +164,14 @@ input[type="checkbox"] {
   cursor: pointer;
   transition: background .15s ease, border-color .15s ease;
 }
-.gym-btn-ghost:hover { background: #00e0b515; border-color: var(--accent); }
+.gym-btn-ghost:hover { background: #affb0515; border-color: var(--accent); }
 
 /* ---- Tabs ---- */
 .tab-parent .tab { transition: background .15s ease, color .15s ease; }
 
 /* ---- Tabla (DataTable) afinada por estilos inline; aquí solo el hover ---- */
 .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner tr:hover td {
-  background: #20263a !important;
+  background: #262626 !important;
 }
 
 /* ---- Animación de entrada ---- */

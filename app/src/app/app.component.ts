@@ -38,6 +38,7 @@ interface SerieVM {
   peso: number;
   rpe: number;
   hecho: boolean;
+  abierta: boolean;      // desplegada a mano para editarla (si no, solo la activa lo esta)
 }
 
 interface EjercicioVM {
@@ -411,7 +412,8 @@ export class AppComponent implements OnInit, OnDestroy {
         reps: valor,        // "reps" = el conteo (reps / min / seg / metros / rondas)
         peso,
         rpe: med.rpe ? 8 : (med.cardio ? 6 : 8),
-        hecho: false
+        hecho: false,
+        abierta: false
       });
     }
   }
@@ -580,7 +582,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private celebrar(): void {
     const cont = document.createElement('div');
     cont.className = 'confetti';
-    const colores = ['#00e0b5', '#18b3ff', '#ffc043', '#ff5d7a', '#b18cff'];
+    const colores = ['#affb05', '#ceec8a', '#fef9f5', '#affb05', '#1c1c1c']; // paleta Atleta
     for (let i = 0; i < 28; i++) {
       const p = document.createElement('span');
       p.className = 'confetti-piece';
@@ -643,9 +645,40 @@ export class AppComponent implements OnInit, OnDestroy {
 
   toggleSerie(ej: EjercicioVM, serie: SerieVM): void {
     serie.hecho = !serie.hecho;
+    if (serie.hecho) serie.abierta = false; // al completarla se pliega y pasa la siguiente
     this.recalcularProgreso();
     if (serie.hecho) this.iniciarDescanso(serie, ej.ejercicio);
   }
+
+  // ----- Estructura "Atleta": una serie a la vez -----
+  /** Primera serie pendiente del ejercicio: la que se muestra en grande. */
+  serieActiva(ej: EjercicioVM): SerieVM | null {
+    return ej.series.find((s) => !s.hecho) ?? null;
+  }
+
+  /** La activa siempre esta desplegada; las demas, solo si se abrieron a mano. */
+  serieAbierta(ej: EjercicioVM, s: SerieVM): boolean {
+    return s.abierta || s === this.serieActiva(ej);
+  }
+
+  alternarSerie(s: SerieVM): void {
+    s.abierta = !s.abierta;
+  }
+
+  /** "A - Fuerza maxima" -> "Fuerza": la pastilla del bloque, corta. */
+  bloqueCorto(b: string | null): string {
+    const t = (b || '').replace(/^[ABC]\s*-\s*/, '');
+    return /fuerza/i.test(t) ? 'Fuerza' : /volumen/i.test(t) ? 'Volumen' : /aislam/i.test(t) ? 'Aislamiento' : t || 'Bloque';
+  }
+
+  /** Convencion del usuario: las mancuernas se registran como PESO TOTAL de las dos. */
+  unidadPeso(ej: EjercicioVM): string {
+    return ej.ejercicio.toLowerCase().includes('mancuerna') ? 'kg total' : 'kg';
+  }
+
+  /** Anillo de progreso de la cabecera (r = 20 -> circunferencia 2*pi*20). */
+  readonly ringC = 2 * Math.PI * 20;
+  readonly ringOffset = computed(() => this.ringC * (1 - this.progreso().pct / 100));
 
   ejercicioHecho(ej: EjercicioVM): boolean {
     return ej.series.every((s) => s.hecho);
@@ -759,6 +792,11 @@ export class AppComponent implements OnInit, OnDestroy {
   // ----- Guardar (blindado: sin duplicados y sin perder entrenos) -----
   guardar(): void {
     if (this.guardando()) return; // anti doble-tap
+    // Un dia de descanso o de deporte no tiene series que registrar. Antes el
+    // boton seguia activo y guardaba el pseudo-ejercicio como sesion: en el
+    // historial real aparecian "Descanso Activo" x4 y "Basquetbol" x1, que
+    // contaban como dias entrenados para la deteccion de pausas.
+    if (this.esDiaDescanso() || this.esDiaDeporte()) return;
     if (this.yaGuardadoHoy() &&
         !window.confirm('Ya guardaste este entreno hoy. ¿Enviarlo OTRA VEZ? Puede duplicar series en el historial.')) {
       return;

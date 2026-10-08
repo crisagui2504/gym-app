@@ -1698,6 +1698,77 @@ vacia: press militar con barra 25 kg, press de banca con mancuernas 22.5 kg
 fiable (abductores, aductores, gemelo de pie, patada de gluteo): mejor vacio que
 inventado. Test 38.
 
+## BP. Rediseño "Atleta" y paleta unificada móvil + dashboard (2026-10-08)
+
+### Paleta
+
+La del usuario: White, Fit Green, Fit Green 40%, Black 88%, Black. **Los hex
+impresos en su imagen de referencia no correspondían a los colores** (p. ej.
+«Fit Green #F1DFCF» es un beige; «Black #854627», un marrón): era una plantilla
+sin actualizar. Se midieron los píxeles reales:
+
+| Color | Real |
+|---|---|
+| White | `#FEF9F5` |
+| Fit Green | `#AFFB05` |
+| Fit Green 40% | `#CEEC8A` |
+| Black 88% | `#1C1C1C` |
+| Black | `#000000` |
+
+En tema claro el lima **solo se usa como relleno**: como texto sobre blanco no se
+lee, así que ahí el acento de texto es `#3D5A00` (móvil) / `#4F7A00` (dashboard).
+
+### Estructura "Atleta" (móvil)
+
+- **Una serie a la vez**: la primera serie pendiente se muestra en grande
+  (`25 kg × 6-8 reps`, legible a un metro) con sus controles; las demás quedan
+  plegadas en una línea (`20 kg · 12 · RPE 8`) y se abren tocándolas. Al marcar
+  una serie se pliega y la siguiente pasa a ser la activa.
+- **Anillo de progreso** en la cabecera y segmentos por serie en cada tarjeta.
+- Borde lima en el ejercicio en curso; títulos en Inter 800 cursiva.
+- Barra inferior con iconos de línea (SVG en línea, sin descargas).
+- **«kg total»** en todo ejercicio con mancuernas: la convención del usuario
+  queda escrita en la propia pantalla.
+
+### Límites de InfinityFree / iPhone respetados
+
+Sigue siendo estático; el CSS adelgaza (18 → 16 KB) y el JS crece +4 KB. Solo se
+carga Inter desde Google Fonts, con la fuente del sistema de respaldo — **las
+fuentes anteriores (Plus Jakarta, Lexend) estaban referenciadas pero nunca
+cargaban**. Se eliminó `backdrop-filter` (coste de GPU en Safari; también hacía
+fallar las capturas de verificación). Zonas táctiles ≥ 44 px, inputs a 16 px
+(Safari hace zoom por debajo), márgenes seguros, `prefers-reduced-motion`. La
+caché del service worker pasa a `gymtracker-v2` para purgar en el teléfono el
+icono, el manifiesto y los bundles viejos.
+
+### Dashboard
+
+Misma paleta en `TEMAS` (Python) y en `assets/dashboard.css`, que tenía su propia
+copia de los tokens y una docena de colores turquesa/azul marino escritos a mano
+(botones, bordes, scrollbar, desplegables, rellenos de gráficas). Cero restos.
+
+### Bugs encontrados al verificar visualmente
+
+1. **El móvil seguía pidiendo «RPE 8-9 · deja 1-2 reps»** en los bloques B y C.
+   Es la contradicción de la tanda BJ, corregida en el motor pero viva en
+   `rpeObjetivoDe` del front: el móvil empujaba a la zona que bloquea la subida
+   de peso. Ahora «RPE 7-8 · deja 2-3 reps». **Test 40** lee el TypeScript y
+   falla si el objetivo del móvil vuelve a superar el RPE con el que el motor sube
+   carga.
+2. **El botón «Guardar entreno» funcionaba en días de descanso y de deporte**, y
+   guardaba el pseudo-ejercicio como sesión. En el historial real había
+   «Descanso Activo» ×4 y «Basquetbol» ×1. Bloqueado en el front («Hoy sin
+   pesas») y filtrado en `sanear_historial`.
+3. **Esos registros fantasma ocultaban una pausa.** De las 5 «sesiones» desde el
+   reinicio, 3 eran fantasma: el usuario lleva **2 sesiones de gym en 16 días**
+   (23 y 30 de septiembre), no 5. Esta semana no cambia (S2); la siguiente será
+   S3 si entrena antes del lunes, o reingreso si pasan 12 días sin gym.
+4. **`sanear_historial` (tanda BN) reventaba con índices repetidos** — lo que
+   produce un `pd.concat` sin `ignore_index` — y tumbaba el planificador entero.
+   Ahora trabaja sobre un índice limpio. **Test 39.**
+5. El dashboard calculaba KPI y gráficas **sin** el saneamiento: un typo habría
+   disparado la gráfica de tonelaje. Ahora usa el mismo filtro que el motor.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

@@ -874,6 +874,31 @@ check("peso corporal no se estima", pl.estimar_peso("Dominadas", "top set", _U) 
 check("sin analogo del mismo patron no se inventa un peso",
       pl.estimar_peso("Elevaciones Laterales Mancuernas", "volumen", _U) is None)
 
+print("")
+print("== 39. Registros fantasma y robustez del saneamiento ==")
+_fant = pd.DataFrame([{"fecha_entreno": pd.Timestamp(f), "ejercicio": e, "tecnica": None,
+                       "numero_serie": 1, "peso_kg": 0.0, "reps_hechas": 0, "rpe": 8,
+                       "tonelaje_serie": 0} for f, e in (("2026-10-05", "Descanso Activo"),
+                                                         ("2026-10-06", "Descanso activo "))])
+check("'Descanso Activo' no cuenta como sesion de gym", pl.sanear_historial(_fant).empty)
+_dup = pd.concat([_hist([("2026-10-01", 30, 8), ("2026-10-05", 30, 8), ("2026-10-05", 30, 8)])] * 3)
+try:
+    pl.sanear_historial(_dup); pl.decidir_semana(_dup, date(2026, 10, 12), date(2026, 9, 28))
+    check("historial con indices repetidos (tras un concat) no tumba el motor", True)
+except Exception as _ex:
+    check("historial con indices repetidos (tras un concat) no tumba el motor", False, repr(_ex))
+
+print("")
+print("== 40. El movil pide el mismo RPE que exige el motor ==")
+import pathlib as _pl, re as _re
+_ts = (_pl.Path(__file__).resolve().parents[2] / "app" / "src" / "app" / "entreno-data.ts").read_text(encoding="utf-8")
+_fn = _ts[_ts.index("export function rpeObjetivoDe"):]
+_fn = _fn[:_fn.index("}" + chr(10) + chr(10))]
+_default = _re.findall(r"return '([^']+)';", _fn)[-1]
+_rpe_max = max(int(x) for x in _re.findall(r"RPE (\d+)(?:-(\d+))?", _default)[0] if x)
+check("el objetivo por defecto del movil no supera el RPE con el que el motor sube carga (8)",
+      _rpe_max <= 8, f"movil dice: {_default}")
+
 print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")

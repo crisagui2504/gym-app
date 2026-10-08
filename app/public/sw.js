@@ -2,7 +2,9 @@
    - Navegacion (index.html): red primero, cache si no hay conexion.
    - Estaticos del mismo origen: cache primero con actualizacion en segundo plano.
    - /api/ y otros origenes (fuentes): nunca se cachean aqui. */
-const CACHE = 'gymtracker-v1';
+// v2: rediseno 'Atleta'. Cambiar el nombre hace que el activate borre la
+// cache anterior (icono, manifiesto y bundles viejos) en el telefono.
+const CACHE = 'gymtracker-v2';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
