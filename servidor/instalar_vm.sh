@@ -7,6 +7,11 @@
 #
 set -euo pipefail
 
+# Todo el script va entre llaves: bash lo lee COMPLETO antes de ejecutar. Sin
+# esto, el "git pull" de mas abajo reescribia este mismo archivo a mitad de
+# ejecucion y bash seguia leyendo lineas de la version vieja (asi quedo sin
+# activar el timer del recordatorio en el primer despliegue).
+{
 REPO="https://github.com/crisagui2504/gym-app.git"
 DIR="$HOME/gym"
 DOMINIO="${DOMINIO:-20-150-209-104.sslip.io}"
@@ -67,3 +72,5 @@ sudo systemctl restart caddy
 echo
 echo "LISTO. Dashboard: https://$DOMINIO"
 systemctl list-timers 'gymtracker-*' --no-pager
+exit 0
+}
