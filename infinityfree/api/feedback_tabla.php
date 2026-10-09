@@ -9,6 +9,9 @@ declare(strict_types=1);
 //       agujetas 1 nada | 2 sanaron justo | 3 aun duelen  (al empezar: de la vez anterior)
 //   tipo='ejercicio' clave=nombre del ejercicio
 //       dolor    1 = molestia ARTICULAR (no muscular) en ese ejercicio
+//   tipo='dia'       clave='energia' | 'sueno'  (como llegas hoy; el valor va en `carga`)
+//       energia  1 bien | 2 normal | 3 sin energia
+//       sueno    1 bien | 2 regular | 3 mal
 // La tabla se crea sola la primera vez: no hace falta pasar por phpMyAdmin.
 function asegurar_tabla_feedback(PDO $pdo): void
 {

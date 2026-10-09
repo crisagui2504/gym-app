@@ -1133,6 +1133,55 @@ check("lo registrado como 'Dominadas (Asistida)' sigue siendo Dominadas",
       db.nombre_canonico("Dominadas (Asistida)") == "Dominadas")
 pl._cfg = _cfg_real
 
+print("")
+print("== 47. Bienestar diario (energia y sueno) -> descarga ==")
+_hb = _h45([(f"2026-10-0{d}", "Press de Banca con Barra", "Tradicional", 1, 60, 10, 8) for d in (1, 3, 5)])
+def _bien(dias_malos):
+    filas = [("2026-10-0" + str(d), "dia", "energia", None, 3, None, None) for d in range(5, 5 + dias_malos)]
+    filas += [("2026-10-0" + str(d), "dia", "sueno", None, 1, None, None) for d in range(5, 9)]
+    return _fb42(filas)
+_obj, _ini = date(2026, 10, 12), date(2026, 9, 21)          # semana 4 del mesociclo
+check("3 dias sin energia en la semana -> se adelanta la descarga",
+      pl.decidir_semana(_hb, _obj, _ini, _bien(3))[0] == 5)
+_s2, _, _av2 = pl.decidir_semana(_hb, _obj, _ini, _bien(2))
+check("2 dias malos -> solo aviso, el plan sigue", _s2 != 5 and any(a.startswith("BIENESTAR") for a in _av2), str(_av2))
+check("dormir mal cuenta igual que no tener energia (y el mismo dia no cuenta doble)",
+      fbk.dias_malos(_fb42([("2026-10-05", "dia", "sueno", None, 3, None, None),
+                            ("2026-10-05", "dia", "energia", None, 3, None, None),
+                            ("2026-10-07", "dia", "sueno", None, 3, None, None)]), _obj) == 2)
+check("dias malos de hace mas de una semana no cuentan",
+      fbk.dias_malos(_fb42([("2026-09-28", "dia", "energia", None, 3, None, None)]), _obj) == 0)
+check("sin encuesta, decidir_semana funciona igual que antes",
+      pl.decidir_semana(_hb, _obj, _ini)[0] == pl.decidir_semana(_hb, _obj, _ini, pd.DataFrame())[0])
+
+print("")
+print("== 48. 'Usar siempre' y catalogo de la app al dia ==")
+_pp = generar_plan({"enfoque": "hipertrofia", "split": "upper_lower", "prioridades": [], "duracion_min": 120}, ciclo=0)
+_orig = next(f for f in _pp if f.tecnica and f.bloque.startswith("B -"))
+_alt = next(e for e in db.EJERCICIOS if e.patron == NOMBRE_A_PATRON[_orig.ejercicio] and e.nombre != _orig.ejercicio
+            and e.nombre not in {f.ejercicio for f in _pp if f.dia == _orig.dia}
+            and e.equipo != "peso_corporal")
+_av48 = []
+_fp = pl.generar_filas(pd.DataFrame(), "2026-10-12", 1, plan=_pp, duracion_min=120, avisos=_av48,
+                       preferencias={_orig.ejercicio.lower(): _alt.nombre})
+_dia48 = [f["ejercicio"] for f in _fp if f["dia_semana"] == _orig.dia]
+check("la preferencia cambia el ejercicio y lo explica en la nota",
+      _alt.nombre in _dia48
+      and any("PREFERENCIA" in (f["notas"] or "") for f in _fp if f["ejercicio"] == _alt.nombre),
+      str((_orig.ejercicio, _alt.nombre)))
+_otro = next(e for e in db.EJERCICIOS if e.patron != NOMBRE_A_PATRON[_orig.ejercicio])
+_av48b = []
+_fp2 = pl.generar_filas(pd.DataFrame(), "2026-10-12", 1, plan=_pp, duracion_min=120, avisos=_av48b,
+                        preferencias={_orig.ejercicio.lower(): _otro.nombre})
+check("un reemplazo de OTRO patron se ignora (y se avisa)",
+      _orig.ejercicio in [f["ejercicio"] for f in _fp2] and any("ignorada" in a for a in _av48b))
+check("sin preferencias el plan es identico",
+      pl.generar_filas(pd.DataFrame(), "2026-10-12", 1, plan=_pp, duracion_min=120, preferencias={})
+      == pl.generar_filas(pd.DataFrame(), "2026-10-12", 1, plan=_pp, duracion_min=120))
+import exportar_catalogo as _expc
+check("app/src/app/catalogo.generado.ts esta al dia con ejercicios_db (corre exportar_catalogo.py)",
+      _expc.DESTINO.exists() and _expc.DESTINO.read_text(encoding="utf-8") == _expc.contenido())
+
 print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")

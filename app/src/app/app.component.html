@@ -52,9 +52,17 @@
         <button type="button" [class.active]="readiness() === 'normal'" (click)="setReadiness('normal')">😐 Normal</button>
         <button type="button" [class.active]="readiness() === 'baja'" (click)="setReadiness('baja')">😫 Sin energía</button>
       </div>
-      <p class="readiness-hint" *ngIf="readiness() === 'baja'">
+      <div class="enc-fila sueno-fila">
+        <span class="enc-musc">¿Cómo dormiste?</span>
+        <div class="enc-opts">
+          <button type="button" [class.active]="sueno() === 1" (click)="setSueno(1)">Bien</button>
+          <button type="button" [class.active]="sueno() === 2" (click)="setSueno(2)">Regular</button>
+          <button type="button" [class.active]="sueno() === 3" (click)="setSueno(3)">Mal</button>
+        </div>
+      </div>
+      <p class="readiness-hint" *ngIf="diaSuave()">
         Día suave activado: mismo entreno, pero <b>sin series al fallo</b> y dejando 3-4 reps en reserva.
-        Entrenar suave &gt; no entrenar. Mañana se recupera la intensidad.
+        Entrenar suave &gt; no entrenar. Si se repite varios días, el motor adelanta la descarga.
       </p>
       <!-- Dolor muscular del entreno anterior: con esto el motor decide si sube o baja series -->
       <div class="enc-bloque" *ngIf="musculosHoy().length">
@@ -250,10 +258,17 @@
           <div class="alt-panel" *ngIf="ej.mostrarAlt">
             <p class="section-label">Mismo grupo muscular</p>
             <p class="alt-empty" *ngIf="ej.alternativas.length === 0">No hay alternativas libres ahora mismo.</p>
-            <button class="alt-item" type="button" *ngFor="let a of ej.alternativas" (click)="elegirAlternativa(ej, a)">
-              <span>{{ a.nombre | acentos }}</span>
-              <span class="alt-use">Usar</span>
+            <button class="alt-volver" type="button" *ngIf="originalDe(ej) as o" (click)="volverAlOriginal(ej)">
+              ↩ Volver a {{ o | acentos }} (quitar “siempre”)
             </button>
+            <div class="alt-item" *ngFor="let a of ej.alternativas">
+              <span>{{ a.nombre | acentos }}</span>
+              <span class="alt-botones">
+                <button type="button" class="alt-use" (click)="elegirAlternativa(ej, a); guardarEnCurso()">Hoy</button>
+                <button type="button" class="alt-use alt-siempre" (click)="usarSiempre(ej, a)"
+                        title="Cambiarlo también en los planes siguientes">Siempre</button>
+              </span>
+            </div>
           </div>
         </ng-container>
 
@@ -282,7 +297,7 @@
                 <div class="stepper">
                   <button type="button" (click)="ajustar(s, 'peso', -1, ej)">−</button>
                   <input type="number" inputmode="decimal" [attr.step]="ej.barra ? 2.5 : 1.25" min="0" [(ngModel)]="s.peso"
-                         (ngModelChange)="s.manual = true" />
+                         (ngModelChange)="s.manual = true; guardarEnCurso()" />
                   <button type="button" (click)="ajustar(s, 'peso', 1, ej)">+</button>
                 </div>
               </div>
@@ -290,12 +305,12 @@
                 <label>{{ c.label }}</label>
                 <div class="stepper">
                   <button type="button" (click)="ajustar(s, 'reps', -c.paso)">−</button>
-                  <input type="number" inputmode="numeric" min="0" [attr.step]="c.paso" [(ngModel)]="s.reps" />
+                  <input type="number" inputmode="numeric" min="0" [attr.step]="c.paso" [(ngModel)]="s.reps" (ngModelChange)="guardarEnCurso()" />
                   <button type="button" (click)="ajustar(s, 'reps', c.paso)">+</button>
                 </div>
               </div>
               <button class="repetir-btn" type="button" *ngIf="hayPosteriores(ej, i) && (ej.medida.peso || ej.medida.cuenta)"
-                      (click)="repetir(ej, i)" title="Repetir en las series siguientes">⟳ repetir</button>
+                      (click)="repetir(ej, i); guardarEnCurso()" title="Repetir en las series siguientes">⟳ repetir</button>
             </div>
 
             <p class="cardio-hint" *ngIf="ej.medida.nota">{{ ej.medida.nota | acentos }}</p>
@@ -304,7 +319,7 @@
               <button class="rpe-label" type="button" (click)="abrirRpe()">RPE <span class="info">?</span></button>
               <span class="rpe-target">Objetivo: {{ rpeObjetivo(s, i === ej.series.length - 1) }}</span>
               <div class="rpe-grid">
-                <button type="button" *ngFor="let r of rpeValores" [class.active]="s.rpe === r" (click)="setRpe(s, r)">{{ r }}</button>
+                <button type="button" *ngFor="let r of rpeValores" [class.active]="s.rpe === r" (click)="setRpe(s, r); guardarEnCurso()">{{ r }}</button>
               </div>
               <p class="rpe-sig">RPE {{ s.rpe }}: {{ rpeTexto(s.rpe) | acentos }}</p>
             </div>
@@ -355,6 +370,36 @@
         <button type="button" (click)="sumarTiempo(15)" *ngIf="tmrActivo()">+15s</button>
         <button type="button" class="timer-skip" (click)="cancelarTimer()">{{ tmrSeg() === 0 ? 'OK' : 'Saltar' }}</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ===== RESUMEN AL GUARDAR ===== -->
+  <div class="modal-overlay" *ngIf="resumen() as r">
+    <div class="modal panel-strong res-modal" role="dialog" aria-label="Resumen del entreno">
+      <div class="modal-head">
+        <h3>¡Entreno guardado!</h3>
+        <button type="button" class="modal-x" (click)="cerrarResumen()" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="res-kpis">
+        <div class="res-kpi"><span class="res-num">{{ r.series }}</span><small>series</small></div>
+        <div class="res-kpi"><span class="res-num">{{ r.volumen | number: '1.0-0' }}</span><small>kg de volumen</small></div>
+        <div class="res-kpi" *ngIf="r.minutos !== null"><span class="res-num">{{ r.minutos }}</span><small>minutos</small></div>
+      </div>
+      <p class="res-vs" *ngIf="r.cambioVolumen !== null" [class.sube]="r.cambioVolumen > 0" [class.baja]="r.cambioVolumen < 0">
+        {{ pct(r.cambioVolumen) }} de volumen vs la última vez en estos ejercicios
+      </p>
+      <p class="res-prs" *ngIf="r.prs.length">🏆 Récord en {{ r.prs.join(', ') | acentos }}</p>
+      <p class="res-nota" *ngIf="r.comparando">Comparando con tus entrenos anteriores…</p>
+      <p class="res-nota" *ngIf="r.sinConexion">Sin conexión: la comparación con la semana pasada aparece cuando se sincronice.</p>
+      <div class="res-lista">
+        <div class="res-fila" *ngFor="let x of r.ejercicios">
+          <span class="res-ej">{{ x.nombre | acentos }}</span>
+          <span class="res-dato" [class.sube]="(x.cambioE1rm ?? 0) > 0.005" [class.baja]="(x.cambioE1rm ?? 0) < -0.005"
+                title="1RM estimado vs la última vez">{{ pct(x.cambioE1rm) || '—' }}</span>
+        </div>
+        <p class="res-leyenda" *ngIf="r.ejercicios.length">% = fuerza estimada (1RM) vs la última vez que lo hiciste</p>
+      </div>
+      <button type="button" class="enc-enviar res-ok" (click)="cerrarResumen()">Continuar</button>
     </div>
   </div>
 

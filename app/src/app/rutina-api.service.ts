@@ -56,10 +56,10 @@ export interface SeriePayload {
 
 /** Respuesta de la encuesta de la sesion (ver infinityfree/api/feedback_tabla.php). */
 export interface FeedbackItem {
-  tipo: 'musculo' | 'ejercicio';
+  tipo: 'musculo' | 'ejercicio' | 'dia';
   clave: string;               // id del musculo o nombre del ejercicio
   bombeo?: number | null;      // 1 poco | 2 bueno | 3 brutal
-  carga?: number | null;       // 1 facil | 2 justa | 3 demasiado
+  carga?: number | null;       // 1 facil | 2 justa | 3 demasiado (tipo 'dia': energia / sueno, 1 bien .. 3 mal)
   agujetas?: number | null;    // 1 nada | 2 sanaron justo | 3 aun duelen
   dolor?: number | null;       // 1 = molestia articular
 }
@@ -88,6 +88,18 @@ export class RutinaApiService {
   getNotas(): Observable<{ ok: boolean; notas: Array<{ ejercicio: string; notas: string; fecha_entreno: string }> }> {
     return this.http.get<{ ok: boolean; notas: Array<{ ejercicio: string; notas: string; fecha_entreno: string }> }>(
       `${environment.apiBaseUrl}/get_notas.php`,
+      { headers: this.headers }
+    );
+  }
+
+  /** "Usar siempre": {original, reemplazo} guarda; {original, baja: true} la quita. */
+  guardarPreferencia(body: { original: string; reemplazo?: string; baja?: boolean }): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${environment.apiBaseUrl}/guardar_preferencia.php`, body, { headers: this.headers });
+  }
+
+  getPreferencias(): Observable<{ ok: boolean; preferencias: Array<{ original: string; reemplazo: string }> }> {
+    return this.http.get<{ ok: boolean; preferencias: Array<{ original: string; reemplazo: string }> }>(
+      `${environment.apiBaseUrl}/get_preferencias.php`,
       { headers: this.headers }
     );
   }

@@ -1,3 +1,4 @@
+import { CATALOGO_MOTOR, EjercicioMotor } from './catalogo.generado';
 // Datos de entrenamiento: musculos, imagenes (wger.de externas), tecnicas,
 // catalogo de alternativas, series y descansos. Todo local / sin coste de hosting.
 
@@ -189,113 +190,40 @@ export function musculosDe(nombre: string): MuscleId[] {
   return s;
 }
 
-// ===== Catalogo de ejercicios comunes por musculo primario (sin imagenes) =====
-// `grupo` = funcion del ejercicio (patron de movimiento / rol). Las alternativas
-// se buscan por grupo, NO por musculo: unas elevaciones laterales no sustituyen
-// a un press militar aunque ambos sean "hombro".
-type GrupoFn =
-  | 'empuje_h' | 'empuje_v' | 'tiron_h' | 'tiron_v'
-  | 'rodilla' | 'cadera' | 'aisl_cuadriceps' | 'aisl_isquios'
-  | 'hombro_lat' | 'hombro_post' | 'aisl_pecho'
-  | 'biceps' | 'triceps' | 'trapecio' | 'core' | 'antebrazo'
-  | 'abductor' | 'aductor' | 'gluteo' | 'rotadores';
-
-interface CatItem {
-  nombre: string;
-  muscle: MuscleId;
-  grupo: GrupoFn;
-  claves: string[];
-}
-
-// Ordenado de mas especifico a mas generico.
-const CATALOGO: CatItem[] = [
-  // Pecho
-  { nombre: 'Press Inclinado con Mancuernas', muscle: 'pecho', grupo: 'empuje_h', claves: ['press inclinado', 'inclinado'] },
-  { nombre: 'Aperturas en Maquina (Pec Deck)', muscle: 'pecho', grupo: 'aisl_pecho', claves: ['pec deck', 'apertura', 'aperturas', 'peck'] },
-  { nombre: 'Cruce de Poleas', muscle: 'pecho', grupo: 'aisl_pecho', claves: ['cruce de poleas', 'crossover'] },
-  { nombre: 'Press de Banca con Barra', muscle: 'pecho', grupo: 'empuje_h', claves: ['press de banca', 'banca'] },
-  { nombre: 'Press con Mancuernas', muscle: 'pecho', grupo: 'empuje_h', claves: ['press con mancuernas', 'press plano', 'fondos en paralelas', 'press pecho'] },
-  // Hombros
-  { nombre: 'Face Pull / Pajaros', muscle: 'hombros', grupo: 'hombro_post', claves: ['face pull', 'pajaro', 'pec deck invertido', 'posterior'] },
-  { nombre: 'Press Militar con Mancuernas', muscle: 'hombros', grupo: 'empuje_v', claves: ['press militar', 'militar', 'arnold', 'press de hombro'] },
-  { nombre: 'Elevaciones Laterales', muscle: 'hombros', grupo: 'hombro_lat', claves: ['elevacion', 'elevaciones', 'lateral'] },
-  { nombre: 'Press de Hombro en Maquina', muscle: 'hombros', grupo: 'empuje_v', claves: ['hombro en maquina'] },
-  // Dorsales
-  { nombre: 'Remo Sentado en Polea', muscle: 'dorsales', grupo: 'tiron_h', claves: ['remo en polea', 'remo sentado', 'gironda', 'polea baja'] },
-  { nombre: 'Jalon al Pecho / Dominadas', muscle: 'dorsales', grupo: 'tiron_v', claves: ['jalon', 'dominada'] },
-  { nombre: 'Remo con Barra', muscle: 'dorsales', grupo: 'tiron_h', claves: ['remo'] },
-  { nombre: 'Remo en Maquina (T-Bar)', muscle: 'dorsales', grupo: 'tiron_h', claves: ['t-bar', 'remo t', 'remo en punta'] },
-  // Triceps
-  { nombre: 'Extension de Triceps en Polea', muscle: 'triceps', grupo: 'triceps', claves: ['extension triceps', 'extension de triceps', 'triceps', 'frances', 'patada de triceps'] },
-  { nombre: 'Fondos en Banco', muscle: 'triceps', grupo: 'triceps', claves: ['fondos', 'dips'] },
-  { nombre: 'Press Cerrado', muscle: 'triceps', grupo: 'triceps', claves: ['press cerrado', 'close grip'] },
-  // Biceps
-  { nombre: 'Curl Martillo', muscle: 'biceps', grupo: 'biceps', claves: ['martillo'] },
-  { nombre: 'Curl con Barra', muscle: 'biceps', grupo: 'biceps', claves: ['curl con barra', 'curl ez', 'barra ez', 'curl de biceps'] },
-  { nombre: 'Curl con Mancuernas', muscle: 'biceps', grupo: 'biceps', claves: ['curl con mancuernas', 'curl alterno', 'curl polea', 'curl concentrado'] },
-  { nombre: 'Curl Predicador', muscle: 'biceps', grupo: 'biceps', claves: ['predicador', 'preacher'] },
-  // Cuadriceps
-  { nombre: 'Zancadas Caminando', muscle: 'cuadriceps', grupo: 'rodilla', claves: ['zancada', 'bulgara', 'split', 'step up'] },
-  { nombre: 'Sentadilla Hack en Maquina', muscle: 'cuadriceps', grupo: 'rodilla', claves: ['hack'] },
-  { nombre: 'Prensa de Piernas', muscle: 'cuadriceps', grupo: 'rodilla', claves: ['prensa'] },
-  { nombre: 'Extension de Cuadriceps', muscle: 'cuadriceps', grupo: 'aisl_cuadriceps', claves: ['extension de cuadriceps', 'extensiones de cuadriceps'] },
-  { nombre: 'Sentadilla con Barra', muscle: 'cuadriceps', grupo: 'rodilla', claves: ['sentadilla', 'frontal', 'cuadriceps', 'goblet'] },
-  // Isquios
-  { nombre: 'Curl de Isquios en Maquina', muscle: 'isquios', grupo: 'aisl_isquios', claves: ['curl de isquios', 'curl femoral', 'isquios', 'femoral'] },
-  { nombre: 'Peso Muerto Rumano', muscle: 'isquios', grupo: 'cadera', claves: ['rumano', 'pdr', 'buenos dias', 'peso muerto'] },
-  // Gluteos
-  { nombre: 'Hip Thrust', muscle: 'gluteos', grupo: 'cadera', claves: ['hip thrust', 'puente'] },
-  // Abductor / gluteo medio
-  { nombre: 'Abduccion de Cadera en Maquina', muscle: 'gluteos', grupo: 'abductor', claves: ['abduccion', 'abductor'] },
-  { nombre: 'Caminata Lateral con Banda', muscle: 'gluteos', grupo: 'abductor', claves: ['caminata lateral', 'monster walk'] },
-  // Aductor
-  { nombre: 'Aduccion de Cadera en Maquina', muscle: 'aductores', grupo: 'aductor', claves: ['aduccion', 'aductor'] },
-  // Gluteo aislado
-  { nombre: 'Patada de Gluteo en Polea', muscle: 'gluteos', grupo: 'gluteo', claves: ['patada de gluteo', 'kickback'] },
-  { nombre: 'Puente de Gluteo a 1 Pierna', muscle: 'gluteos', grupo: 'gluteo', claves: ['puente de gluteo'] },
-  // Rotadores / manguito
-  { nombre: 'Rotacion Externa en Polea', muscle: 'hombros', grupo: 'rotadores', claves: ['rotacion externa'] },
-  { nombre: 'Cubanos con Mancuernas', muscle: 'hombros', grupo: 'rotadores', claves: ['cubanos', 'manguito'] },
-  // Trapecios
-  { nombre: 'Encogimientos', muscle: 'trapecios', grupo: 'trapecio', claves: ['encogimiento', 'shrug', 'trapecio'] },
-  // Abdomen
-  { nombre: 'Elevaciones de Piernas', muscle: 'abdomen', grupo: 'core', claves: ['elevaciones de piernas', 'elevacion de piernas', 'colgado'] },
-  { nombre: 'Crunch / Plancha', muscle: 'abdomen', grupo: 'core', claves: ['crunch', 'abdominal', 'plancha', 'rueda', 'oblicuo'] },
-  // Lumbar
-  { nombre: 'Hiperextensiones', muscle: 'lumbar', grupo: 'cadera', claves: ['lumbar', 'hiperextension', 'extensiones lumbares'] },
-  // Antebrazos
-  { nombre: 'Curl con Cuerda', muscle: 'antebrazos', grupo: 'antebrazo', claves: ['antebrazo', 'muneca', 'curl invertido', 'farmer'] }
-];
-
+// ===== Alternativas ("Maquina ocupada") =====
+// Salen del catalogo del MOTOR (catalogo.generado.ts, generado desde
+// ejercicios_db.py). Antes la app tenia su propia lista y se habia desviado: de
+// 214 alternativas solo 38 existian en el motor, y lo elegido en el gym se
+// registraba con un nombre que el motor no conoce (sin progresion ni volumen).
 export interface Alternativa {
   nombre: string;
   musculos: MuscleId[];
 }
 
-/** Grupo funcional de un ejercicio del plan (por sus claves). */
-function grupoDe(nombre: string): GrupoFn | null {
-  const n = norm(nombre);
-  for (const c of CATALOGO) {
-    if (c.claves.some((k) => contieneClave(n, k))) return c.grupo;
-  }
-  return null;
+/** El ejercicio en el catalogo del motor (tolera el sufijo "(Asistida)"). */
+export function delMotor(nombre: string): EjercicioMotor | undefined {
+  const n = norm(nombre.replace(/\s*\(asistida\)\s*$/i, ''));
+  return CATALOGO_MOTOR.find((e) => norm(e.nombre) === n);
 }
 
-/** Alternativas REALES: mismo patron de movimiento / misma funcion.
- *  Solo si no hay ninguna del mismo patron, cae al mismo musculo primario. */
+/** Alternativas REALES: mismo patron de movimiento, primero las que encajan en
+ *  el mismo bloque (compuesto por compuesto), por preferencia del motor. Solo si
+ *  el ejercicio no esta en el catalogo, cae al mismo musculo primario. */
 export function alternativasDe(nombre: string): Alternativa[] {
-  const objetivo = norm(nombre);
-  const grupo = grupoDe(nombre);
-  const map = (items: CatItem[]) =>
-    items.map((c) => ({ nombre: c.nombre, musculos: musculosDe(c.nombre) }));
-
-  if (grupo) {
-    const filtradas = CATALOGO.filter((c) => c.grupo === grupo && norm(c.nombre) !== objetivo);
-    if (filtradas.length) return map(filtradas);
+  const map = (items: EjercicioMotor[]) => items.map((c) => ({ nombre: c.nombre, musculos: musculosDe(c.nombre) }));
+  const actual = delMotor(nombre);
+  if (actual) {
+    const comparte = (c: EjercicioMotor) => [...c.bloques].some((b) => actual.bloques.includes(b));
+    return map(
+      CATALOGO_MOTOR.filter((c) => c.patron === actual.patron && c.nombre !== actual.nombre)
+        .sort((a, b) => Number(comparte(b)) - Number(comparte(a)) || a.pref - b.pref)
+    );
   }
   const primario = musculosDe(nombre)[0];
   if (!primario) return [];
-  return map(CATALOGO.filter((c) => c.muscle === primario && norm(c.nombre) !== objetivo));
+  const objetivo = norm(nombre);
+  return map(CATALOGO_MOTOR.filter((c) => c.musculo === primario && norm(c.nombre) !== objetivo)
+    .sort((a, b) => a.pref - b.pref));
 }
 
 // ===== Medida del ejercicio (que campos mostrar y con que unidad) =====

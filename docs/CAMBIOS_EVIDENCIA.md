@@ -2024,6 +2024,51 @@ mancuerna son ahora iguales a los del motor.
 (umbrales sobre los 9 perfiles, unos 2 minutos). `test_barrido` vuelve a tardar
 unos 18 s tras cachear el catálogo y la config.
 
+## BU. Resumen, entreno a prueba de cierres, bienestar, "Usar siempre" y despliegue automático (2026-10-09)
+
+**Entreno en curso a prueba de cierres (IndexedDB).** Se encontró que el
+entreno en curso NO se guardaba en ningún sitio hasta pulsar Guardar: si el
+sistema cerraba la PWA a mitad (iPhone al cambiar de app), se perdía todo lo
+marcado. Ahora `almacen.ts` (IndexedDB, con caída a localStorage) guarda una
+foto en cada serie marcada, en cada ajuste y al salir de la app (`pagehide` y
+`visibilitychange`), y la restaura al volver ("Recuperé tu entreno en curso: N
+series"). Las colas de envío pendiente pasan de localStorage a IndexedDB
+(migración automática) y se pide `navigator.storage.persist()`. Se verificó
+recargando la página a mitad de un entreno: volvieron los pesos, las reps, el
+RPE, las marcas y la alternativa elegida.
+
+**Resumen al guardar.** Muestra series, volumen (kg × reps, sin las asistidas),
+minutos y récords. Compara la fuerza estimada (1RM) y el volumen de cada
+ejercicio con la última vez que se hizo. Después sigue la encuesta.
+
+**Bienestar → motor.** "¿Cómo te sientes hoy?" y la nueva "¿Cómo dormiste?" se
+envían al servidor (`feedback_sesion`, tipo `dia`). Con 3 o más días malos en la
+última semana se adelanta la descarga (S2-S4); con 2, solo un aviso. Dormir mal
+también activa el día suave en la app. Base: los cuestionarios subjetivos de
+bienestar reflejan la carga mejor que los marcadores objetivos (Saw, Main &
+Gastin 2016, Br J Sports Med).
+
+**Catálogo único y "Usar siempre".** De las 214 alternativas que ofrecía la app,
+solo 38 existían en el motor: lo elegido en el gym se registraba con nombres que
+el motor no conoce (sin progresión ni volumen). Ahora la app sale del catálogo
+del motor (`exportar_catalogo.py` → `catalogo.generado.ts`; una prueba falla si
+se desincroniza): 498 de 498 alternativas existen. Botón "Siempre" →
+`preferencia_ejercicio`. El motor aplica el cambio cada semana si el reemplazo
+existe y es del mismo patrón, sin chocar con el mismo ejercicio en las mismas
+semanas del día. "Volver a X" lo deshace. El dashboard usa las mismas
+preferencias (`preferencias.csv` del export).
+
+**Despliegue automático (`.github/workflows/desplegar.yml`).** En cada push a
+`main` se ejecutan las 5 suites (motor, funcional, calidad del plan, barrido y
+atleta virtual), se compila la app y se arma `deploy/` igual que el `.bat`, sin
+`config.php`. Después se sube por FTPS (`ftpupload.net`, puerto 21) a `htdocs/`.
+Si falla una prueba no se sube nada. Si no hay secretos FTP, solo prueba y
+compila.
+
+**Pruebas.** `test_motor`: sección 47 (bienestar) y 48 (preferencias y catálogo
+al día). Las pruebas pasan en un checkout limpio, sin `.env` ni config, como en
+GitHub.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

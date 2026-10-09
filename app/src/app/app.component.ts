@@ -5,6 +5,7 @@ import { forkJoin } from 'rxjs';
 import { EjercicioPlan, FeedbackItem, RutinaApiService, SerieHistorial, SeriePayload } from './rutina-api.service';
 import { MuscleMapComponent } from './muscle-map.component';
 import { AcentosPipe } from './acentos';
+import * as almacen from './almacen';
 import { environment } from '../environments/environment';
 import {
   ajusteIntraSesion,
@@ -52,6 +53,33 @@ interface SerieVM {
   repsMin: number | null;
   repsMax: number | null;
   manual: boolean;       // el usuario toco el peso: la autorregulacion ya no lo cambia
+}
+
+type EntrenoPendiente = { fecha: string; items: SeriePayload[] };
+type FeedbackPendiente = { fecha: string; items: FeedbackItem[] };
+
+/** Foto del entreno EN CURSO (lo que ya marcaste antes de pulsar Guardar). */
+interface EnCurso {
+  fecha: string;
+  sesion: number;
+  cards: Array<{
+    plan: number;            // planId de la primera serie: identifica la tarjeta
+    ejercicio: string;       // puede ser una alternativa elegida en el gym
+    miNota: string;
+    series: Array<{ planId: number; numeroSerie: number; peso: number; reps: number; rpe: number; hecho: boolean; manual: boolean }>;
+  }>;
+}
+
+/** Resumen que se muestra al guardar el entreno. */
+interface Resumen {
+  series: number;
+  volumen: number;              // kg x reps de las series hechas (sin las asistidas)
+  minutos: number | null;
+  prs: string[];
+  cambioVolumen: number | null; // vs la ultima vez de ESOS ejercicios (fraccion: 0.08 = +8%)
+  comparando: boolean;          // esperando el historial del servidor
+  sinConexion: boolean;
+  ejercicios: Array<{ nombre: string; volumen: number; e1rm: number; cambioE1rm: number | null; cambioVolumen: number | null }>;
 }
 
 interface EjercicioVM {
@@ -108,6 +136,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   // Readiness: como llegas hoy -> modula el objetivo de RPE del dia
   readonly readiness = signal<'bien' | 'normal' | 'baja' | null>(null);
+  readonly sueno = signal<1 | 2 | 3 | null>(null);   // 1 bien | 2 regular | 3 mal
 
   // ----- Encuesta de la sesion (el motor ajusta el volumen con esto) -----
   /** Musculos PRINCIPALES de hoy (el primero de cada ejercicio de pesas). */
@@ -121,6 +150,7 @@ export class AppComponent implements OnInit, OnDestroy {
   });
   readonly agujetas = signal<Partial<Record<MuscleId, number>>>({});
   readonly mostrarEncuesta = signal(false);
+  readonly resumen = signal<Resumen | null>(null);
   readonly encBombeo = signal<Partial<Record<MuscleId, number>>>({});
   readonly encCarga = signal<Partial<Record<MuscleId, number>>>({});
   readonly encDolor = signal<string[]>([]);
@@ -137,6 +167,9 @@ export class AppComponent implements OnInit, OnDestroy {
     medios: string[];
     listos: string[];
   } | null>(null);
+
+  // "Usar siempre": reemplazo (normalizado) -> ejercicio original del plan
+  readonly preferencias = signal<Record<string, string>>({});
 
   // Ultima nota propia por ejercicio (clave normalizada). Cacheada en el
   // telefono para que aparezca tambien sin conexion.
@@ -218,8 +251,19 @@ export class AppComponent implements OnInit, OnDestroy {
   private finAt = 0;            // timestamp (ms) en que termina el descanso
   private alarmaSonada = false;
   // recalcula al volver a la app (el setInterval se frena en segundo plano)
+  // Colas de envio pendiente: en memoria y persistidas en IndexedDB (almacen.ts)
+  private cola: EntrenoPendiente[] = [];
+  private colaFb: FeedbackPendiente[] = [];
+  private sesionMostrada = 0;
+  private guardadoEnCursoProgramado: ReturnType<typeof setTimeout> | null = null;
+  private readonly onSalir = () => this.guardarEnCurso(true);
+
   private readonly onVisibilidad = () => {
-    if (document.hidden) return;
+    if (document.hidden) {
+      // el sistema puede matar la app en segundo plano: se guarda YA
+      this.guardarEnCurso(true);
+      return;
+    }
     if (this.finAt > 0) this.tick();
     // el sistema suelta el wake lock al salir de la app: se vuelve a pedir
     if (this.entrenoEnCurso()) this.fijarPantalla();
@@ -236,20 +280,25 @@ export class AppComponent implements OnInit, OnDestroy {
     // readiness del dia (persiste si recargas la app en el gym)
     const r = localStorage.getItem('readiness-' + this.fecha);
     if (r === 'bien' || r === 'normal' || r === 'baja') this.readiness.set(r);
+    const sn = Number(localStorage.getItem('sueno-' + this.fecha));
+    if (sn === 1 || sn === 2 || sn === 3) this.sueno.set(sn);
     try {
       this.agujetas.set(JSON.parse(localStorage.getItem('agujetas-' + this.fecha) ?? '{}'));
     } catch {
       /* noop */
     }
 
-    // guardado blindado: estado de la cola y reintento automatico
+    // guardado blindado: colas en IndexedDB y reintento automatico
     this.yaGuardadoHoy.set(localStorage.getItem('ultimoGuardado') === this.fecha);
-    this.pendientes.set(this.leerCola().length);
     window.addEventListener('online', this.onOnline);
-    this.reenviarPendientes();
-    this.reenviarFeedback();
+    window.addEventListener('pagehide', this.onSalir);
+    this.cargarColas().then(() => {
+      this.reenviarPendientes();
+      this.reenviarFeedback();
+    });
 
     this.cargarNotas();
+    this.cargarPreferencias();
     this.cargarSesion(this.sesionDe(this.weekdayHoy()));
     this.estadoAvisos();
     if (localStorage.getItem('inicio-' + this.fecha)) this.arrancarReloj();
@@ -400,6 +449,8 @@ export class AppComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.nombreDia.set(res.rutina.length ? res.rutina[0].nombre_dia : 'Descanso');
         this.ejercicios.set(this.agrupar(res.rutina));
+        this.sesionMostrada = sessionWeekday;
+        this.restaurarEnCurso();
         this.recalcularProgreso();
         this.cargando.set(false);
         this.cargarRecuperacion();
@@ -416,6 +467,8 @@ export class AppComponent implements OnInit, OnDestroy {
             const rutina = JSON.parse(cache) as EjercicioPlan[];
             this.nombreDia.set(rutina.length ? rutina[0].nombre_dia : 'Descanso');
             this.ejercicios.set(this.agrupar(rutina));
+            this.sesionMostrada = sessionWeekday;
+            this.restaurarEnCurso();
             this.recalcularProgreso();
             this.modoOffline.set(true);
             this.mensaje.set('📡 Sin conexion: mostrando la rutina guardada en el telefono. Puedes entrenar normal; el entreno se sincronizara despues.');
@@ -558,6 +611,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    window.removeEventListener('pagehide', this.onSalir);
     this.soltarPantalla();
     if (this.relojSesion) clearInterval(this.relojSesion);
     if (this.intervalo) clearInterval(this.intervalo);
@@ -715,7 +769,7 @@ export class AppComponent implements OnInit, OnDestroy {
    *  En dia de baja energia (readiness) se entrena igual pero lejos del fallo:
    *  la autorregulacion diaria protege la recuperacion sin perder la sesion. */
   rpeObjetivo(s: SerieVM, ultima: boolean): string {
-    if (this.readiness() === 'baja') return 'RPE 7-8 · hoy sin fallo (RIR 3-4)';
+    if (this.diaSuave()) return 'RPE 7-8 · hoy sin fallo (RIR 3-4)';
     if (s.alFallo) return 'al fallo (RPE 10)';
     return rpeObjetivoDe(s.tecnica, ultima);
   }
@@ -728,6 +782,111 @@ export class AppComponent implements OnInit, OnDestroy {
     } catch {
       /* noop */
     }
+    // al motor: varios dias "sin energia" en una semana adelantan la descarga
+    this.enviarFeedback([{ tipo: 'dia', clave: 'energia', carga: v === 'bien' ? 1 : v === 'normal' ? 2 : 3 }]);
+  }
+
+  setSueno(v: 1 | 2 | 3): void {
+    this.sueno.set(v);
+    try {
+      localStorage.setItem('sueno-' + this.fecha, String(v));
+    } catch {
+      /* noop */
+    }
+    this.enviarFeedback([{ tipo: 'dia', clave: 'sueno', carga: v }]);
+  }
+
+  /** Dia suave: sin energia o habiendo dormido mal -> nada al fallo. */
+  diaSuave(): boolean {
+    return this.readiness() === 'baja' || this.sueno() === 3;
+  }
+
+  // ----- Resumen al guardar -----
+  /** e1RM de una serie (misma formula que los records de la app: Epley, reps <= 15). */
+  private e1rmSerie(peso: number, reps: number): number {
+    return peso > 0 && reps > 0 ? peso * (1 + Math.min(reps, 15) / 30) : 0;
+  }
+
+  /** Lo hecho hoy por ejercicio: volumen y mejor e1RM (solo series marcadas; si no
+   *  se marco ninguna, todas las que se guardan). Las asistidas no suman volumen:
+   *  su "peso" es la ayuda de la maquina. */
+  private hechoHoy(): Resumen['ejercicios'] {
+    const cards = this.ejercicios();
+    const algunaMarcada = cards.some((e) => e.series.some((s) => s.hecho));
+    return cards
+      .filter((e) => !e.medida.cardio && !this.esAsistida(e))
+      .map((e) => {
+        const ss = e.series.filter((s) => s.hecho || !algunaMarcada);
+        return {
+          nombre: e.ejercicio,
+          volumen: ss.reduce((a, s) => a + (s.peso > 0 ? s.peso * s.reps : 0), 0),
+          e1rm: Math.max(0, ...ss.map((s) => this.e1rmSerie(s.peso, s.reps))),
+          cambioE1rm: null,
+          cambioVolumen: null
+        };
+      })
+      .filter((x) => x.volumen > 0);
+  }
+
+  private abrirResumen(prs: string[], sinConexion: boolean): void {
+    const ej = this.hechoHoy();
+    const cards = this.ejercicios();
+    const algunaMarcada = cards.some((e) => e.series.some((s) => s.hecho));
+    this.resumen.set({
+      series: cards.reduce((a, e) => a + e.series.filter((s) => s.hecho || !algunaMarcada).length, 0),
+      volumen: Math.round(ej.reduce((a, x) => a + x.volumen, 0)),
+      minutos: this.minutosSesion(),
+      prs,
+      cambioVolumen: null,
+      comparando: !sinConexion,
+      sinConexion,
+      ejercicios: ej
+    });
+    if (sinConexion) return;
+    // comparacion: la ULTIMA vez que hiciste cada uno de estos ejercicios
+    this.api.getHistorial(60).subscribe({
+      next: (res) => {
+        const r = this.resumen();
+        if (!r) return;
+        const previas = (res.series ?? []).filter((s) => String(s.fecha_entreno).slice(0, 10) < this.fecha);
+        let antes = 0;
+        let ahora = 0;
+        const ejercicios = r.ejercicios.map((x) => {
+          const del = previas.filter((s) => norm(s.ejercicio) === norm(x.nombre));
+          if (!del.length) return x;
+          const ultima = del.reduce((m, s) => (String(s.fecha_entreno) > m ? String(s.fecha_entreno) : m), '');
+          const sesion = del.filter((s) => String(s.fecha_entreno) === ultima);
+          const vol = sesion.reduce((a, s) => a + (Number(s.peso_kg) || 0) * (Number(s.repeticiones) || 0), 0);
+          const e1 = Math.max(0, ...sesion.map((s) => this.e1rmSerie(Number(s.peso_kg) || 0, Number(s.repeticiones) || 0)));
+          if (vol > 0) {
+            antes += vol;
+            ahora += x.volumen;
+          }
+          return {
+            ...x,
+            cambioE1rm: e1 > 0 && x.e1rm > 0 ? x.e1rm / e1 - 1 : null,
+            cambioVolumen: vol > 0 ? x.volumen / vol - 1 : null
+          };
+        });
+        this.resumen.set({ ...r, ejercicios, comparando: false, cambioVolumen: antes > 0 ? ahora / antes - 1 : null });
+      },
+      error: () => {
+        const r = this.resumen();
+        if (r) this.resumen.set({ ...r, comparando: false });
+      }
+    });
+  }
+
+  cerrarResumen(): void {
+    this.resumen.set(null);
+    this.abrirEncuesta();
+  }
+
+  /** "+8%" / "-3%" / "=" para el resumen. */
+  pct(x: number | null): string {
+    if (x === null || !isFinite(x)) return '';
+    const v = Math.round(x * 100);
+    return v === 0 ? '=' : `${v > 0 ? '+' : ''}${v}%`;
   }
 
   // ----- Encuesta: agujetas al empezar, bombeo/carga/dolor al terminar -----
@@ -795,21 +954,13 @@ export class AppComponent implements OnInit, OnDestroy {
     });
   }
 
-  private leerColaFeedback(): Array<{ fecha: string; items: FeedbackItem[] }> {
-    try {
-      const c = JSON.parse(localStorage.getItem('colaFeedback') ?? '[]');
-      return Array.isArray(c) ? c : [];
-    } catch {
-      return [];
-    }
+  private leerColaFeedback(): FeedbackPendiente[] {
+    return [...this.colaFb];
   }
 
-  private escribirColaFeedback(cola: Array<{ fecha: string; items: FeedbackItem[] }>): void {
-    try {
-      localStorage.setItem('colaFeedback', JSON.stringify(cola.slice(-40)));
-    } catch {
-      /* noop */
-    }
+  private escribirColaFeedback(cola: FeedbackPendiente[]): void {
+    this.colaFb = cola.slice(-40);
+    almacen.guardar('colaFeedback', this.colaFb);
   }
 
   /** Reenvia la cola de encuestas (es un upsert: reenviar no duplica nada). */
@@ -925,6 +1076,71 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
+  // ----- "Usar siempre" -----
+  private cargarPreferencias(): void {
+    try {
+      this.preferencias.set(JSON.parse(localStorage.getItem('preferencias') ?? '{}'));
+    } catch {
+      /* noop */
+    }
+    this.api.getPreferencias().subscribe({
+      next: (res) => {
+        const m: Record<string, string> = {};
+        for (const p of res.preferencias ?? []) m[norm(p.reemplazo)] = p.original;
+        this.guardarPreferenciasLocal(m);
+      },
+      error: () => undefined // sin conexion: vale la copia local
+    });
+  }
+
+  private guardarPreferenciasLocal(m: Record<string, string>): void {
+    this.preferencias.set(m);
+    try {
+      localStorage.setItem('preferencias', JSON.stringify(m));
+    } catch {
+      /* noop */
+    }
+  }
+
+  /** Ejercicio ORIGINAL del plan para esta tarjeta (si ya es un reemplazo tuyo). */
+  originalDe(ej: EjercicioVM): string | null {
+    return this.preferencias()[norm(ej.ejercicio)] ?? null;
+  }
+
+  /** Cambia el ejercicio hoy Y en los planes siguientes (el motor lo respeta). */
+  usarSiempre(ej: EjercicioVM, alt: Alternativa): void {
+    const original = this.originalDe(ej) ?? ej.ejercicio;
+    this.elegirAlternativa(ej, alt);
+    this.guardarEnCurso();
+    this.api.guardarPreferencia({ original, reemplazo: alt.nombre }).subscribe({
+      next: () => {
+        const m = { ...this.preferencias() };
+        for (const k of Object.keys(m)) if (m[k] === original) delete m[k];
+        m[norm(alt.nombre)] = original;
+        this.guardarPreferenciasLocal(m);
+        this.mensaje.set(`✓ Desde el próximo plan usarás ${alt.nombre} en lugar de ${original}.`);
+      },
+      error: () => this.mensaje.set('Hoy se cambió, pero no se pudo guardar para siempre (sin conexión). Inténtalo de nuevo.')
+    });
+  }
+
+  /** Quita la preferencia: vuelve el ejercicio original del plan (hoy y despues). */
+  volverAlOriginal(ej: EjercicioVM): void {
+    const original = this.originalDe(ej);
+    if (!original) return;
+    this.api.guardarPreferencia({ original, baja: true }).subscribe({
+      next: () => {
+        const m = { ...this.preferencias() };
+        delete m[norm(ej.ejercicio)];
+        this.guardarPreferenciasLocal(m);
+        this.elegirAlternativa(ej, { nombre: original, musculos: musculosDe(original) });
+        this.guardarEnCurso();
+        this.mensaje.set(`✓ Vuelve ${original} a tu plan.`);
+      },
+      error: () => this.mensaje.set('No se pudo quitar la preferencia (sin conexión). Inténtalo de nuevo.')
+    });
+  }
+
   elegirAlternativa(ej: EjercicioVM, alt: Alternativa): void {
     ej.ejercicio = alt.nombre;            // cambia TODA la tarjeta (todas sus series)
     ej.musculos = alt.musculos;
@@ -941,6 +1157,7 @@ export class AppComponent implements OnInit, OnDestroy {
     const paso = campo === 'peso' ? (ej?.barra ? 2.5 : 1.25) : 1;
     serie[campo] = Math.max(0, Number((serie[campo] + delta * paso).toFixed(2)));
     if (campo === 'peso') serie.manual = true;
+    this.guardarEnCurso();
   }
 
   // ----- Autorregulacion dentro de la sesion -----
@@ -1095,7 +1312,9 @@ export class AppComponent implements OnInit, OnDestroy {
       this.fijarPantalla();
       this.marcarInicioSesion();
       this.autorregular(ej, serie);
+      almacen.pedirPersistencia();
     }
+    this.guardarEnCurso();
   }
 
   // ----- Estructura "Atleta": una serie a la vez -----
@@ -1287,6 +1506,7 @@ export class AppComponent implements OnInit, OnDestroy {
         this.marcarGuardadoHoy();
         this.soltarPantalla();
         this.pararReloj();
+        almacen.borrar('enCurso');
         const prs = this.detectarPrs(items);
         if (prs.length) {
           this.celebrar();
@@ -1296,14 +1516,15 @@ export class AppComponent implements OnInit, OnDestroy {
         }
         this.guardando.set(false);
         this.reenviarPendientes();
-        this.abrirEncuesta();
+        this.abrirResumen(prs, false);
       },
       error: () => {
         // No se pierde nada: queda en el telefono y se reenvia solo
         this.encolar(this.fecha, items);
+        almacen.borrar('enCurso');
         this.mensaje.set(`📥 Sin conexion: tu entreno (${items.length} series) quedo guardado en el telefono. Se reenviara solo al volver internet, o toca "Reintentar".`);
         this.guardando.set(false);
-        this.abrirEncuesta();
+        this.abrirResumen(this.detectarPrs(items), true);
       }
     });
   }
@@ -1317,23 +1538,99 @@ export class AppComponent implements OnInit, OnDestroy {
     }
   }
 
-  // ----- Cola offline (localStorage) -----
-  private leerCola(): Array<{ fecha: string; items: SeriePayload[] }> {
-    try {
-      const cola = JSON.parse(localStorage.getItem('colaEntrenos') ?? '[]');
-      return Array.isArray(cola) ? cola : [];
-    } catch {
-      return [];
-    }
+  // ----- Colas offline (IndexedDB, ver almacen.ts) -----
+  /** Carga las colas del almacen durable. Migra (una vez) lo que hubiera en
+   *  localStorage de versiones anteriores de la app, sin perder nada. */
+  private async cargarColas(): Promise<void> {
+    const migrar = async <T>(clave: string): Promise<T[]> => {
+      let datos = (await almacen.leer<T[]>(clave)) ?? [];
+      try {
+        const viejo = JSON.parse(localStorage.getItem(clave) ?? '[]');
+        if (Array.isArray(viejo) && viejo.length) {
+          datos = [...datos, ...viejo];
+          await almacen.guardar(clave, datos);
+        }
+        localStorage.removeItem(clave);
+      } catch {
+        /* noop */
+      }
+      return Array.isArray(datos) ? datos : [];
+    };
+    this.cola = await migrar<EntrenoPendiente>('colaEntrenos');
+    this.colaFb = await migrar<FeedbackPendiente>('colaFeedback');
+    this.pendientes.set(this.cola.length);
   }
 
-  private escribirCola(cola: Array<{ fecha: string; items: SeriePayload[] }>): void {
-    try {
-      localStorage.setItem('colaEntrenos', JSON.stringify(cola));
-    } catch {
-      /* noop */
-    }
+  private leerCola(): EntrenoPendiente[] {
+    return [...this.cola];
+  }
+
+  private escribirCola(cola: EntrenoPendiente[]): void {
+    this.cola = cola;
+    almacen.guardar('colaEntrenos', cola);
     this.pendientes.set(cola.length);
+  }
+
+  /** Guarda la foto del entreno en curso (series, pesos, marcas, alternativas,
+   *  nota). Sin esto, si el sistema cerraba la app a mitad del entreno (iPhone
+   *  al cambiar de app), se perdia todo lo marcado hasta pulsar Guardar.
+   *  ya=true: sin esperar (al salir de la app); si no, se agrupan los cambios. */
+  guardarEnCurso(ya = false): void {
+    if (this.guardadoEnCursoProgramado) clearTimeout(this.guardadoEnCursoProgramado);
+    const hacer = () => {
+      this.guardadoEnCursoProgramado = null;
+      const cards = this.ejercicios();
+      if (!cards.length || this.yaGuardadoHoy() || !cards.some((e) => e.series.some((s) => s.hecho))) return;
+      const foto: EnCurso = {
+        fecha: this.fecha,
+        sesion: this.sesionMostrada,
+        cards: cards.map((e) => ({
+          plan: e.series[0]?.planId ?? 0,
+          ejercicio: e.ejercicio,
+          miNota: e.miNota,
+          series: e.series.map((s) => ({ planId: s.planId, numeroSerie: s.numeroSerie, peso: s.peso,
+            reps: s.reps, rpe: s.rpe, hecho: s.hecho, manual: s.manual }))
+        }))
+      };
+      almacen.guardar('enCurso', foto);
+    };
+    if (ya) hacer();
+    else this.guardadoEnCursoProgramado = setTimeout(hacer, 400);
+  }
+
+  /** Si la app se cerro a mitad del entreno de HOY, lo deja como estaba. */
+  private async restaurarEnCurso(): Promise<void> {
+    const foto = await almacen.leer<EnCurso>('enCurso');
+    if (!foto) return;
+    if (foto.fecha !== this.fecha) {
+      almacen.borrar('enCurso');          // de otro dia: ya no sirve
+      return;
+    }
+    if (foto.sesion !== this.sesionMostrada || this.yaGuardadoHoy()) return;
+    let restauradas = 0;
+    for (const ej of this.ejercicios()) {
+      const c = foto.cards.find((x) => x.plan === (ej.series[0]?.planId ?? -1));
+      if (!c) continue;
+      if (c.ejercicio !== ej.ejercicio) {
+        // alternativa elegida en el gym: misma logica que elegirAlternativa
+        ej.ejercicio = c.ejercicio;
+        ej.musculos = musculosDe(c.ejercicio);
+        ej.barra = barraDe(c.ejercicio);
+        ej.notasMotor = [];
+      }
+      ej.miNota = c.miNota ?? ej.miNota;
+      for (const s of ej.series) {
+        const g = c.series.find((x) => x.planId === s.planId && x.numeroSerie === s.numeroSerie);
+        if (!g) continue;
+        Object.assign(s, { peso: g.peso, reps: g.reps, rpe: g.rpe, hecho: g.hecho, manual: g.manual });
+        if (g.hecho) restauradas++;
+      }
+    }
+    if (restauradas) {
+      this.ejercicios.set([...this.ejercicios()]);
+      this.recalcularProgreso();
+      this.mensaje.set(`↩ Recuperé tu entreno en curso: ${restauradas} series ya marcadas.`);
+    }
   }
 
   private encolar(fecha: string, items: SeriePayload[]): void {

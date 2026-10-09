@@ -52,6 +52,10 @@ def main() -> None:
     fb = feedback.descargar_feedback(sesion, base_url, token, dias=120)
     fb.to_csv(destino.parent / feedback.CSV_FEEDBACK, index=False)
     print(f"{feedback.CSV_FEEDBACK} actualizado ({len(fb)} respuestas)")
+    import pandas as pd
+    prefs = feedback.descargar_preferencias(sesion, base_url, token)
+    pd.DataFrame({"original": list(prefs), "reemplazo": list(prefs.values())}).to_csv(
+        destino.parent / feedback.CSV_PREFERENCIAS, index=False)
 
 
 if __name__ == "__main__":

@@ -104,3 +104,13 @@ CREATE TABLE IF NOT EXISTS push_suscripciones (
   creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_push_endpoint (endpoint_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- "Usar siempre" de la app (preferencias_tabla.php)
+CREATE TABLE IF NOT EXISTS preferencia_ejercicio (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  original VARCHAR(160) NOT NULL,
+  reemplazo VARCHAR(160) NOT NULL,
+  creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_preferencia_original (original)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- feedback_sesion tambien guarda tipo='dia' (clave energia | sueno, valor en `carga`)

@@ -650,7 +650,8 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                   ajustes: dict[str, int] | None = None,
                   dolor: dict[str, int] | None = None,
                   avisos: list[str] | None = None,
-                  hoy: date | None = None) -> list[dict]:
+                  hoy: date | None = None,
+                  preferencias: dict[str, str] | None = None) -> list[dict]:
     """reingreso: 0/False normal, 1 = primera semana de vuelta (~1/3 del
     volumen, -10% carga), 2 = segunda (~2/3, -5%). Ver fase_reingreso().
     ajustes/dolor: la encuesta de la sesion (feedback.py): series por musculo y
@@ -681,7 +682,10 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
     # plan base segun la config del usuario (enfoque/split/prioridades)
     if plan is None:
         plan = obtener_plan()
-    # dolor articular repetido: el ejercicio se cambia SIEMPRE (tambien en deload)
+    # "Usar siempre" de la app: primero tus preferencias...
+    plan, _pref = _fb.aplicar_preferencias(plan, preferencias or {})
+    _avisos.extend(_pref)
+    # ...y el dolor articular repetido cambia el ejercicio SIEMPRE (tambien en deload)
     plan, _cambios = _fb.sustituir_por_dolor(plan, dolor or {})
     _avisos.extend(_cambios)
 
@@ -954,7 +958,8 @@ def sincronizar_plan(sesion: requests.Session, base_url: str, token: str, semana
     print(r.json())
 
 
-def decidir_semana(historial: pd.DataFrame, objetivo: date, inicio: date) -> tuple[int, int, list[str]]:
+def decidir_semana(historial: pd.DataFrame, objetivo: date, inicio: date,
+                   encuesta: pd.DataFrame | None = None) -> tuple[int, int, list[str]]:
     """Semana del mesociclo que toca de verdad, tras aplicar las reglas de seguridad.
 
     Devuelve (semana, fase_reingreso, avisos). Es la UNICA fuente de esta decision:
@@ -990,6 +995,18 @@ def decidir_semana(historial: pd.DataFrame, objetivo: date, inicio: date) -> tup
         avisos.append("DELOAD POR RENDIMIENTO: la mayoria de tus ejercicios rinde por debajo "
                       "de su tendencia. Se adelanta la descarga para recuperar.")
         semana = 5
+    # Deload por BIENESTAR: 3+ dias de la ultima semana sin energia o durmiendo
+    # mal (feedback.py, Saw et al. 2016). 2 dias: solo aviso.
+    if encuesta is not None and not encuesta.empty:
+        import feedback as _fbk
+        malos = _fbk.dias_malos(encuesta, objetivo)
+        if semana in (2, 3, 4) and not reingreso and malos >= _fbk.DIAS_MALOS_DELOAD:
+            avisos.append(f"DELOAD POR BIENESTAR: {malos} dias de la ultima semana sin energia o "
+                          "durmiendo mal. Se adelanta la descarga: el cuerpo pide recuperar.")
+            semana = 5
+        elif malos >= _fbk.DIAS_MALOS_AVISO:
+            avisos.append(f"BIENESTAR: {malos} dias malos esta semana (energia o sueno). "
+                          "Si sigue asi, la proxima se adelanta la descarga.")
     # Avisos de entrenador (no cambian el plan)
     if not modelo.rpe_ok:
         avisos.append("RPE: casi todas tus series tienen el MISMO RPE. Si no lo cambias, el motor "
@@ -1011,21 +1028,24 @@ def main() -> None:
     sesion = sesion_infinityfree(base_url)
     historial = descargar_historial(sesion, base_url, token)
 
-    # reingreso tras pausa y deload reactivo: ver decidir_semana()
-    semana, reingreso, avisos = decidir_semana(historial, objetivo, inicio)
+    # encuesta de la sesion (volumen por musculo) y bienestar diario
+    import feedback as fbk
+    encuesta = fbk.descargar_feedback(sesion, base_url, token)
+
+    # reingreso, deloads reactivos y por bienestar: ver decidir_semana()
+    semana, reingreso, avisos = decidir_semana(historial, objetivo, inicio, encuesta)
     for a in avisos:
         print(a)
 
-    # encuesta de la sesion -> ajuste de volumen por musculo (feedback.py)
-    import feedback as fbk
-    encuesta = fbk.descargar_feedback(sesion, base_url, token)
     ajustes, dolor = fbk.ajustes_para(encuesta, objetivo, inicio)
 
     # el mesociclo de la semana OBJETIVO define la rotacion de ejercicios
     avisos_fb: list[str] = []
+    preferencias = fbk.descargar_preferencias(sesion, base_url, token)
     filas = generar_filas(historial, semana_inicio, semana,
                           plan=obtener_plan(objetivo), reingreso=reingreso,
-                          ajustes=ajustes, dolor=dolor, avisos=avisos_fb)
+                          ajustes=ajustes, dolor=dolor, avisos=avisos_fb,
+                          preferencias=preferencias)
     for a in avisos_fb:
         print(f"ENCUESTA: {a}")
 

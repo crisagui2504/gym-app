@@ -50,7 +50,11 @@ try {
     foreach ($items as $it) {
         $tipo = (string) ($it['tipo'] ?? '');
         $clave = trim((string) ($it['clave'] ?? ''));
-        if (!in_array($tipo, ['musculo', 'ejercicio'], true) || $clave === '' || strlen($clave) > 480) {  // 160 caracteres utf8mb4 (sin depender de mbstring)
+        if (!in_array($tipo, ['musculo', 'ejercicio', 'dia'], true) || $clave === '' || strlen($clave) > 480) {  // 160 caracteres utf8mb4 (sin depender de mbstring)
+            throw new InvalidArgumentException('Respuesta invalida');
+        }
+        // tipo 'dia': como llegas hoy. Solo estas claves; el valor (1-3) va en `carga`
+        if ($tipo === 'dia' && !in_array($clave, ['energia', 'sueno'], true)) {
             throw new InvalidArgumentException('Respuesta invalida');
         }
         $stmt->execute([

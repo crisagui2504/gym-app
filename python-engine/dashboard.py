@@ -798,12 +798,14 @@ def _tabla_plan(df: pd.DataFrame) -> dash_table.DataTable | html.Div:
         # misma decision que planificar.py (rampa de reingreso + deload reactivo):
         # antes el dashboard calculaba solo la semana del calendario y mostraba un
         # plan distinto del que se subia al telefono
-        semana, reingreso, _avisos = decidir_semana(df, objetivo, inicio)
-        # la encuesta de la sesion ajusta series igual que en el motor
+        # la encuesta (series por musculo + bienestar) igual que en el motor
         import feedback as _fbk
-        ajustes, dolor = _fbk.ajustes_para(_fbk.leer_csv(CSV_PATH.parent), objetivo, inicio)
+        _enc = _fbk.leer_csv(CSV_PATH.parent)
+        semana, reingreso, _avisos = decidir_semana(df, objetivo, inicio, _enc)
+        ajustes, dolor = _fbk.ajustes_para(_enc, objetivo, inicio)
         filas = generar_filas(df, objetivo.isoformat(), semana, reingreso=reingreso,
-                              ajustes=ajustes, dolor=dolor)
+                              ajustes=ajustes, dolor=dolor,
+                              preferencias=_fbk.leer_preferencias_csv(CSV_PATH.parent))
     except Exception as exc:
         return html.Div([
             html.P(f"No se pudo calcular el plan: {exc}",

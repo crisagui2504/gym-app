@@ -1,0 +1,102 @@
+# Pruebas + compilacion + subida a InfinityFree en cada push a main.
+#
+# Hace lo mismo que "Construir app para subir.bat" pero solo: si alguna prueba
+# falla, NO se sube nada. Sube por FTPS (cifrado) a ftpupload.net, el host que
+# recomienda InfinityFree, a htdocs/: app + .htaccess + api/ SIN config.php
+# (las contrasenas del servidor nunca se pisan).
+#
+# Configuracion (una sola vez): GitHub -> Settings -> Secrets and variables ->
+# Actions -> New repository secret:
+#   FTP_USUARIO   = el usuario FTP del panel de InfinityFree (if0_...)
+#   FTP_PASSWORD  = la contrasena de la cuenta de hosting (la del vPanel)
+#   FTP_SERVIDOR  = (opcional) otro host si ftpupload.net falla, p. ej. ftp.epizy.com
+# Sin FTP_PASSWORD el workflow corre las pruebas y compila, pero no sube.
+name: Probar y desplegar
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "infinityfree/**"
+      - "python-engine/**"
+      - ".github/workflows/desplegar.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: desplegar
+  cancel-in-progress: false
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: python-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: python-engine/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Motor
+        run: python tests/test_motor.py
+      - name: Dashboard y helpers
+        run: python tests/test_funcional.py
+      - name: Calidad del plan
+        run: python tests/test_plan_qa.py
+      - name: Barrido de 13.440 semanas
+        run: python tests/test_barrido.py
+      - name: Atleta virtual (el motor como entrenador)
+        run: python tests/test_simulacion.py
+
+  desplegar:
+    needs: pruebas
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # los secretos no se pueden usar directo en un `if:` de paso: se pasan por aqui
+      HAY_FTP: ${{ secrets.FTP_PASSWORD != '' && secrets.FTP_USUARIO != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Compilar la app
+        working-directory: app
+        run: |
+          npm ci
+          npx ng build
+      - name: Armar deploy/ (igual que el .bat)
+        run: |
+          mkdir -p deploy/api
+          cp -r app/dist/gym-rutinas/browser/. deploy/
+          cp infinityfree/.htaccess deploy/
+          for f in infinityfree/api/*.php; do
+            case "$(basename "$f")" in
+              config.php|config.example.php) ;;   # nunca: las contrasenas viven solo en el servidor
+              *) cp "$f" deploy/api/ ;;
+            esac
+          done
+          test ! -e deploy/api/config.php
+          ls -la deploy deploy/api
+      - name: Subir a InfinityFree (FTPS)
+        if: ${{ env.HAY_FTP == 'true' }}
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVIDOR || 'ftpupload.net' }}
+          username: ${{ secrets.FTP_USUARIO }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          local-dir: ./deploy/
+          server-dir: ./htdocs/
+      - name: Sin credenciales FTP
+        if: ${{ env.HAY_FTP != 'true' }}
+        run: |
+          echo "::notice::Sin FTP_PASSWORD en los secretos del repo. Se probo y compilo, pero no se subio nada."

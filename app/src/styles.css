@@ -1746,3 +1746,127 @@ button:disabled {
 .auto-aviso.baja {
   background: rgba(255, 192, 67, 0.16);
 }
+
+/* ── Resumen al guardar ─────────────────────────────────────────────────────── */
+.res-modal {
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+}
+
+.res-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.res-kpi {
+  display: grid;
+  place-items: center;
+  padding: 12px 6px;
+  border-radius: 14px;
+  background: var(--aurora);
+  color: #ffffff;
+}
+
+.res-num {
+  font-family: var(--font-display);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.res-kpi small {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.res-vs,
+.res-prs {
+  margin: 0 0 8px;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.res-nota,
+.res-leyenda {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.res-lista {
+  margin-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.res-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13.5px;
+}
+
+.res-ej {
+  font-weight: 700;
+}
+
+.res-dato {
+  flex-shrink: 0;
+  font-weight: 800;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.res-vs.sube,
+.res-dato.sube {
+  color: var(--accent-ink);
+}
+
+.res-vs.baja,
+.res-dato.baja {
+  color: var(--danger);
+}
+
+.res-ok {
+  width: 100%;
+  margin-top: 14px;
+}
+
+.sueno-fila {
+  margin-top: 12px;
+}
+
+/* ── Alternativas: "Hoy" / "Siempre" / volver al original ───────────────────── */
+.alt-botones {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.alt-use {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.alt-siempre {
+  background: var(--violet);
+  color: #ffffff;
+}
+
+.alt-volver {
+  display: block;
+  width: 100%;
+  margin: 4px 0 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--violet-tint);
+  color: var(--violet-ink);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}

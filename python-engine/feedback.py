@@ -235,3 +235,86 @@ def leer_csv(carpeta) -> pd.DataFrame:
         return normalizar(pd.read_csv(ruta))
     except Exception:  # noqa: BLE001
         return pd.DataFrame()
+
+
+# ── Bienestar diario ("¿Como te sientes hoy?" y "¿Como dormiste?") ──────────
+# Los cuestionarios subjetivos de bienestar reflejan la carga de entrenamiento
+# MEJOR que los marcadores objetivos (Saw, Main & Gastin 2016, revision
+# sistematica, Br J Sports Med). Un dia malo suelto es ruido; varios en la misma
+# semana son la senal. Escala: 1 bien | 2 normal/regular | 3 sin energia/mal.
+DIAS_MALOS_AVISO = 2
+DIAS_MALOS_DELOAD = 3
+
+
+def dias_malos(fb: pd.DataFrame, objetivo: date, dias: int = 7) -> int:
+    """Dias de la ultima semana con energia o sueno en 3 (sin energia / mal)."""
+    if fb.empty or "tipo" not in fb:
+        return 0
+    d = fb[(fb["tipo"] == "dia") & (fb["carga"] == 3)
+           & (fb["fecha"] >= pd.Timestamp(objetivo - timedelta(days=dias)))
+           & (fb["fecha"] < pd.Timestamp(objetivo))]
+    return int(d["fecha"].nunique())
+
+
+# ── "Usar siempre": preferencias de ejercicio ────────────────────────────────
+CSV_PREFERENCIAS = "preferencias.csv"   # copia local para el dashboard (exportar_local)
+
+
+def descargar_preferencias(sesion, base_url: str, token: str) -> dict[str, str]:
+    """{original (normalizado): reemplazo}. Sin endpoint o sin red: {} (plan normal)."""
+    try:
+        r = sesion.get(f"{base_url}/get_preferencias.php", headers={"X-API-Token": token}, timeout=30)
+        r.raise_for_status()
+        filas = r.json().get("preferencias") or []
+    except Exception as e:  # noqa: BLE001
+        print(f"Preferencias no disponibles ({e.__class__.__name__}): plan sin cambios fijos.")
+        return {}
+    return {_norm(f["original"]): str(f["reemplazo"]).strip() for f in filas if f.get("original") and f.get("reemplazo")}
+
+
+def leer_preferencias_csv(carpeta) -> dict[str, str]:
+    import pathlib
+    ruta = pathlib.Path(carpeta) / CSV_PREFERENCIAS
+    if not ruta.exists():
+        return {}
+    try:
+        d = pd.read_csv(ruta)
+        return {_norm(o): str(r).strip() for o, r in zip(d["original"], d["reemplazo"])}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def aplicar_preferencias(plan: list, prefs: dict[str, str]) -> tuple[list, list[str]]:
+    """Cambia cada ejercicio por el que elegiste "para siempre" en la app.
+    Solo si el reemplazo existe en el catalogo, es del MISMO patron de movimiento
+    y no esta ya ese dia (evita un dia con dos veces el mismo ejercicio)."""
+    if not prefs:
+        return plan, []
+    cat = _por_nombre()
+
+    def _comparten(a, b) -> bool:
+        # el plan trae las variantes de varias semanas del mesociclo: solo choca
+        # con filas de las MISMAS semanas (None = todas)
+        return a is None or b is None or bool(set(a) & set(b))
+
+    avisos: list[str] = []
+    descartadas: set[str] = set()
+    nuevo = list(plan)
+    for i, f in enumerate(plan):
+        n = _norm(f.ejercicio)
+        reemplazo = prefs.get(n)
+        if not reemplazo:
+            continue
+        orig, alt = cat.get(n), cat.get(_norm(reemplazo))
+        if orig is None or alt is None or alt.patron != orig.patron:
+            if n not in descartadas:
+                descartadas.add(n)
+                avisos.append(f"Preferencia ignorada: {reemplazo} no sustituye a {f.ejercicio} "
+                              f"(no esta en el catalogo o es otro patron de movimiento)")
+            continue
+        choca = any(g.dia == f.dia and _norm(g.ejercicio) == _norm(alt.nombre) and _comparten(g.semanas, f.semanas)
+                    for g in nuevo)
+        if not choca:
+            nota = f"PREFERENCIA: usas {alt.nombre} en lugar de {f.ejercicio}. {f.notas or ''}".strip()
+            nuevo[i] = replace(f, ejercicio=alt.nombre, notas=nota[:255])
+    return nuevo, avisos
