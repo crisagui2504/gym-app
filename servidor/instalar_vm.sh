@@ -17,7 +17,10 @@ DIR="$HOME/gym"
 DOMINIO="${DOMINIO:-20-150-209-104.sslip.io}"
 
 echo "==> paquetes del sistema"
-sudo apt-get update -y -qq
+# un repo de terceros caido no debe tumbar el despliegue: el de Caddy
+# (cloudsmith) empezo a responder "402 Payment Required" y con set -e el
+# instalador moria aqui sin pasar las pruebas ni reiniciar el dashboard
+sudo apt-get update -y -qq || echo "AVISO: apt-get update con errores (repo de terceros); se sigue"
 sudo apt-get install -y -qq python3 python3-venv python3-pip git curl \
     debian-keyring debian-archive-keyring apt-transport-https gnupg >/dev/null
 
@@ -27,7 +30,7 @@ if ! command -v caddy >/dev/null 2>&1; then
         | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
         | sudo tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
-    sudo apt-get update -y -qq
+    sudo apt-get update -y -qq || true
     sudo apt-get install -y -qq caddy >/dev/null
 fi
 
