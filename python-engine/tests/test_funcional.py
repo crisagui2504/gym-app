@@ -98,7 +98,6 @@ check("los 6 callbacks del servidor estan registrados", not faltan, f"faltan: {f
 
 print()
 print("== Modo demo del dashboard: aislado y de solo lectura ==")
-import json as _json
 import demo_motor as _dm
 import exportar_demo as _dem
 _cfg_ruta = pathlib.Path(dsh.__file__).resolve().parent / "config_usuario.json"
@@ -120,7 +119,6 @@ with dsh.server.test_request_context("/", headers={"Cookie": "gym_demo=1"}):
     check("en demo el mesociclo muestra las 5 semanas", all(s in _meso for s in ("S1", "S2", "S3", "S4", "S5")))
 
 # guardar la config en demo: va a una COOKIE, nunca al archivo
-_cfg_ppl = _json.dumps({"enfoque": "fuerza", "split": "ppl", "duracion": 60, "prioridades": ["pecho"]})
 _cli = dsh.server.test_client()
 _cli.set_cookie("gym_demo", "1")
 _r = _cli.post("/_dash-update-component", json={
@@ -133,10 +131,11 @@ _r = _cli.post("/_dash-update-component", json={
               {"id": "cfg-duracion", "property": "value", "value": 60},
               {"id": "cfg-equipo", "property": "value", "value": []}],
     "changedPropIds": ["cfg-guardar.n_clicks"]})
+_sc = _r.headers.get("Set-Cookie", "")
 check("en demo, guardar la configuracion la pone en la cookie de la demo",
-      _r.status_code == 200 and "gym_demo_cfg=" in _r.headers.get("Set-Cookie", "")
-      and "ppl" in _r.headers.get("Set-Cookie", ""), f"{_r.status_code} {_r.get_data(as_text=True)[:200]}")
-with dsh.server.test_request_context("/", headers={"Cookie": f"gym_demo=1; gym_demo_cfg={_cfg_ppl}"}):
+      _r.status_code == 200 and "gym_demo_cfg=fuerza|ppl|60|pecho" in _sc, f"{_r.status_code} {_sc[:120]}")
+# la cookie tal cual la devolvio el servidor (como la reenviaria el navegador)
+with dsh.server.test_request_context("/", headers={"Cookie": "gym_demo=1; " + _sc.split(";")[0]}):
     check("la demo usa el tipo de entreno elegido (PPL fuerza)",
           dsh._demo_cfg()["split"] == "ppl" and dsh._demo_cfg()["enfoque"] == "fuerza")
 check("tu config sigue intacta despues de usar la demo",

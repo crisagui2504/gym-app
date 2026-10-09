@@ -192,15 +192,23 @@ COOKIE_DEMO_CFG = "gym_demo_cfg"     # el tipo de entreno elegido DENTRO de la d
 
 
 def _demo_cfg() -> dict:
-    """Config de la demo (cookie). Nunca toca config_usuario.json."""
-    import json
+    """Config de la demo (cookie "enfoque|split|duracion|prio1.prio2"). Nunca
+    toca config_usuario.json. Sin comillas, comas ni espacios: asi la cookie
+    se lee igual en cualquier navegador y version de werkzeug."""
     import demo_motor
     try:
         from flask import request
-        crudo = json.loads(request.cookies.get(COOKIE_DEMO_CFG) or "{}")
-    except Exception:  # noqa: BLE001  (sin peticion o cookie rota)
-        crudo = {}
-    return demo_motor.normalizar(crudo)
+        partes = (request.cookies.get(COOKIE_DEMO_CFG) or "").split("|")
+    except RuntimeError:          # sin peticion (arranque, pruebas)
+        partes = []
+    if len(partes) != 4:
+        return demo_motor.normalizar({})
+    return demo_motor.normalizar({"enfoque": partes[0], "split": partes[1], "duracion": partes[2],
+                                  "prioridades": [x for x in partes[3].split(".") if x]})
+
+
+def _cookie_demo_cfg(cfg: dict) -> str:
+    return "|".join([cfg["enfoque"], cfg["split"], str(cfg["duracion_min"]), ".".join(cfg["prioridades"])])
 
 
 def _es_demo() -> bool:
@@ -1640,17 +1648,13 @@ app.clientside_callback(
 )
 def _guardar_enfoque(n_clicks, enfoque, split, prioridades, peso, duracion, equipo):
     if _es_demo():
-        import json
         import demo_motor
         from dash import callback_context
         nueva = demo_motor.normalizar({"enfoque": enfoque, "split": split, "duracion": duracion,
                                        "prioridades": prioridades or []})
         demo_motor.escenario(nueva)          # se calcula ya (unos segundos) y queda en cache
-        callback_context.response.set_cookie(
-            COOKIE_DEMO_CFG, json.dumps({"enfoque": nueva["enfoque"], "split": nueva["split"],
-                                         "duracion": nueva["duracion_min"],
-                                         "prioridades": nueva["prioridades"]}),
-            max_age=3 * 3600, samesite="Lax")
+        callback_context.response.set_cookie(COOKIE_DEMO_CFG, _cookie_demo_cfg(nueva),
+                                             max_age=3 * 3600, samesite="Lax")
         return _aviso_demo([html.Span("✓ Demo cambiada a otro tipo de entreno. "),
                             html.A("Recargar para verla", href="/", style={"color": ACCENT, "fontWeight": "700"})])
     cfg = {
