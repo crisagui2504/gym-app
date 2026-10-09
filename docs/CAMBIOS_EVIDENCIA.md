@@ -1823,6 +1823,49 @@ service worker servía `/styles.css` antiguo desde caché (sin hash en el nombre
 en producción no ocurre porque los bundles llevan hash, y la caché pasa a
 `gymtracker-v3` para purgar el ícono y el manifiesto anteriores.
 
+## BR. Servidor dual: VM de Azure principal + PC local de respaldo (2026-10-08)
+
+**Objetivo.** Un dashboard público accesible desde cualquier sitio y dos
+servidores con la misma información: la VM genera la rutina cada lunes y, si
+falla, la genera el PC.
+
+**Una sola fuente de la verdad.** Los dos leen y escriben en la misma API de
+InfinityFree, y ninguno guarda datos que el otro no vea. El historial de la VM
+se refresca cada 3 h (`gymtracker-datos.timer`).
+
+| Lunes (hora de México) | Dónde | Qué hace |
+|---|---|---|
+| 06:00 | VM (`gymtracker-motor.timer`, `Persistent=true`) | genera y sube la rutina |
+| 09:00 | PC (tarea "GymTracker respaldo semanal") | lo comprueba y solo genera si falta |
+
+**Detección del fallo.** `get_rutina_hoy.php` devuelve el plan más reciente
+con `semana_inicio` ≤ la fecha pedida. Si la VM fallara, devolvería el plan de
+la semana pasada, y comprobar solo que "hay filas" daría un falso OK. Por eso
+`respaldo_semanal.py` compara el `semana_inicio` de cada fila con el lunes
+buscado. Se comprobó contra el servidor real: para 2026-10-12 la comprobación
+ingenua da True y la correcta da False.
+
+**Config compartida.** Antes de generar, el respaldo copia por scp el
+`config_usuario.json` de la VM, con la clave dedicada `id_gymvm` y
+`BatchMode`. Si la VM no responde, usa la última copia local.
+
+**Dashboard público.** gunicorn (1 worker y 4 hilos, porque la VM tiene
+841 MB) detrás de Caddy, con certificado de Let's Encrypt, en
+`https://20-150-209-104.sslip.io`. El acceso es abierto por decisión del
+usuario.
+
+**Despliegue.** `servidor/desplegar.sh` copia `.env` y la config, y luego
+ejecuta `servidor/instalar_vm.sh`. Ese script es idempotente y corre
+`test_motor.py` antes de activar nada: si las pruebas fallan, no despliega.
+
+**Verificado (2026-10-08).**
+
+- `gymtracker-dashboard` y `caddy` están activos. Responde HTTP 200 dentro de
+  la VM y HTTPS 200 desde fuera.
+- El planificador en la VM, en DRY_RUN contra InfinityFree, generó la semana
+  2026-10-05 (S2/4) con 45 filas.
+- La memoria usada es de 557 de 841 MB.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
