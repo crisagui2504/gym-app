@@ -1870,3 +1870,11 @@ button:disabled {
   text-align: left;
   cursor: pointer;
 }
+
+/* Mientras el teclado esta abierto (escribiendo un peso) la barra de abajo y el
+   cronometro se ocultan: en iOS 26 se quedaban flotando encima del teclado y
+   a media pantalla al cerrarlo (ver repararViewport en app.component.ts). */
+body.teclado .actionbar,
+body.teclado .timer {
+  display: none;
+}

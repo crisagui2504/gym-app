@@ -258,6 +258,55 @@ export class AppComponent implements OnInit, OnDestroy {
   private guardadoEnCursoProgramado: ReturnType<typeof setTimeout> | null = null;
   private readonly onSalir = () => this.guardarEnCurso(true);
 
+  // ----- iPhone (iOS 26): barra inferior "flotando" tras cerrar el teclado -----
+  // Regresion de WebKit: al cerrar el teclado (al escribir un peso) iOS deja el
+  // viewport encogido / desplazado y los position:fixed de abajo (barra de
+  // acciones, cronometro) quedan a media pantalla. Apple no lo ha arreglado
+  // (developer.apple.com/forums/thread/800125). Remedio documentado: forzar que
+  // WebKit vuelva a medir el viewport ocultando y mostrando la raiz de la app.
+  private alturaMax = window.innerHeight;
+  private reparoProgramado: ReturnType<typeof setTimeout> | null = null;
+  private readonly onResizeVentana = () => {
+    if (window.innerHeight > this.alturaMax) this.alturaMax = window.innerHeight;
+  };
+  private readonly onFocoEntra = (e: FocusEvent) => {
+    if (this.esCampo(e.target)) document.body.classList.add('teclado');
+  };
+  private readonly onFocoSale = (e: FocusEvent) => {
+    if (!this.esCampo(e.target)) return;
+    setTimeout(() => {
+      if (this.esCampo(document.activeElement)) return; // paso a otro campo: el teclado sigue
+      document.body.classList.remove('teclado');
+      this.repararViewport();
+    }, 150);
+  };
+  /** El visual viewport quedo corrido sin un campo con foco: tambien se repara. */
+  private readonly onViewport = () => {
+    if (this.esCampo(document.activeElement)) return;
+    if (this.reparoProgramado) clearTimeout(this.reparoProgramado);
+    this.reparoProgramado = setTimeout(() => this.repararViewport(), 250);
+  };
+
+  private esCampo(t: EventTarget | null): boolean {
+    return t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement;
+  }
+
+  private repararViewport(): void {
+    const vv = window.visualViewport;
+    const encogido = this.alturaMax - window.innerHeight > 4;
+    const corrido = !!vv && vv.offsetTop > 1;
+    if (!encogido && !corrido) return;
+    const raiz = document.querySelector('app-root') as HTMLElement | null;
+    const x = window.scrollX;
+    const y = window.scrollY;
+    if (raiz) {
+      raiz.style.display = 'none';
+      void raiz.offsetHeight; // reflujo sincrono: WebKit vuelve a medir el viewport
+      raiz.style.display = '';
+    }
+    window.scrollTo(x, y);
+  }
+
   private readonly onVisibilidad = () => {
     if (document.hidden) {
       // el sistema puede matar la app en segundo plano: se guarda YA
@@ -292,6 +341,10 @@ export class AppComponent implements OnInit, OnDestroy {
     this.yaGuardadoHoy.set(localStorage.getItem('ultimoGuardado') === this.fecha);
     window.addEventListener('online', this.onOnline);
     window.addEventListener('pagehide', this.onSalir);
+    window.addEventListener('resize', this.onResizeVentana);
+    document.addEventListener('focusin', this.onFocoEntra);
+    document.addEventListener('focusout', this.onFocoSale);
+    window.visualViewport?.addEventListener('resize', this.onViewport);
     this.cargarColas().then(() => {
       this.reenviarPendientes();
       this.reenviarFeedback();
@@ -612,6 +665,10 @@ export class AppComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     window.removeEventListener('pagehide', this.onSalir);
+    window.removeEventListener('resize', this.onResizeVentana);
+    document.removeEventListener('focusin', this.onFocoEntra);
+    document.removeEventListener('focusout', this.onFocoSale);
+    window.visualViewport?.removeEventListener('resize', this.onViewport);
     this.soltarPantalla();
     if (this.relojSesion) clearInterval(this.relojSesion);
     if (this.intervalo) clearInterval(this.intervalo);
