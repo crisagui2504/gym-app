@@ -17,6 +17,10 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 import simulador as s
+# config neutra para los helpers de planificar (sin TU lista de mancuernas ni
+# tus asistidas): se prueba el motor para un usuario generico
+import planificar as _pl
+_pl._cfg = lambda: {"peso_corporal": 75}
 
 FALLOS = []
 

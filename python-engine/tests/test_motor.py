@@ -19,6 +19,10 @@ from plan_template import Fila
 import planificar as pl
 
 FALLOS = []
+# las pruebas no dependen de TU config (lista de mancuernas, asistidas...): los
+# helpers de planificar que la leen ven una config neutra (cada seccion que
+# quiera otra la pone y la quita)
+pl._cfg = lambda: {"peso_corporal": 75}
 
 
 def check(nombre, cond, detalle=""):
@@ -1082,9 +1086,12 @@ check("estancamiento real: 3 semanas sin mejorar el e1RM",
       _PB.lower() in ent.ModeloFuerza(_h45(_est), date(2026, 10, 12)).estancados())
 check("los curls de muneca no tienen el suelo de 20 kg de la barra (extensores = codo)",
       pl.barra_de("Curl de Muneca Inverso (Extensores)") is None and pl.barra_de("Press de Banca con Barra") == 20)
-check("mancuernas ligeras suben de 1 kg por mano; pesadas, del paso configurado",
+_cfg_real = pl._cfg
+pl._cfg = lambda: {"peso_corporal": 73}           # sin lista de mancuernas: reglas por defecto
+check("sin lista: mancuernas ligeras suben de 1 kg por mano; pesadas, de 2.5",
       pl.paso_carga("Elevaciones Laterales Mancuernas", 8) == 2 and pl.paso_carga("Press de Banca con Mancuernas", 40) == 5
       and pl.paso_carga("Remo con Mancuerna a 1 Mano", 25) == 2.5)
+pl._cfg = _cfg_real
 _hm = _h45([("2026-10-05", _PB, "Tradicional", 1, 60, 12, 8)])
 _pm = generar_plan({"enfoque": "hipertrofia", "split": "upper_lower", "prioridades": [], "duracion_min": 120}, ciclo=0)
 _fm = pl.generar_filas(_hm, "2026-10-12", 2, plan=_pm, duracion_min=120)
@@ -1095,6 +1102,36 @@ check("ejercicios sin datos piden UNA serie de calibracion por semana",
       len(_cal) > 0 and len({f["ejercicio"] for f in _cal}) == len(_cal) and all(f["ejercicio"] != _PB for f in _cal))
 check("nada de calibrar en deload", not any("CALIBRAR" in (f["notas"] or "")
       for f in pl.generar_filas(_hm, "2026-10-12", 5, plan=_pm, duracion_min=120)))
+
+print("")
+print("== 46. Tu gym: lista de mancuernas y maquina asistida ==")
+_cfg_real = pl._cfg
+pl._cfg = lambda: {"peso_corporal": 73, "asistidas": ["Dominadas"], "paso_asistencia_kg": 5,
+                   "mancuernas_kg": [1, 3, 5, 7, 9, 11, 13, 15, 20, 25, 30]}
+check("mancuernas: solo pesos que HAY (12.5 por mano -> 13, en total 26)",
+      pl.cargable("Press de Banca con Mancuernas", 25) == 26 and pl.cargable("Remo con Mancuerna a 1 Mano", 12.5) == 13)
+check("el escalon es hasta la siguiente mancuerna (15 -> 20 por mano = +10 en total)",
+      pl.paso_carga("Press de Banca con Mancuernas", 30) == 10 and pl.paso_carga("Press de Banca con Mancuernas", 6) == 4)
+check("redondeo del modelo: la mas alta que no pasa del objetivo",
+      pl.cargable_abajo("Press de Banca con Mancuernas", 25.9) == 22 and pl.cargable_abajo("Press de Banca con Barra", 61) == 60)
+_ha = _h45([("2026-10-05", "Dominadas", "Top Set", 1, 40, 8, 8), ("2026-10-05", "Dominadas", "Back-off", 1, 45, 12, 8)])
+_ra = pl.a_carga_real(_ha, {"dominadas"}, 73)
+check("asistida: 40 kg de ayuda con 73 de peso = 33 kg de carga real",
+      list(_ra["peso_kg"]) == [33.0, 28.0])
+_pa = generar_plan({"enfoque": "hipertrofia", "split": "ppl", "prioridades": ["dorsales"], "duracion_min": 120}, ciclo=0)
+_fa = [f for f in pl.generar_filas(_h45([("2026-10-05", "Dominadas", "Top Set", 1, 40, 8, 7),
+                                          ("2026-10-05", "Dominadas", "Back-off", 1, 45, 12, 7)]),
+                                   "2026-10-12", 2, plan=_pa, duracion_min=120)
+       if "Dominadas" in f["ejercicio"] and f["tecnica"]]
+check("el plan la marca '(Asistida)' y explica que el peso es la AYUDA",
+      bool(_fa) and all(f["ejercicio"] == "Dominadas (Asistida)" and "AYUDA" in f["notas"] for f in _fa),
+      str([(f["ejercicio"], f["notas"][:30]) for f in _fa]))
+_top = [f for f in _fa if f["tecnica"] == "Top Set"]
+check("progresar = MENOS ayuda (8/8 a RPE 7 con 40 kg de ayuda -> menos de 40)",
+      _top and _top[0]["peso_sugerido"] < 40 and _top[0]["peso_sugerido"] % 5 == 0, str([f["peso_sugerido"] for f in _top]))
+check("lo registrado como 'Dominadas (Asistida)' sigue siendo Dominadas",
+      db.nombre_canonico("Dominadas (Asistida)") == "Dominadas")
+pl._cfg = _cfg_real
 
 print()
 if FALLOS:

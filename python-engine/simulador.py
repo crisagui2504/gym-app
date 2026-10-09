@@ -351,6 +351,8 @@ PERFILES = {
 
 if __name__ == "__main__":
     import sys
+    import planificar as _pl
+    _pl._cfg = lambda: {"peso_corporal": 75}   # atleta generico, no tu gym
     nombres = sys.argv[1:] or list(PERFILES)
     for n in nombres:
         r = simular(PERFILES[n], semanas=20)

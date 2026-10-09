@@ -288,26 +288,43 @@ def _catalogo() -> dict:
     return {_norm(e.nombre): e for e in _db.EJERCICIOS}
 
 
-_PASO_MANCUERNA: tuple[float, float] | None = None   # (mtime de la config, kg)
-_PASO_VISTO = 0.0                                     # ultima vez que se miro el archivo
+_CFG: tuple[float, dict] | None = None   # (mtime de la config, config)
+_CFG_VISTO = 0.0                         # ultima vez que se miro el archivo
 
 
-def _paso_mancuerna() -> float:
-    """paso_mancuerna_kg de la config, releida solo si el archivo cambio (y el
-    archivo se mira como mucho una vez por segundo: en OneDrive un stat es lento)."""
-    global _PASO_MANCUERNA, _PASO_VISTO
+def _cfg() -> dict:
+    """La config, releida solo si el archivo cambio (y mirado como mucho una vez
+    por segundo: en OneDrive un stat es lento y el barrido llama miles de veces)."""
+    global _CFG, _CFG_VISTO
     import time
-    if _PASO_MANCUERNA is not None and time.monotonic() - _PASO_VISTO < 1.0:
-        return _PASO_MANCUERNA[1]
-    _PASO_VISTO = time.monotonic()
+    if _CFG is not None and time.monotonic() - _CFG_VISTO < 1.0:
+        return _CFG[1]
+    _CFG_VISTO = time.monotonic()
     try:
         from config_usuario import CONFIG_PATH, cargar_config
         mtime = CONFIG_PATH.stat().st_mtime if CONFIG_PATH.exists() else 0.0
-        if _PASO_MANCUERNA is None or _PASO_MANCUERNA[0] != mtime:
-            _PASO_MANCUERNA = (mtime, float(cargar_config().get("paso_mancuerna_kg", 2.5) or 2.5))
-        return _PASO_MANCUERNA[1]
+        if _CFG is None or _CFG[0] != mtime:
+            _CFG = (mtime, cargar_config())
+        return _CFG[1]
     except Exception:  # noqa: BLE001
-        return 2.5
+        return {}
+
+
+def _mancuernas() -> list[float] | None:
+    """Mancuernas disponibles (kg de UNA), ordenadas; None si no se configuraron."""
+    lista = _cfg().get("mancuernas_kg")
+    try:
+        return sorted({float(x) for x in lista if float(x) > 0}) if lista else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _manos(ejercicio: str) -> int:
+    return 1 if "1 mano" in _norm(ejercicio) else 2
+
+
+def _es_mancuerna(ejercicio: str) -> bool:
+    return "mancuerna" in _norm(ejercicio) and not barra_de(ejercicio)
 
 
 def barra_de(ejercicio: str) -> float | None:
@@ -341,30 +358,144 @@ def redondear(v: float, paso: float = 1.25) -> float:
 
 
 def cargable(ejercicio: str, peso: float | None) -> float | None:
-    """Ajusta el peso sugerido a lo que de verdad se puede cargar en la barra:
-    multiplo de 2.5 HACIA ABAJO (un porcentaje -back-off 80%, reingreso -10%-
-    caia en x.25/x.75) y nunca por debajo de la barra vacia."""
+    """Ajusta el peso sugerido a lo que de verdad se puede cargar:
+    - barra: multiplo de 2.5 HACIA ABAJO (un porcentaje -back-off 80%, reingreso
+      -10%- caia en x.25/x.75) y nunca por debajo de la barra vacia;
+    - mancuernas: la mancuerna de la lista del gym (mancuernas_kg) mas cercana,
+      x2 si es con las dos manos."""
+    if not peso or peso <= 0:
+        return peso
+    if _es_asistida(ejercicio):
+        return _real_alineada(peso)
+    if _es_mancuerna(ejercicio):
+        lista = _mancuernas()
+        if not lista:
+            return peso
+        manos = _manos(ejercicio)
+        una = peso / manos
+        # la mas CERCANA (en empate, la ligera): siempre hacia abajo, 2.5 kg por
+        # mano con mancuernas de 1 y 3 caia a 1 (-60%)
+        mejor = min(lista, key=lambda m: (abs(m - una), m))
+        return round(mejor * manos, 2)
     barra = barra_de(ejercicio)
-    if not barra or not peso or peso <= 0:
+    if not barra:
         return peso
     return max(barra, round(int(peso / 2.5 + 1e-9) * 2.5, 2))
 
 
+def cargable_abajo(ejercicio: str, peso: float) -> float:
+    """La carga CARGABLE mas alta que no pasa de `peso` (para el modelo: mejor
+    quedarse corto que fallar). Mancuernas: de la lista del gym; barra: multiplo
+    de 2.5 y nunca menos que la barra; resto: multiplo de 2.5."""
+    import math
+    if peso is None or peso <= 0:
+        return 0.0
+    if _es_asistida(ejercicio):
+        return _real_alineada(peso)
+    if _es_mancuerna(ejercicio) and _mancuernas():
+        lista, manos = _mancuernas(), _manos(ejercicio)
+        abajo = [m for m in lista if m <= peso / manos + 1e-6]
+        return round((abajo[-1] if abajo else lista[0]) * manos, 2)
+    if "mancuerna" in _norm(ejercicio):
+        paso = paso_carga(ejercicio, peso)
+        return max(paso, math.floor(peso / paso + 1e-9) * paso)
+    barra = barra_de(ejercicio) or 0.0
+    return max(barra, math.floor(peso / 2.5 + 1e-9) * 2.5)
+
+
+def _es_asistida(ejercicio: str) -> bool:
+    from ejercicios_db import nombre_canonico
+    return _norm(nombre_canonico(ejercicio)) in asistidas()[0]
+
+
+def _real_alineada(real: float) -> float:
+    """Carga real de una asistida que corresponde a una ayuda EXACTA de la
+    maquina (multiplo de la placa), redondeando la ayuda hacia ARRIBA (mas ayuda
+    = mas seguro): con placas de 5 kg y 73 kg de peso, 35.5 -> 33 (ayuda 40)."""
+    import math
+    _, pc = asistidas()
+    paso = float(_cfg().get("paso_asistencia_kg") or 5)
+    ayuda = max(0.0, math.ceil((pc - real) / paso - 1e-9) * paso)
+    return max(1.0, pc - ayuda)
+
+
+def asistidas() -> tuple[set[str], float]:
+    """(ejercicios en maquina asistida, peso corporal) segun la config."""
+    c = _cfg()
+    return ({_norm(x) for x in (c.get("asistidas") or [])},
+            float(c.get("peso_corporal") or 75))
+
+
+def a_carga_real(df: pd.DataFrame, asist: set[str], peso_corporal: float) -> pd.DataFrame:
+    """Historial con la AYUDA de la maquina asistida convertida en carga real.
+
+    Con 40 kg de ayuda y 73 kg de peso corporal se levantan 33: para el motor
+    eso es "33 kg". Asi todo lo demas (doble progresion, e1RM, calibracion) sube
+    la carga real, que es BAJAR la ayuda. Sin esto el motor "progresaba"
+    subiendo la ayuda: cada semana mas facil. Sin ayuda (0) = peso corporal."""
+    if df is None or df.empty or not asist or "ejercicio" not in df:
+        return df
+    from ejercicios_db import nombre_canonico
+    canon = df["ejercicio"].map(lambda x: str(nombre_canonico(x)))
+    m = canon.map(_norm).isin(asist)
+    if not m.any():
+        return df
+    d = df.copy()
+    ayuda = pd.to_numeric(d.loc[m, "peso_kg"], errors="coerce").fillna(0)
+    d.loc[m, "peso_kg"] = (peso_corporal - ayuda).clip(lower=1.0)
+    d.loc[m, "ejercicio"] = canon[m]
+    if "tonelaje_serie" in d and "reps_hechas" in d:
+        d.loc[m, "tonelaje_serie"] = d.loc[m, "peso_kg"] * pd.to_numeric(d.loc[m, "reps_hechas"], errors="coerce")
+    return d
+
+
+def a_ayuda(filas: list[dict], asist: set[str], peso_corporal: float) -> None:
+    """Devuelve (en sitio) la carga real del plan como AYUDA de la maquina.
+    Se redondea la ayuda HACIA ARRIBA (mas ayuda = mas seguro) a la placa."""
+    import math
+    import re
+    from ejercicios_db import SUFIJO_ASISTIDA
+    paso = float(_cfg().get("paso_asistencia_kg") or 5)
+    for f in filas:
+        if _norm(f["ejercicio"]) not in asist or not f.get("tecnica"):
+            continue
+        f["ejercicio"] = f"{f['ejercicio']}{SUFIJO_ASISTIDA}"
+        nota = f.get("notas") or ""
+        nota = re.sub(r"Anterior: ([\d.]+) kg",
+                      lambda mm: f"Anterior: ayuda {max(0.0, peso_corporal - float(mm.group(1))):g} kg", nota)
+        real = f.get("peso_sugerido")
+        if real and float(real) > 0:
+            ayuda = max(0.0, math.ceil((peso_corporal - float(real)) / paso - 1e-9) * paso)
+            f["peso_sugerido"] = ayuda
+            if ayuda == 0:
+                nota = f"SIN AYUDA: ya puedes hacerlas libres. {nota}"
+        f["notas"] = (f"ASISTIDA: el peso es la AYUDA de la maquina (menos kg = mas dificil). "
+                      f"{nota}").strip()[:255]
+
+
 def paso_carga(ejercicio: str, peso: float | None = None) -> float:
-    """Salto REAL de carga del valor registrado: barra 2.5 (1.25 por lado);
-    maquina / polea 2.5; mancuernas (se registra el peso TOTAL de las dos):
-    las ligeras van de 1 en 1 kg por mano hasta 10 kg, y de ahi de
-    paso_mancuerna_kg (config, por defecto 2.5) por mano. A una mano se registra
-    una sola. Sin esto, unas laterales de 5 kg en total "subian un escalon" a 10
-    (+100%) en el simulador."""
+    """Salto REAL de carga desde `peso` (kg del valor registrado):
+    - barra 2.5 (1.25 por lado); maquina / polea 2.5;
+    - mancuernas (se registra la SUMA de las dos; a una mano, una sola): hasta la
+      siguiente mancuerna que HAY en el gym (config mancuernas_kg). Sin lista, de
+      1 en 1 kg por mano hasta 10 y de 2.5 despues. Sin esto unas laterales de
+      5 kg en total "subian un escalon" a 10 (+100%) en el simulador."""
     if barra_de(ejercicio):
         return 2.5
-    n = _norm(ejercicio)
-    if "mancuerna" in n:
-        pm = _paso_mancuerna()
-        manos = 1 if "1 mano" in n else 2
-        por_mano = (peso or 0) / manos
-        return manos * (1.0 if por_mano and por_mano < 10 else pm)
+    if _es_asistida(ejercicio):
+        # la ayuda va de placa en placa: subir la carga real = quitar una placa
+        return float(_cfg().get("paso_asistencia_kg") or 5)
+    if "mancuerna" in _norm(ejercicio):
+        manos = _manos(ejercicio)
+        lista = _mancuernas()
+        if lista:
+            actual = (cargable(ejercicio, peso) or 0) / manos if peso else 0.0
+            arriba = [m for m in lista if m > actual + 1e-6]
+            if arriba:
+                return round(manos * (arriba[0] - actual), 2)
+            return manos * ((lista[-1] - lista[-2]) if len(lista) > 1 else 5.0)
+        una = (peso or 0) / manos
+        return manos * (1.0 if una and una < 10 else 2.5)
     return 2.5
 
 
@@ -526,6 +657,10 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
     sesiones con dolor articular por ejercicio. Los avisos se anaden a `avisos`."""
     import feedback as _fb
     _avisos = avisos if avisos is not None else []
+    # MAQUINA ASISTIDA: el historial guarda la AYUDA; el motor trabaja con la
+    # carga REAL (peso corporal - ayuda) y al final devuelve la ayuda
+    _asist, _pc = asistidas()
+    df = a_carga_real(df, _asist, _pc)
     ultima, record, estancados = ultimas_y_records(df, hoy=date.fromisoformat(semana_inicio))
     # el "entrenador": 1RM estimado por ejercicio con RPE (ver entrenador.py)
     import entrenador as _ent
@@ -626,7 +761,8 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
             _grave = bool(lp) and lp[1] < (f.reps_min or 1) / 2
             _res = modelo.carga(f.ejercicio, f.reps_max, rpe_objetivo(f.tecnica, semana_prog),
                                 _ult, paso_carga(f.ejercicio, _ult or peso), minimo=barra_de(f.ejercicio) or 0.0,
-                                bajada_max=_ent.BAJADA_MAX_FALLO if _grave else _ent.BAJADA_MAX)
+                                bajada_max=_ent.BAJADA_MAX_FALLO if _grave else _ent.BAJADA_MAX,
+                                abajo=lambda x, _e=f.ejercicio: cargable_abajo(_e, x))
             if _res:
                 # El modelo nunca CONTRADICE a la doble progresion:
                 #  - subida GANADA (tope del rango a RPE razonable): al menos un
@@ -749,6 +885,8 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
     if duracion_min is None:
         from config_usuario import cargar_config
         duracion_min = int(cargar_config().get("duracion_min", 90))
+    if _asist:
+        a_ayuda(filas, _asist, _pc)
     return _recortar_duracion(filas, int(duracion_min))
 
 

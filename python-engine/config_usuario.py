@@ -22,6 +22,15 @@ DEFAULT_CONFIG: dict = {
     # split, asi que vive aqui. El generador lo pinta como dia propio y NO manda
     # cardio encima: el deporte ya es el acondicionamiento. dias: 1=Lun..7=Dom.
     "deporte": None,     # p.ej. {"nombre": "Basquetbol", "dias": [2, 4], "minutos": 90}
+    # Mancuernas que HAY en tu gym (kg de UNA). El motor solo prescribe pesos de
+    # esta lista (registrados como la SUMA de las dos). None = de 1 en 1 kg hasta
+    # 10 y de 2.5 en 2.5 despues.
+    "mancuernas_kg": None,
+    # Ejercicios que haces en MAQUINA ASISTIDA: lo que registras es la AYUDA
+    # (mas kg = mas facil). El motor trabaja con la carga real (peso corporal -
+    # ayuda) y te devuelve la ayuda. p.ej. ["Dominadas", "Fondos en Paralelas"]
+    "asistidas": [],
+    "paso_asistencia_kg": 5,   # salto de la placa de la maquina asistida
 }
 
 

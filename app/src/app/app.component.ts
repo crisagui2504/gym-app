@@ -952,7 +952,7 @@ export class AppComponent implements OnInit, OnDestroy {
     const paso = pasoCarga(ej.ejercicio, s.peso);
     const r2 = (v: number) => Math.round(v * 100) / 100;
 
-    if (/top set/i.test(s.tecnica ?? '') && s.peso > 0) {
+    if (/top set/i.test(s.tecnica ?? '') && s.peso > 0 && !this.esAsistida(ej)) {
       const backs = ej.series.filter((x) => /back/i.test(x.tecnica ?? '') && libres(x));
       const nuevo = r2(Math.max(ej.barra ?? paso, Math.round((s.peso * 0.8) / paso) * paso));
       if (backs.length && backs.some((b) => b.peso !== nuevo)) {
@@ -969,6 +969,13 @@ export class AppComponent implements OnInit, OnDestroy {
       tecnica: s.tecnica, alFallo: s.alFallo, barra: ej.barra, paso
     });
     if (!aj) return;
+    if (this.esAsistida(ej)) {
+      // asistida: "subir la carga" es QUITAR ayuda (y al reves), de 5 en 5
+      const ayuda = Math.max(0, s.peso + (aj.sube ? -5 : 5));
+      siguientes.forEach((x) => (x.peso = ayuda));
+      ej.aviso = { texto: `${aj.sube ? '↑' : '↓'} Siguientes series con ayuda ${ayuda} kg · ${aj.motivo}`, sube: aj.sube };
+      return;
+    }
     siguientes.forEach((x) => (x.peso = aj.peso));
     ej.aviso = { texto: `${aj.sube ? '↑' : '↓'} Siguientes series a ${aj.peso} kg · ${aj.motivo}`, sube: aj.sube };
   }
@@ -1113,7 +1120,14 @@ export class AppComponent implements OnInit, OnDestroy {
 
   /** Convencion del usuario: las mancuernas se registran como PESO TOTAL de las dos. */
   unidadPeso(ej: EjercicioVM): string {
+    if (this.esAsistida(ej)) return 'kg ayuda';
     return ej.ejercicio.toLowerCase().includes('mancuerna') ? 'kg total' : 'kg';
+  }
+
+  /** Maquina asistida (el motor la marca "(Asistida)"): el peso es la AYUDA,
+   *  asi que menos kg = mas dificil y todo ajuste va al reves. */
+  esAsistida(ej: EjercicioVM): boolean {
+    return /\(asistida\)/i.test(ej.ejercicio);
   }
 
   /** Anillo de progreso de la cabecera (r = 20 -> circunferencia 2*pi*20). */

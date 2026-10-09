@@ -226,7 +226,8 @@ class ModeloFuerza:
 
     # ── prescripcion ─────────────────────────────────────────────────────────
     def carga(self, ejercicio: str, reps_obj: int, rpe_obj: float, ultimo_peso: float | None,
-              paso: float, minimo: float = 0.0, bajada_max: float = BAJADA_MAX) -> tuple[float, str] | None:
+              paso: float, minimo: float = 0.0, bajada_max: float = BAJADA_MAX,
+              abajo=None) -> tuple[float, str] | None:
         """Carga sugerida para hacer `reps_obj` al RPE `rpe_obj`, limitada respecto
         a la ultima carga usada. None si el modelo no tiene datos (o el RPE no
         informa): entonces manda la doble progresion clasica."""
@@ -256,15 +257,27 @@ class ModeloFuerza:
                 objetivo, motivo = techo, motivo + (", subida grande limitada" if facil else ", subida limitada")
             elif objetivo < suelo:
                 objetivo, motivo = suelo, motivo + ", bajada limitada"
-        # redondeo a lo cargable: hacia abajo (mejor quedarse corto que fallar)...
-        peso = max(minimo, math.floor(objetivo / paso + 1e-9) * paso)
-        # ...salvo que el redondeo rompa el limite de bajada (60 -> 50 es -17%).
-        # Pero UN escalon hacia abajo siempre se permite: con escalones grandes
-        # (mancuernas de 5 en 5) el limite dejaba el peso clavado para siempre
-        # en uno imposible (simulador: 30 kg y 2 reps, semana tras semana)
+        # redondeo a lo cargable: hacia abajo (mejor quedarse corto que fallar).
+        # `abajo` sabe que pesos existen (p. ej. la lista de mancuernas del gym,
+        # que no va a saltos iguales); sin el, multiplos de `paso`.
+        def _abajo(x: float) -> float:
+            return abajo(x) if abajo else max(minimo, math.floor(x / paso + 1e-9) * paso)
+        peso = max(minimo, _abajo(objetivo))
+        # ...salvo que el redondeo rompa el limite de bajada (60 -> 50 es -17%):
+        # entonces el siguiente cargable por debajo del ultimo, que siempre se
+        # permite (con escalones grandes el limite dejaba el peso clavado para
+        # siempre en uno imposible: simulador, 30 kg y 2 reps semana tras semana)
         if ultimo_peso and ultimo_peso > 0 and peso < ultimo_peso * (1 - bajada_max) - 1e-9:
-            limite = math.ceil(ultimo_peso * (1 - bajada_max) / paso - 1e-9) * paso
-            peso = limite if limite < ultimo_peso - 1e-9 else max(minimo, ultimo_peso - paso)
+            suelo = ultimo_peso * (1 - bajada_max)
+            # el cargable mas bajo que respeta el limite (bajando de uno en uno)...
+            x = ultimo_peso
+            for _ in range(50):
+                y = _abajo(x - 1e-3)
+                if y >= x - 1e-9 or y < suelo - 1e-9:
+                    break
+                x = y
+            # ...y si ni uno cabe en el limite, un escalon por debajo del ultimo
+            peso = x if x < ultimo_peso - 1e-9 else max(minimo, _abajo(ultimo_peso - 1e-3))
         return (round(peso, 2), motivo) if peso > 0 else None
 
     # ── fatiga y estancamiento ───────────────────────────────────────────────

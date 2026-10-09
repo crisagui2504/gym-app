@@ -414,9 +414,16 @@ ALIAS_HISTORICOS: dict[str, str] = {
 }
 
 
+SUFIJO_ASISTIDA = " (Asistida)"
+
+
 def nombre_canonico(nombre: str) -> str:
-    """Nombre actual del catalogo para un nombre registrado en el historial."""
+    """Nombre actual del catalogo para un nombre registrado en el historial.
+    "Dominadas (Asistida)" es Dominadas en maquina asistida (planificar.py
+    convierte la ayuda en carga real; aqui solo se unifica el nombre)."""
     clave = str(nombre).strip().lower()
+    if clave.endswith(SUFIJO_ASISTIDA.lower()):
+        return str(nombre).strip()[: -len(SUFIJO_ASISTIDA)].strip()
     return ALIAS_HISTORICOS.get(clave, nombre)
 
 

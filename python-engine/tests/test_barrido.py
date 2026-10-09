@@ -15,6 +15,10 @@ import pandas as pd
 import ejercicios_db as db, generador as gen, planificar as pl, enfoques as enf
 
 POR = {e.nombre: e for e in db.EJERCICIOS}
+# config neutra para los helpers de planificar (sin TU lista de mancuernas ni
+# tus asistidas): se prueba el motor para un usuario generico
+import planificar as _pl
+_pl._cfg = lambda: {"peso_corporal": 75}
 _orig_uyr = pl.ultimas_y_records
 _cache = {}
 def _uyr_cache(df, hoy=None):
