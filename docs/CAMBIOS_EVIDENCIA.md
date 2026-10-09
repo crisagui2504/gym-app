@@ -1769,6 +1769,60 @@ copia de los tokens y una docena de colores turquesa/azul marino escritos a mano
 5. El dashboard calculaba KPI y gráficas **sin** el saneamiento: un typo habría
    disparado la gráfica de tonelaje. Ahora usa el mismo filtro que el motor.
 
+## BQ. Rediseño violeta + lima (lenguaje visual del tablero de referencia) (2026-10-09)
+
+El usuario aportó un tablero de marca de referencia. Se adopta su **lenguaje
+visual** (paleta, tipografías, degradado aurora, formas de píldora) manteniendo
+la estructura "Atleta". **No se copian su logo ni su nombre**, que son marca
+registrada (llevan ® y ™): el ícono sigue siendo la mancuerna de GymTracker.
+
+### Paleta (medida en píxeles)
+
+Esta vez los códigos impresos eran correctos **salvo uno**: la segunda muestra
+violeta venía rotulada `#7D51FE` y en realidad es **`#5920FF`**.
+
+| Rol | Color |
+|---|---|
+| Violeta / violeta intenso | `#7D51FE` / `#5920FF` |
+| Lima / verde | `#AAFF00` / `#7AB800` |
+| Negro / gris | `#141414` / `#333333` |
+| Blanco / gris claro | `#FFFFFF` / `#F2F2F3` |
+
+Regla de uso: **lima = lo que hay que hacer ahora** (guardar, check, serie
+activa); **violeta = estructura e identidad** (pastilla de bloque, ejercicio en
+curso, segmento en curso, anillo). En claro el lima solo como relleno y el
+violeta intenso como acento de texto.
+
+### Tipografía
+
+**Anton** (condensada) para titulares y números grandes, **Encode Sans** para el
+texto. Al ser condensada, los números suben de tamaño sin desbordar (72 px el
+peso de la serie activa). `font-synthesis: none`: Anton tiene un solo peso y sin
+esto el navegador inventaría una negrita falsa.
+
+### Aurora
+
+Degradado radial violeta → negro → lima (CSS puro, sin imágenes ni blur) en el
+bloque grande de la serie activa, el cronómetro y los días de descanso/deporte.
+La aurora es oscura en ambos temas, así que su texto va siempre en blanco.
+
+### Dashboard
+
+Misma paleta en `TEMAS` y `assets/dashboard.css`, mismas fuentes; KPI en Anton;
+gráficas con línea lima sobre relleno violeta y récords en lima frente al resto
+en violeta. **Regresión corregida:** Encode Sans es algo más ancha que Inter y
+las 9 pestañas, con `flex-wrap`, se comprimían a 58 px y el texto se desbordaba
+sobre la vecina. Ahora la barra se desliza en horizontal con cada pestaña a su
+ancho natural.
+
+### Verificación
+
+iPhone 375×812 en oscuro y claro, flujo de completar serie con cronómetro, carga
+real de las fuentes comprobada con `document.fonts.check`. En desarrollo el
+service worker servía `/styles.css` antiguo desde caché (sin hash en el nombre);
+en producción no ocurre porque los bundles llevan hash, y la caché pasa a
+`gymtracker-v3` para purgar el ícono y el manifiesto anteriores.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

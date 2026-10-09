@@ -31,18 +31,21 @@ from generador import generar_plan
 CSV_PATH = pathlib.Path(__file__).resolve().parent / "historial.csv"
 
 # ── Paletas de tema (oscuro / claro) ─────────────────────────────────────────
-# Misma paleta que la app del movil (diseno "Atleta"): White #FEF9F5, Fit Green
-# #AFFB05, Fit Green 40% #CEEC8A, Black 88% #1C1C1C, Black #000000. En el tema
-# claro el lima NO sirve como texto ni como linea de grafica sobre blanco (no se
-# lee), asi que alli el acento es la version oscura del mismo verde.
+# Misma paleta y tipografias que la app del movil: violeta #7D51FE / #5920FF,
+# lima #AAFF00, verde #7AB800, negro #141414, gris #333333, blanco #FFFFFF y
+# gris claro #F2F2F3. Lima = accion / dato principal; violeta = estructura.
+# En tema claro el lima no sirve como texto ni linea sobre blanco: alli el acento
+# de texto es el violeta intenso y el lima se reserva para rellenos.
 TEMAS = {
-    "oscuro": dict(bg="#000000", card="#1c1c1c", card2="#262626", line="#2e2e2e",
-                   text="#fef9f5", muted="#9c978f", accent="#affb05", accent2="#ceec8a",
-                   danger="#ff6b6b", warn="#ffc043", grid="#262626", template="plotly_dark"),
-    "claro":  dict(bg="#fef9f5", card="#ffffff", card2="#f3eee8", line="#e6e0d9",
-                   text="#000000", muted="#5e5a55", accent="#4f7a00", accent2="#8fd400",
-                   danger="#d93a3f", warn="#b26b00", grid="#ece6df", template="plotly_white"),
+    "oscuro": dict(bg="#141414", card="#1e1e1e", card2="#2a2a2a", line="#333333",
+                   text="#ffffff", muted="#a3a3ab", accent="#aaff00", accent2="#7d51fe",
+                   danger="#ff6b6b", warn="#ffc043", grid="#2a2a2a", template="plotly_dark"),
+    "claro":  dict(bg="#f2f2f3", card="#ffffff", card2="#ebebed", line="#e0e0e4",
+                   text="#141414", muted="#5c5c66", accent="#5920ff", accent2="#7ab800",
+                   danger="#e5484d", warn="#b26b00", grid="#e6e6ea", template="plotly_white"),
 }
+FUENTE_TEXTO = "Encode Sans, Segoe UI, sans-serif"
+FUENTE_DISPLAY = "Anton, Impact, Arial Narrow, sans-serif"
 
 
 def _aplicar_tema(tema: str) -> None:
@@ -57,9 +60,9 @@ def _aplicar_tema(tema: str) -> None:
     PLOTLY_THEME = dict(
         template=p["template"],
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color=p["text"], family="Inter, Segoe UI, sans-serif", size=13),
+        font=dict(color=p["text"], family=FUENTE_TEXTO, size=13),
         margin=dict(l=20, r=20, t=64, b=70),
-        colorway=[p["accent"], p["accent2"], "#a78bfa", "#ff9f6e", "#ff5d7a"],
+        colorway=[p["accent"], p["accent2"], "#7ab800", "#5920ff", "#ff6b6b"],
     )
     _TAB_STYLE = {
         "backgroundColor": "transparent", "color": MUTED, "border": "none",
@@ -315,7 +318,7 @@ def _fig_records(df: pd.DataFrame) -> go.Figure:
     idx = de.groupby("ejercicio")["e1rm"].idxmax()
     detalle = de.loc[idx].set_index("ejercicio")
     maxv = prs.max() if len(prs) else 0
-    colors = [ACCENT if v == maxv and maxv > 0 else "#4a6b12" for v in prs.values]
+    colors = [ACCENT if v == maxv and maxv > 0 else "#7d51fe" for v in prs.values]
     textos = []
     for ej, v in prs.items():
         d = detalle.loc[ej]
@@ -352,7 +355,7 @@ def _fig_rpe(df: pd.DataFrame) -> go.Figure:
                   line_width=0, annotation_text="⚠ Zona deload",
                   annotation_position="top left",
                   annotation_font=dict(color=DANGER, size=11))
-    fig.add_hrect(y0=7.5, y1=9.0, fillcolor="rgba(175,251,5,0.06)", line_width=0,
+    fig.add_hrect(y0=7.5, y1=9.0, fillcolor="rgba(170,255,0,0.06)", line_width=0,
                   annotation_text="✓ Zona óptima",
                   annotation_position="bottom right",
                   annotation_font=dict(color=ACCENT, size=11))
@@ -602,7 +605,7 @@ def _fig_tonelaje_semana(df: pd.DataFrame) -> go.Figure:
     fig = go.Figure(go.Scatter(
         x=ton["semana"], y=ton["tonelaje_serie"],
         mode="lines+markers", fill="tozeroy",
-        fillcolor="rgba(175,251,5,0.12)",
+        fillcolor="rgba(125,81,254,0.22)",
         line=dict(color=ACCENT, width=2.5, shape="spline"),
         marker=dict(size=7, color=ACCENT),
         text=[f"{v:,.0f} kg" for v in ton["tonelaje_serie"]],
@@ -854,8 +857,9 @@ def _card(children, style: dict | None = None) -> html.Div:
 def _kpi_card(titulo: str, valor: str, icono: str = "") -> html.Div:
     return html.Div([
         html.Div(icono, style={"fontSize": "22px", "marginBottom": "8px", "opacity": 0.9}),
-        html.Div(valor, style={"fontSize": "27px", "fontWeight": "800", "color": TEXT,
-                                "letterSpacing": "-0.5px", "lineHeight": "1"}),
+        html.Div(valor, style={"fontSize": "34px", "fontFamily": FUENTE_DISPLAY,
+                                "fontWeight": "400", "color": TEXT, "lineHeight": "1",
+                                "letterSpacing": "0.5px"}),
         html.Div(titulo, style={"fontSize": "10.5px", "color": MUTED, "marginTop": "8px",
                                  "textTransform": "uppercase", "letterSpacing": "1.2px",
                                  "fontWeight": "600"}),
@@ -1288,7 +1292,7 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
         kpi_row,
         tabs,
     ], style={"padding": "24px 32px", "maxWidth": "1500px", "margin": "0 auto",
-               "fontFamily": "Inter, Segoe UI, sans-serif"})
+               "fontFamily": FUENTE_TEXTO})
 
     # Wrapper full-bleed: aplica el fondo del tema y la clase que cascadea las
     # variables CSS (.tema-claro) a todos los descendientes.

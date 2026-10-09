@@ -582,7 +582,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private celebrar(): void {
     const cont = document.createElement('div');
     cont.className = 'confetti';
-    const colores = ['#affb05', '#ceec8a', '#fef9f5', '#affb05', '#1c1c1c']; // paleta Atleta
+    const colores = ['#aaff00', '#7d51fe', '#5920ff', '#ffffff', '#7ab800']; // paleta violeta + lima
     for (let i = 0; i < 28; i++) {
       const p = document.createElement('span');
       p.className = 'confetti-piece';

@@ -4,7 +4,7 @@
    - /api/ y otros origenes (fuentes): nunca se cachean aqui. */
 // v2: rediseno 'Atleta'. Cambiar el nombre hace que el activate borre la
 // cache anterior (icono, manifiesto y bundles viejos) en el telefono.
-const CACHE = 'gymtracker-v2';
+const CACHE = 'gymtracker-v3';
 
 self.addEventListener('install', () => {
   self.skipWaiting();

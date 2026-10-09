@@ -4,6 +4,12 @@
       <div class="ring-wrap" *ngIf="!cargando() && progreso().total > 0 && !esDiaDescanso() && !esDiaDeporte()"
            [class.completo]="progreso().pct === 100">
         <svg class="ring" viewBox="0 0 48 48" aria-hidden="true">
+          <defs>
+            <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#7d51fe" />
+              <stop offset="100%" stop-color="#aaff00" />
+            </linearGradient>
+          </defs>
           <circle class="ring-track" cx="24" cy="24" r="20" />
           <circle class="ring-fill" cx="24" cy="24" r="20"
                   [attr.stroke-dasharray]="ringC" [attr.stroke-dashoffset]="ringOffset()" />

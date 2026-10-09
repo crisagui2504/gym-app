@@ -3,17 +3,17 @@
    Dash carga este archivo automáticamente desde /assets.
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Encode+Sans:wght@400;500;600;700;800&display=swap');
 
 :root {
-  --bg:      #000000;
-  --card:    #1c1c1c;
-  --card2:   #262626;
-  --line:    #2e2e2e;
-  --text:    #fef9f5;
-  --muted:   #9c978f;
-  --accent:  #affb05;
-  --accent2: #ceec8a;
+  --bg:      #141414;
+  --card:    #1e1e1e;
+  --card2:   #2a2a2a;
+  --line:    #333333;
+  --text:    #ffffff;
+  --muted:   #a3a3ab;
+  --accent:  #aaff00;
+  --accent2: #7d51fe;
   --danger:  #ff6b6b;
   --warn:    #ffc043;
 }
@@ -21,15 +21,15 @@
 /* Tema claro: se activa con la clase .tema-claro en el contenedor raíz.
    Las variables se redefinen y cascadean a todos los descendientes. */
 .tema-claro {
-  --bg:      #fef9f5;
+  --bg:      #f2f2f3;
   --card:    #ffffff;
-  --card2:   #f3eee8;
-  --line:    #e6e0d9;
-  --text:    #000000;
-  --muted:   #5e5a55;
-  --accent:  #4f7a00;
-  --accent2: #8fd400;
-  --danger:  #d93a3f;
+  --card2:   #ebebed;
+  --line:    #e0e0e4;
+  --text:    #141414;
+  --muted:   #5c5c66;
+  --accent:  #5920ff;
+  --accent2: #7ab800;
+  --danger:  #e5484d;
   --warn:    #b26b00;
 }
 
@@ -37,14 +37,15 @@ html, body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', 'Segoe UI', sans-serif;
+  font-family: 'Encode Sans', 'Segoe UI', sans-serif;
+  font-synthesis: none;
   -webkit-font-smoothing: antialiased;
 }
 
 /* ---- Scrollbar ---- */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: #2e2e2e; border-radius: 8px; }
+::-webkit-scrollbar-thumb { background: #333333; border-radius: 8px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
 /* ---- Tarjetas ---- */
@@ -54,7 +55,7 @@ html, body {
   border-radius: 14px;
   transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease;
 }
-.gym-card:hover { border-color: #affb0555; }
+.gym-card:hover { border-color: #aaff0055; }
 
 .gym-kpi {
   background: linear-gradient(160deg, var(--card2) 0%, var(--card) 70%);
@@ -64,8 +65,8 @@ html, body {
 }
 .gym-kpi:hover {
   transform: translateY(-3px);
-  border-color: #affb0566;
-  box-shadow: 0 8px 24px -12px #affb0540;
+  border-color: #aaff0066;
+  box-shadow: 0 8px 24px -12px #aaff0040;
 }
 
 /* ============================================================
@@ -80,7 +81,7 @@ html, body {
   min-height: 42px !important;
   padding: 0 12px !important;
 }
-.dash-dropdown-trigger:hover { border-color: #affb0566 !important; }
+.dash-dropdown-trigger:hover { border-color: #aaff0066 !important; }
 .dash-dropdown-wrapper:focus-within .dash-dropdown-trigger { border-color: var(--accent) !important; }
 
 .dash-dropdown-value,
@@ -109,7 +110,7 @@ html, body {
 .dash-dropdown-search-icon { color: var(--muted) !important; }
 .dash-dropdown-options { background: var(--card2) !important; }
 .dash-dropdown-option {
-  color: #c9c4bc !important;
+  color: #c7c7cf !important;
   background: transparent !important;
   padding: 9px 12px !important;
 }
@@ -117,7 +118,7 @@ html, body {
 .dash-dropdown-option.is-highlighted,
 .dash-dropdown-option[aria-selected="true"],
 .dash-dropdown-option[data-selected="true"] {
-  background: #2e2e2e !important;
+  background: #333333 !important;
   color: #ffffff !important;
 }
 
@@ -140,8 +141,8 @@ input[type="checkbox"] {
 
 /* ---- Botones ---- */
 .gym-btn {
-  background: #affb05;
-  color: #000000;
+  background: #aaff00;
+  color: #141414;
   border: none;
   border-radius: 10px;
   font-weight: 700;
@@ -150,13 +151,13 @@ input[type="checkbox"] {
   cursor: pointer;
   transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
 }
-.gym-btn:hover { filter: brightness(1.08); box-shadow: 0 8px 22px -10px #affb05; transform: translateY(-1px); }
+.gym-btn:hover { filter: brightness(1.08); box-shadow: 0 8px 22px -10px #aaff00; transform: translateY(-1px); }
 .gym-btn:active { transform: translateY(0); }
 
 .gym-btn-ghost {
   background: transparent;
   color: var(--accent);
-  border: 1px solid #affb0566;
+  border: 1px solid #aaff0066;
   border-radius: 10px;
   font-weight: 600;
   font-size: 13px;
@@ -164,16 +165,33 @@ input[type="checkbox"] {
   cursor: pointer;
   transition: background .15s ease, border-color .15s ease;
 }
-.gym-btn-ghost:hover { background: #affb0515; border-color: var(--accent); }
+.gym-btn-ghost:hover { background: #aaff0015; border-color: var(--accent); }
 
 /* ---- Tabs ---- */
 .tab-parent .tab { transition: background .15s ease, color .15s ease; }
 
 /* ---- Tabla (DataTable) afinada por estilos inline; aquí solo el hover ---- */
 .dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner tr:hover td {
-  background: #262626 !important;
+  background: #2a2a2a !important;
 }
 
 /* ---- Animación de entrada ---- */
 @keyframes gymFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .gym-fade { animation: gymFadeIn .35s ease both; }
+
+/* ---- Barra de pestanas: desplazable en horizontal ----
+   Con flex-wrap las 9 pestanas se comprimian a 58 px y el texto se desbordaba
+   sobre la vecina (Encode Sans es algo mas ancha que la fuente anterior). En
+   pantallas estrechas se desliza con el dedo, como en cualquier app movil. */
+.tab-parent .tab-container {
+  flex-wrap: nowrap !important;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.tab-parent .tab-container::-webkit-scrollbar { display: none; }
+.tab-parent .tab-container .tab {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  white-space: nowrap;
+}

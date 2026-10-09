@@ -1,10 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#000000"/>
+  <defs>
+    <radialGradient id="lima" cx="1" cy="0" r="1">
+      <stop offset="0" stop-color="#aaff00"/>
+      <stop offset="0.45" stop-color="#aaff00" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="violeta" cx="0" cy="1" r="1.1">
+      <stop offset="0" stop-color="#5920ff"/>
+      <stop offset="0.6" stop-color="#5920ff" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="borde"><rect width="512" height="512" rx="112"/></clipPath>
+  </defs>
+  <g clip-path="url(#borde)">
+    <rect width="512" height="512" fill="#0c0c10"/>
+    <rect width="512" height="512" fill="url(#violeta)"/>
+    <rect width="512" height="512" fill="url(#lima)"/>
+  </g>
   <g transform="rotate(-35 256 256)">
-    <rect x="96" y="234" width="320" height="44" rx="22" fill="#affb05"/>
-    <rect x="118" y="164" width="52" height="184" rx="18" fill="#affb05"/>
-    <rect x="342" y="164" width="52" height="184" rx="18" fill="#affb05"/>
-    <rect x="62" y="196" width="40" height="120" rx="14" fill="#ceec8a"/>
-    <rect x="410" y="196" width="40" height="120" rx="14" fill="#ceec8a"/>
+    <rect x="96" y="234" width="320" height="44" rx="22" fill="#ffffff"/>
+    <rect x="118" y="164" width="52" height="184" rx="26" fill="#ffffff"/>
+    <rect x="342" y="164" width="52" height="184" rx="26" fill="#ffffff"/>
+    <rect x="62" y="196" width="40" height="120" rx="20" fill="#aaff00"/>
+    <rect x="410" y="196" width="40" height="120" rx="20" fill="#aaff00"/>
   </g>
 </svg>

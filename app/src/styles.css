@@ -1,57 +1,75 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   GymTracker — diseño "Atleta"
-   Paleta del usuario (colores medidos en su imagen de referencia; los hex que
-   traía impresos no correspondían a lo que se veía):
-     White #FEF9F5 · Fit Green #AFFB05 · Fit Green 40% #CEEC8A
-     Black 88% #1C1C1C · Black #000000
-   Estructura: una serie a la vez, números grandes, anillo de progreso.
-   Tipografía: Inter (la misma del dashboard), cursiva pesada para lo "display".
-   Pensado para iPhone en InfinityFree: estático, sin backdrop-filter (coste de
-   GPU en Safari y tapaba las capturas), sin imágenes, zonas táctiles >= 44 px.
+   GymTracker — estructura "Atleta" + lenguaje visual del tablero de referencia
+   del usuario (paleta, tipografias y degradado aurora; NO su logo ni su nombre,
+   que son marca registrada). Colores medidos en los pixeles de la imagen: la
+   segunda muestra violeta venia rotulada #7D51FE y en realidad es #5920FF.
+     Violeta #7D51FE · Violeta intenso #5920FF · Lima #AAFF00 · Verde #7AB800
+     Negro #141414 · Gris #333333 · Blanco #FFFFFF · Gris claro #F2F2F3
+   Reglas de color: LIMA = lo que hay que hacer ahora (guardar, check, serie
+   activa); VIOLETA = estructura e identidad (bloque, segmentos, anillo).
+   Tipografias: Anton (display, numeros grandes) + Encode Sans (texto).
+   Pensado para iPhone en InfinityFree: estatico, degradados CSS (baratos), sin
+   backdrop-filter ni blur, zonas tactiles >= 44 px.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Tokens: tema CLARO ─────────────────────────────────────────────────────── */
 :root {
-  --bg: #fef9f5;            /* White */
-  --card: #ffffff;
-  --card-2: #f3eee8;
-  --line: #e6e0d9;
-  --text: #000000;          /* Black */
-  --muted: #5e5a55;
-  --lime: #affb05;          /* Fit Green: solo como RELLENO en claro */
-  --lime-soft: #ceec8a;     /* Fit Green 40% */
-  --lime-ink: #3d5a00;      /* el verde como TEXTO sobre claro (contraste AA) */
-  --lime-tint: rgba(175, 251, 5, 0.22);
-  --on-lime: #000000;
-  --danger: #d93a3f;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --font-display: 'Anton', 'Impact', 'Arial Narrow', sans-serif;
+  --font-body: 'Encode Sans', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --bg: #f2f2f3;            /* Gris claro */
+  --card: #ffffff;          /* Blanco */
+  --card-2: #ebebed;
+  --line: #e0e0e4;
+  --text: #141414;          /* Negro */
+  --muted: #5c5c66;
+  --accent: #aaff00;        /* Lima: solo como RELLENO sobre claro */
+  --accent-soft: #7ab800;   /* Verde */
+  --accent-ink: #5920ff;    /* sobre claro el texto de acento es el violeta intenso */
+  --accent-tint: rgba(170, 255, 0, 0.32);
+  --on-accent: #141414;
+  --violet: #7d51fe;
+  --violet-2: #5920ff;
+  --violet-ink: #5920ff;
+  --violet-tint: rgba(125, 81, 254, 0.12);
+  --danger: #e5484d;
+  --shadow: 0 1px 2px rgba(20, 20, 20, 0.06);
+  /* aurora: violeta abajo-izquierda, lima arriba-derecha, negro en medio */
+  --aurora:
+    radial-gradient(120% 130% at 105% -10%, rgba(170, 255, 0, 0.9) 0%, rgba(170, 255, 0, 0) 42%),
+    radial-gradient(110% 130% at -5% 110%, #5920ff 0%, rgba(89, 32, 255, 0) 58%),
+    radial-gradient(90% 100% at 10% -10%, rgba(125, 81, 254, 0.85) 0%, rgba(125, 81, 254, 0) 52%),
+    #0c0c10;
   /* mapa muscular (lo lee muscle-map.component) */
-  --map-base: #e6e0d9;
-  --map-off: #cfc8c0;
-  --map-on: #8fd400;
-  --map-cap: #5e5a55;
+  --map-base: #e0e0e4;
+  --map-off: #c9c9d0;
+  --map-on: #7d51fe;
+  --map-cap: #5c5c66;
   color-scheme: light;
 }
 
 /* ── Tokens: tema OSCURO (por defecto) ──────────────────────────────────────── */
 html.theme-dark {
-  --bg: #000000;            /* Black */
-  --card: #1c1c1c;          /* Black 88% */
-  --card-2: #262626;
-  --line: #2e2e2e;
-  --text: #fef9f5;          /* White */
-  --muted: #9c978f;
-  --lime: #affb05;
-  --lime-soft: #ceec8a;
-  --lime-ink: #affb05;      /* sobre negro el lima se lee perfecto */
-  --lime-tint: rgba(175, 251, 5, 0.12);
-  --on-lime: #000000;
+  --bg: #141414;            /* Negro */
+  --card: #1e1e1e;
+  --card-2: #2a2a2a;
+  --line: #333333;          /* Gris */
+  --text: #ffffff;          /* Blanco */
+  --muted: #a3a3ab;
+  --accent: #aaff00;
+  --accent-soft: #7ab800;
+  --accent-ink: #aaff00;
+  --accent-tint: rgba(170, 255, 0, 0.12);
+  --on-accent: #141414;
+  --violet: #7d51fe;
+  --violet-2: #5920ff;
+  --violet-ink: #ad94ff;    /* el violeta como TEXTO sobre negro, aclarado para contraste */
+  --violet-tint: rgba(125, 81, 254, 0.2);
   --danger: #ff6b6b;
   --shadow: none;
-  --map-base: #262626;
-  --map-off: #3a3a3a;
-  --map-on: #affb05;
-  --map-cap: #9c978f;
+  --map-base: #2a2a2a;
+  --map-off: #3d3d44;
+  --map-on: #aaff00;
+  --map-cap: #a3a3ab;
   color-scheme: dark;
 }
 
@@ -70,7 +88,8 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--font-body);
+  font-synthesis: none;   /* Anton tiene un solo peso: nada de negrita falsa */
   font-size: 15px;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
@@ -133,7 +152,7 @@ button:disabled {
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--lime-ink);
+  color: var(--accent-ink);
 }
 
 .section-label.warm {
@@ -188,8 +207,8 @@ button:disabled {
   min-height: 36px;
   padding: 0 14px;
   border-radius: 999px;
-  background: var(--lime);
-  color: var(--on-lime);
+  background: var(--accent);
+  color: var(--on-accent);
   font-size: 12px;
   font-weight: 800;
 }
@@ -227,11 +246,11 @@ button:disabled {
 }
 
 .ring-track {
-  stroke: var(--card-2);
+  stroke: var(--violet-tint);
 }
 
 .ring-fill {
-  stroke: var(--lime);
+  stroke: url(#ringGrad);
   stroke-linecap: round;
   transition: stroke-dashoffset 0.45s ease;
 }
@@ -253,7 +272,7 @@ button:disabled {
 }
 
 .ring-wrap.completo .ring-track {
-  stroke: var(--lime-tint);
+  stroke: var(--accent-tint);
 }
 
 .brand {
@@ -271,20 +290,25 @@ button:disabled {
 }
 
 .logo strong {
-  color: var(--lime-ink);
+  color: var(--accent-ink);
   font-weight: 800;
 }
 
 .dia {
   margin: 1px 0 0;
-  font-size: 24px;
-  line-height: 1.08;
+  font-size: 30px;
+  line-height: 1.02;
   font-weight: 800;
-  font-style: italic;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  /* en mayusculas condensadas "TORSO C - PECHO/DORSAL" no cabe en una linea:
+     se permiten dos antes de recortar, en vez de cortar a media palabra */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .sub {
@@ -329,8 +353,8 @@ button:disabled {
 }
 
 .readiness-opts button.active {
-  background: var(--lime);
-  color: var(--on-lime);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .readiness-hint {
@@ -351,7 +375,9 @@ button:disabled {
 
 .week-head strong {
   font-weight: 800;
-  font-style: italic;
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
 }
 
 .week-reset {
@@ -387,7 +413,7 @@ button:disabled {
 }
 
 .week-day.hoy {
-  outline: 2px solid var(--lime);
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
@@ -410,7 +436,7 @@ button:disabled {
 }
 
 .week-hoy {
-  color: var(--lime-ink);
+  color: var(--accent-ink);
 }
 
 .week-sesion {
@@ -435,8 +461,8 @@ button:disabled {
   flex-shrink: 0;
   padding: 4px 10px;
   border-radius: 999px;
-  background: var(--lime-tint);
-  color: var(--lime-ink);
+  background: var(--accent-tint);
+  color: var(--accent-ink);
   font-size: 11px;
   font-weight: 800;
 }
@@ -451,7 +477,7 @@ button:disabled {
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--lime-ink);
+  color: var(--accent-ink);
 }
 
 .hist-item {
@@ -496,11 +522,13 @@ button:disabled {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: var(--lime);
-  color: var(--on-lime);
+  background: var(--accent);
+  color: var(--on-accent);
   font-size: 12px;
   font-weight: 800;
-  font-style: italic;
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
 }
 
 .warmup-title {
@@ -560,8 +588,8 @@ button:disabled {
 }
 
 .dot.mov {
-  background: var(--lime-tint);
-  color: var(--lime-ink);
+  background: var(--accent-tint);
+  color: var(--accent-ink);
 }
 
 .dot.act {
@@ -601,9 +629,11 @@ button:disabled {
 
 .rs-peso {
   margin: 2px 0 0;
-  font-size: 20px;
+  font-size: 26px;
   font-weight: 800;
-  font-style: italic;
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
   font-variant-numeric: tabular-nums;
 }
 
@@ -616,7 +646,10 @@ button:disabled {
 /* ── Día de descanso / día de deporte ───────────────────────────────────────── */
 .rest-day {
   text-align: center;
-  padding: 28px 20px;
+  padding: 32px 20px;
+  border: 0;
+  background: var(--aurora);
+  color: #ffffff;
 }
 
 .rest-icon {
@@ -626,16 +659,18 @@ button:disabled {
 
 .rest-day h2 {
   margin: 12px 0 8px;
-  font-size: 26px;
+  font-size: 38px;
   font-weight: 800;
-  font-style: italic;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 
 .rest-day p {
   margin: 0 auto;
   max-width: 34ch;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.85);
   line-height: 1.55;
 }
 
@@ -661,7 +696,7 @@ button:disabled {
 
 /* la tarjeta en curso (la primera sin terminar) se marca con el borde lima */
 .exercise-card:not(.done):has(.serie.activa) {
-  border-color: var(--lime);
+  border-color: var(--violet);
   border-width: 1.5px;
 }
 
@@ -692,8 +727,8 @@ button:disabled {
   min-height: 26px;
   padding: 0 10px;
   border-radius: 999px;
-  background: var(--lime-tint);
-  color: var(--lime-ink);
+  background: var(--violet-tint);
+  color: var(--violet-ink);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -702,11 +737,13 @@ button:disabled {
 
 .card-title h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: 26px;
   line-height: 1.15;
   font-weight: 800;
-  font-style: italic;
-  letter-spacing: -0.015em;
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 
 .bodymap-wrap {
@@ -733,11 +770,13 @@ button:disabled {
 }
 
 .hero-num {
-  font-size: 46px;
+  font-size: 72px;
   line-height: 0.95;
   font-weight: 800;
-  font-style: italic;
-  letter-spacing: -0.03em;
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 
 .hero-u {
@@ -753,10 +792,12 @@ button:disabled {
 }
 
 .hero-reps {
-  font-size: 28px;
+  font-size: 40px;
   font-weight: 800;
-  font-style: italic;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 
 .hero-tag {
@@ -770,11 +811,24 @@ button:disabled {
   color: var(--danger);
 }
 
+.exercise-card:has(.serie.activa) .hero:not(.hero-hecho) {
+  margin: 14px -4px 12px;
+  padding: 18px 18px 16px;
+  border-radius: 18px;
+  background: var(--aurora);
+  color: #ffffff;
+}
+
+.exercise-card:has(.serie.activa) .hero:not(.hero-hecho) .hero-u,
+.exercise-card:has(.serie.activa) .hero:not(.hero-hecho) .hero-x {
+  color: rgba(255, 255, 255, 0.78);
+}
+
 .hero-hecho {
   align-items: center;
   font-size: 15px;
   font-weight: 800;
-  color: var(--lime-ink);
+  color: var(--accent-ink);
 }
 
 .hero-ok {
@@ -783,8 +837,8 @@ button:disabled {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: var(--lime);
-  color: var(--on-lime);
+  background: var(--accent);
+  color: var(--on-accent);
   font-size: 14px;
 }
 
@@ -803,11 +857,11 @@ button:disabled {
 }
 
 .seg.on {
-  background: var(--lime);
+  background: var(--accent);
 }
 
 .seg.now {
-  background: var(--lime-soft);
+  background: var(--violet);
 }
 
 .muscle-tags {
@@ -868,8 +922,8 @@ button:disabled {
   flex-shrink: 0;
   padding: 5px 12px;
   border-radius: 999px;
-  background: var(--lime);
-  color: var(--on-lime);
+  background: var(--accent);
+  color: var(--on-accent);
   font-size: 12px;
   font-weight: 800;
 }
@@ -894,7 +948,7 @@ button:disabled {
 
 .serie.activa {
   background: var(--card-2);
-  box-shadow: inset 0 0 0 1.5px var(--lime);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 
 .serie.al-fallo .serie-n {
@@ -947,13 +1001,13 @@ button:disabled {
 }
 
 .serie.activa .serie-check {
-  border-color: var(--lime);
+  border-color: var(--accent);
 }
 
 .serie.done .serie-check {
-  background: var(--lime);
-  border-color: var(--lime);
-  color: var(--on-lime);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
 
 .serie.done .serie-n,
@@ -997,11 +1051,11 @@ button:disabled {
   height: 100%;
   font-size: 22px;
   font-weight: 700;
-  color: var(--lime-ink);
+  color: var(--accent-ink);
 }
 
 .stepper button:active {
-  background: var(--lime-tint);
+  background: var(--accent-tint);
 }
 
 /* 16 px: por debajo Safari hace zoom al enfocar el campo */
@@ -1055,7 +1109,7 @@ button:disabled {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.06em;
-  color: var(--lime-ink);
+  color: var(--accent-ink);
 }
 
 .rpe-target {
@@ -1082,9 +1136,9 @@ button:disabled {
 }
 
 .rpe-grid button.active {
-  background: var(--lime);
-  border-color: var(--lime);
-  color: var(--on-lime);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 }
 
 .rpe-sig {
@@ -1136,8 +1190,8 @@ button:disabled {
 }
 
 .ab-icon.on {
-  color: var(--lime-ink);
-  background: var(--lime-tint);
+  color: var(--accent-ink);
+  background: var(--accent-tint);
 }
 
 .ab-save {
@@ -1145,17 +1199,19 @@ button:disabled {
   min-height: 52px;
   margin-left: 4px;
   border-radius: 16px;
-  background: var(--lime);
-  color: var(--on-lime);
+  background: var(--accent);
+  color: var(--on-accent);
   font-size: 16px;
   font-weight: 800;
-  font-style: italic;
-  letter-spacing: -0.01em;
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 
 .ab-save.done {
   background: var(--card-2);
-  color: var(--lime-ink);
+  color: var(--accent-ink);
 }
 
 /* ── Cronómetro de descanso ─────────────────────────────────────────────────── */
@@ -1169,15 +1225,15 @@ button:disabled {
   z-index: 50;
   border-radius: 18px;
   overflow: hidden;
-  background: #000000;
-  color: #fef9f5;
-  border: 1.5px solid var(--lime);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  background: var(--aurora);
+  color: #ffffff;
+  border: 0;
+  box-shadow: 0 10px 30px rgba(20, 20, 20, 0.4);
 }
 
 .timer-bar {
   height: 4px;
-  background: var(--lime);
+  background: var(--accent);
   transition: width 1s linear;
 }
 
@@ -1196,18 +1252,21 @@ button:disabled {
 }
 
 .timer-time {
-  font-size: 30px;
+  color: #ffffff !important;
+  font-size: 44px;
   line-height: 1;
   font-weight: 800;
-  font-style: italic;
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
   font-variant-numeric: tabular-nums;
-  color: var(--lime);
+  color: var(--accent);
 }
 
 .timer-name {
   margin-top: 3px;
   font-size: 12px;
-  color: #9c978f;
+  color: rgba(255, 255, 255, 0.8);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1223,19 +1282,19 @@ button:disabled {
   min-height: 42px;
   padding: 0 14px;
   border-radius: 12px;
-  background: #262626;
-  color: #fef9f5;
+  background: rgba(20, 20, 20, 0.55);
+  color: #ffffff;
   font-size: 13px;
   font-weight: 800;
 }
 
 .timer-actions .timer-skip {
-  background: var(--lime);
+  background: var(--accent);
   color: #000000;
 }
 
 .timer.fin {
-  border-color: var(--lime);
+  border-color: var(--accent);
 }
 
 /* ── Modal de técnica ───────────────────────────────────────────────────────── */
@@ -1268,7 +1327,9 @@ button:disabled {
   margin: 0;
   font-size: 20px;
   font-weight: 800;
-  font-style: italic;
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
 }
 
 .modal-x {
