@@ -35,3 +35,5 @@ Thumbs.db
 *.log
 .env
 .env.local
+python-engine/respaldo.log
+python-engine/config_usuario.vm.json

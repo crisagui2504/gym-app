@@ -1,0 +1,13 @@
+# Refresca el historial local de la VM desde InfinityFree para que el dashboard
+# publico muestre datos al dia (el motor solo corre los lunes).
+[Unit]
+Description=GymTracker - refrescar historial para el dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=azureuser
+WorkingDirectory=/home/azureuser/gym/python-engine
+Environment=TZ=America/Mexico_City
+ExecStart=/home/azureuser/gym/python-engine/.venv/bin/python exportar_local.py

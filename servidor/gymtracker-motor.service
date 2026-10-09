@@ -1,0 +1,14 @@
+# Motor semanal: exporta el historial de InfinityFree y genera/sube la rutina.
+# Lo dispara gymtracker-motor.timer. TZ de Mexico: el motor decide la semana con
+# la fecha de hoy, y en UTC un domingo a las 18:00 locales ya seria lunes.
+[Unit]
+Description=GymTracker - motor semanal (genera y sube la rutina)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=azureuser
+WorkingDirectory=/home/azureuser/gym/python-engine
+Environment=TZ=America/Mexico_City
+ExecStart=/home/azureuser/gym/python-engine/.venv/bin/python motor_semanal.py

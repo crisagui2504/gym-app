@@ -1,0 +1,7 @@
+# HTTPS automatico (Let's Encrypt) con un dominio gratuito de sslip.io, que
+# resuelve a la IP de la VM sin registrar nada. Necesita los puertos 80 y 443
+# abiertos en el grupo de seguridad de Azure.
+__DOMINIO__ {
+	encode gzip
+	reverse_proxy 127.0.0.1:8050
+}

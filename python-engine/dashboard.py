@@ -1309,6 +1309,10 @@ app = Dash(
     update_title=None,
     suppress_callback_exceptions=True,
 )
+# Objeto WSGI para servirlo en produccion con gunicorn (VM): `gunicorn dashboard:server`.
+# Nunca exponer a internet con app.run(debug=True): el depurador de Flask permite
+# ejecutar codigo arbitrario en la maquina.
+server = app.server
 
 
 def _serve_layout() -> html.Div:

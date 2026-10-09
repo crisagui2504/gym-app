@@ -1,0 +1,18 @@
+# Dashboard publico (Dash) servido por gunicorn detras de Caddy.
+# 1 proceso con hilos (no varios procesos): el tema y la config se aplican en
+# variables globales del modulo, y con varios procesos cada uno veria la suya.
+[Unit]
+Description=GymTracker - dashboard publico (gunicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=azureuser
+WorkingDirectory=/home/azureuser/gym/python-engine
+Environment=TZ=America/Mexico_City
+ExecStart=/home/azureuser/gym/python-engine/.venv/bin/gunicorn --workers 1 --threads 4 --bind 127.0.0.1:8050 --timeout 120 dashboard:server
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

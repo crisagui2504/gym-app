@@ -1,0 +1,11 @@
+# Lunes 06:00 hora de Mexico. Persistent=true: si la VM estaba apagada a esa
+# hora, se ejecuta al arrancar. El PC local es el respaldo a las 09:00.
+[Unit]
+Description=GymTracker - motor semanal, lunes 06:00 (Mexico)
+
+[Timer]
+OnCalendar=Mon *-*-* 06:00:00 America/Mexico_City
+Persistent=true
+
+[Install]
+WantedBy=timers.target

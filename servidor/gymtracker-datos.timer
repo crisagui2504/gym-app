@@ -1,0 +1,9 @@
+[Unit]
+Description=GymTracker - refrescar historial cada 3 horas
+
+[Timer]
+OnCalendar=*-*-* 00/3:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
