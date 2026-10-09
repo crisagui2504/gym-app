@@ -36,7 +36,7 @@ GRUPOS: dict[str, list[str]] = {
     "Cuádriceps":       ["cuadriceps"],
     "Isquios":          ["isquios"],
     "Glúteo":           ["gluteo", "gluteo_med"],
-    "Gemelo":           ["gemelo"],
+    "Pantorrilla":      ["gemelo"],
     "Abdomen":          ["abdomen"],
 }
 
@@ -53,7 +53,7 @@ LANDMARKS: dict[str, tuple[int, int, int, int]] = {
     "Cuádriceps":       (8, 12, 18, 20),
     "Isquios":          (6, 10, 16, 20),
     "Glúteo":           (0, 4, 12, 16),
-    "Gemelo":           (8, 12, 16, 20),
+    "Pantorrilla":      (8, 12, 16, 20),
     "Abdomen":          (0, 16, 20, 25),
 }
 

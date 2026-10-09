@@ -268,7 +268,7 @@ def _con_e1rm(df: pd.DataFrame) -> pd.DataFrame:
 
 def _fig_progresion(df: pd.DataFrame, ejercicio: str) -> go.Figure:
     if df.empty or not ejercicio:
-        return _fig_vacia("Elegí un ejercicio para ver su progresión")
+        return _fig_vacia("Elige un ejercicio para ver su progresión")
     sub = _con_e1rm(df[df["ejercicio"] == ejercicio].copy())
     sub["semana"] = sub["fecha_entreno"].dt.to_period("W").dt.start_time
     ton  = sub.groupby("semana")["tonelaje_serie"].sum().reset_index()
@@ -435,7 +435,7 @@ def _panel_encuesta() -> html.Div | None:
         return None
     if not ajustes and not dolor:
         texto = [html.P("Sin ajustes todavía: responde la encuesta al terminar cada entreno "
-                        "(y las agujetas al empezar) y el motor moverá tus series músculo por músculo.",
+                        "(y el dolor muscular al empezar) y el motor moverá tus series músculo por músculo.",
                         style={"color": MUTED, "fontSize": "13px", "margin": "0"})]
     else:
         texto = [html.P(f"{'▲' if k > 0 else '▼'} {m.capitalize()}: {k:+d} series/semana",
@@ -639,13 +639,13 @@ def _mensaje_calibracion(df: pd.DataFrame):
     if subio:
         return None
     if rpe_reciente < 8:
-        return (WARN, "Tu fuerza estimada (e1RM) lleva ~3 semanas sin subir pero reportás "
+        return (WARN, "Tu fuerza estimada (e1RM) lleva ~3 semanas sin subir pero reportas "
                 f"RPE bajo (~{rpe_reciente:.1f}). Puede que estés subestimando el esfuerzo: "
-                "si te quedan más reps de las que marcás, el motor no sube el peso. "
-                "Sé honesto con el RPE o empujá un poco más cerca del límite.")
+                "si te quedan más reps de las que marcas, el motor no sube el peso. "
+                "Sé honesto con el RPE o acércate un poco más al límite.")
     if rpe_reciente >= 9:
-        return (DANGER, f"Entrenás muy duro (RPE ~{rpe_reciente:.1f}) pero la fuerza no sube en "
-                "~3 semanas: señal de fatiga acumulada. Considerá un deload, dormir más o "
+        return (DANGER, f"Entrenas muy duro (RPE ~{rpe_reciente:.1f}) pero la fuerza no sube en "
+                "~3 semanas: señal de fatiga acumulada. Considera un deload, dormir más o "
                 "comer un poco más.")
     return None
 
@@ -663,9 +663,9 @@ def _aviso_sinergia(prioridades: list[str]) -> str | None:
         share = [m for m in prioridades if _GRUPO_PATRON.get(m) == g]
         if len(share) >= 2:
             return (f"⚠ Marcaste {' y '.join(share)}, que comparten el patrón de {g}. "
-                    "No podés dar el 100% a los dos el mismo día (uno fatiga al otro). "
+                    "No puedes dar el 100% a los dos el mismo día (uno fatiga al otro). "
                     "El motor alterna cuál va primero entre los días A y B, pero si uno es "
-                    "tu verdadero punto débil, priorizá solo ese para mejores resultados.")
+                    "tu verdadero punto débil, prioriza solo ese para mejores resultados.")
     return None
 
 
@@ -888,7 +888,7 @@ def _tabla_mesociclo(df: pd.DataFrame):
         return html.Div([
             html.P(f"No se pudo calcular el mesociclo: {exc}",
                    style={"color": WARN, "marginBottom": "8px"}),
-            html.P("Revisá que .env tenga MES_INICIO y que historial.csv tenga datos.",
+            html.P("Revisa que .env tenga MES_INICIO y que historial.csv tenga datos.",
                    style={"color": MUTED, "fontSize": "13px"}),
         ])
 
@@ -958,7 +958,7 @@ def _tab_config_children(estado: str = "real") -> html.Div:
             html.Div("Configura tu entrenamiento",
                      style={"color": TEXT, "fontWeight": "700", "fontSize": "16px",
                             "marginBottom": "4px"}),
-            html.Div("Elegí el enfoque, el split y tus músculos rezagados. El plan se "
+            html.Div("Elige el enfoque, el split y tus músculos rezagados. El plan se "
                      "reconstruye con las reglas de la teoría (patrones, bloques A/B/C, "
                      "técnicas, descansos, prioridad de orden y rotación).",
                      style={"color": MUTED, "fontSize": "13px", "marginBottom": "20px"}),
@@ -1072,7 +1072,7 @@ def _resumen_enfoque(cfg: dict) -> html.Div:
                                 "padding": "8px 10px", "background": "rgba(255,192,67,0.10)",
                                 "borderRadius": "6px", "border": "1px solid rgba(255,192,67,0.3)"})]
           if (aviso := _aviso_sinergia(cfg.get("prioridades", []))) else []),
-        html.P("El nuevo plan ya está activo. Mirá la pestaña «Plan semana» para verlo completo. "
+        html.P("El nuevo plan ya está activo. Mira la pestaña «Plan semana» para verlo completo. "
                "La próxima vez que corras el motor (planificar.py) usará este enfoque.",
                style={"color": MUTED, "fontSize": "12px", "marginTop": "12px"}),
     ])
@@ -1097,7 +1097,7 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
     elif vacio:
         banner = html.Div([
             html.Span("Sin datos todavía. ", style={"fontWeight": "700", "color": TEXT}),
-            html.Span("Registrá entrenos en la app y pulsá «🔄 Actualizar datos» para traerlos del servidor.",
+            html.Span("Registra entrenos en la app y presiona «🔄 Actualizar datos» para traerlos del servidor.",
                       style={"color": MUTED}),
         ], style={"background": "rgba(24,179,255,0.10)", "padding": "12px 16px", "fontSize": "13px",
                   "borderRadius": "10px", "marginBottom": "16px",
@@ -1253,8 +1253,8 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
         dcc.Tab(label="Logbook", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
             children=html.Div([
                 _card([
-                    html.P("Podés filtrar por cualquier columna haciendo clic en el "
-                           "ícono de filtro. Ejemplo: escribí 'Press' en Ejercicio.",
+                    html.P("Puedes filtrar por cualquier columna haciendo clic en el "
+                           "ícono de filtro. Ejemplo: escribe 'Press' en Ejercicio.",
                            style={"color": MUTED, "fontSize": "12px", "marginBottom": "12px"}),
                     _tabla_logbook(df),
                 ]),
@@ -1317,7 +1317,7 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
                         html.Span("pesos", style={"color": TEXT, "fontWeight": "600"}),
                         html.Span(" son la proyección con tu historial de hoy y se "
                                   "reajustan cada semana con tu rendimiento real "
-                                  "(sobrecarga progresiva). Filtrá por «Semana» para "
+                                  "(sobrecarga progresiva). Filtra por «Semana» para "
                                   "ver una sola.", style={"color": MUTED}),
                     ], style={"fontSize": "12px", "marginBottom": "10px"}),
                     html.Div([
@@ -1444,7 +1444,7 @@ def _refrescar_datos(n_clicks):
                               "fontSize": "13px", "border": "1px solid rgba(0,224,181,0.3)"})
         return msg, time.time()
     except Exception as exc:  # noqa: BLE001
-        msg = html.Div(f"⚠ No se pudo actualizar: {exc}. Revisá tu conexión y el .env.",
+        msg = html.Div(f"⚠ No se pudo actualizar: {exc}. Revisa tu conexión y el .env.",
                        style={"background": "rgba(255,93,122,0.12)", "color": DANGER,
                               "padding": "10px 16px", "borderRadius": "10px", "marginBottom": "16px",
                               "fontSize": "13px", "border": "1px solid rgba(255,93,122,0.3)"})
@@ -1544,7 +1544,7 @@ def _subir_plan(n_clicks):
                    "padding": "10px 16px", "borderRadius": "10px", "marginBottom": "12px",
                    "fontSize": "13px", "border": "1px solid rgba(0,224,181,0.3)"})
     except Exception as exc:  # noqa: BLE001
-        return html.Div(f"⚠ No se pudo subir el plan: {exc}. Revisá tu conexión y el .env.",
+        return html.Div(f"⚠ No se pudo subir el plan: {exc}. Revisa tu conexión y el .env.",
                         style={"background": "rgba(255,93,122,0.12)", "color": DANGER,
                                "padding": "10px 16px", "borderRadius": "10px",
                                "marginBottom": "12px", "fontSize": "13px",

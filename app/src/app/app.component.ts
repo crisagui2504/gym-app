@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import { EjercicioPlan, FeedbackItem, RutinaApiService, SerieHistorial, SeriePayload } from './rutina-api.service';
 import { MuscleMapComponent } from './muscle-map.component';
+import { AcentosPipe } from './acentos';
 import { environment } from '../environments/environment';
 import {
   ajusteIntraSesion,
@@ -73,7 +74,7 @@ interface EjercicioVM {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, MuscleMapComponent],
+  imports: [CommonModule, FormsModule, MuscleMapComponent, AcentosPipe],
   templateUrl: './app.component.html'
 })
 export class AppComponent implements OnInit, OnDestroy {
@@ -124,7 +125,7 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly encCarga = signal<Partial<Record<MuscleId, number>>>({});
   readonly encDolor = signal<string[]>([]);
   readonly opcionesAgujetas = [
-    { v: 1, t: 'Nada' }, { v: 2, t: 'Justo sanaron' }, { v: 3, t: 'Aún duelen' }
+    { v: 1, t: 'Nada' }, { v: 2, t: 'Un poco' }, { v: 3, t: 'Todavía duele' }
   ];
   readonly opcionesBombeo = [{ v: 1, t: 'Poco' }, { v: 2, t: 'Bueno' }, { v: 3, t: 'Brutal' }];
   readonly opcionesCarga = [{ v: 1, t: 'Fácil' }, { v: 2, t: 'Justa' }, { v: 3, t: 'Demasiado' }];
@@ -517,7 +518,7 @@ export class AppComponent implements OnInit, OnDestroy {
     // Un dia de deporte no se intercambia: el basquet es a una hora fija en el
     // mundo real, no una sesion que se pueda correr de dia.
     if (this.semana().find((d) => d.cal === cal)?.deporte) {
-      this.mensaje.set('Ese dia es de deporte, no se puede mover. Elegí un día de gym.');
+      this.mensaje.set('Ese día es de deporte, no se puede mover. Elige un día de gym.');
       return;
     }
     const m = this.cargarOverrideMap();

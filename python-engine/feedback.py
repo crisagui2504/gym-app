@@ -196,7 +196,7 @@ def aplicar_ajustes(filas: list[dict], ajustes: dict[str, int], dolor: dict[str,
         if hechos:
             signo = "+" if k > 0 else "-"
             motivo = ("te recuperas de sobra" if k > 0
-                      else "agujetas que no se van o carga excesiva")
+                      else "dolor muscular que no se va o carga excesiva")
             avisos.append(f"{musculo}: {signo}{hechos} series ({motivo})")
             for f in cand:
                 if f.get("_marcado"):

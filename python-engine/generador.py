@@ -118,7 +118,7 @@ def _intensidad_s34(ej, tecnica_b: str, nota_fallo: str) -> tuple[str, str]:
     polea o peso corporal, donde ir al fallo es seguro."""
     if ej.equipo in ("barra", "mancuerna"):
         return "Tradicional", ("Series previas RIR 2-3. Última serie a RPE 9 "
-                               "(fallo TÉCNICO: pará si la postura se rompe, NO al fallo muscular).")
+                               "(fallo TÉCNICO: detente si la postura se rompe, NO al fallo muscular).")
     return tecnica_b, f"Series previas RIR 2-3. {nota_fallo}"
 
 
@@ -652,11 +652,11 @@ def _dia_deporte(dia_sem: int, dep: dict, choca_con_pesas: bool = False) -> list
     # Red de seguridad: si se cambia de split (p. ej. a PPL, que ocupa 6 dias),
     # el deporte puede caer encima de un dia de pesas sin que nadie avise.
     aviso = (" OJO: este dia el plan TAMBIEN trae sesion de gym. Si es dia de "
-             "pierna, muevela: saltar con agujetas de sentadilla es riesgo de "
+             "pierna, muevela: saltar con dolor muscular de sentadilla es riesgo de "
              "rodilla y tobillo." if choca_con_pesas else "")
     return [Fila(dia_sem, nombre, "Deporte", 1, nombre, None, 0, None, None, None, None,
                  f"{mins} min. Cuenta como tu acondicionamiento (no hace falta "
-                 "cardio extra). Carga pierna: gemelo, cuadriceps y aductor, mas "
+                 "cardio extra). Carga pierna: pantorrillas, cuadriceps y aductores, mas "
                  "los aterrizajes. Calienta tobillo y cadera antes." + aviso)]
 
 

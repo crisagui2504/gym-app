@@ -20,17 +20,17 @@ export type MuscleId =
 export const MUSCLE_LABEL: Record<MuscleId, string> = {
   hombros: 'Hombros',
   pecho: 'Pecho',
-  biceps: 'Biceps',
+  biceps: 'Bíceps',
   antebrazos: 'Antebrazos',
   abdomen: 'Core',
-  cuadriceps: 'Cuadriceps',
+  cuadriceps: 'Cuádriceps',
   trapecios: 'Trapecios',
   dorsales: 'Dorsales',
-  triceps: 'Triceps',
+  triceps: 'Tríceps',
   lumbar: 'Lumbar',
-  gluteos: 'Gluteos',
+  gluteos: 'Glúteos',
   isquios: 'Isquios',
-  gemelos: 'Gemelos',
+  gemelos: 'Pantorrillas',
   aductores: 'Aductores'
 };
 
@@ -333,7 +333,7 @@ export function medidaDe(nombre: string, bloque: string | null): Medida {
     return {
       peso: false, rpe: false, cardio: true,
       cuenta: { label: 'Minutos', unidad: 'min', paso: 5, def: 40 },
-      nota: '🫀 Zona 2 · ritmo conversacional: podes hablar sin ahogarte.',
+      nota: '🫀 Zona 2 · ritmo conversacional: puedes hablar sin ahogarte.',
       objetivo: '35-45 min'
     };
   }
