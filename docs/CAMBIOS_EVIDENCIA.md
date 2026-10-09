@@ -1934,6 +1934,96 @@ el mapa de recuperación y el ajuste en la sesión. Del push se comprobaron las
 claves, la firma VAPID y el cifrado aes128gcm. El envío real queda pendiente
 de que los PHP estén subidos.
 
+## BT. El entrenador: modelo de fuerza por ejercicio y atleta virtual (2026-10-09)
+
+**El problema.** El motor solo miraba la última sesión de cada ejercicio y
+técnica. Al cerrar el rango subía +2.5 pasara lo que pasara, y nunca bajaba en
+volumen. Para comprobar si eso entrena bien hacía falta medirlo, no razonarlo.
+
+**El atleta virtual (`simulador.py`).** Es un "gemelo digital" que entrena 20
+semanas con lo que prescribe el motor:
+
+- Su fuerza real sigue la curva %1RM–reps de la tabla RTS.
+- Reporta el RPE con sesgo y ruido (Halperin 2022: la gente infravalora en ~1
+  las reps que le quedan).
+- Gana fuerza con rendimientos decrecientes y dosis-respuesta por series duras.
+- Acumula fatiga y desentrena tras 4 semanas (Bosquet 2013).
+- Sigue los ajustes que la app hace dentro de la sesión.
+
+Hay 9 perfiles: intermedio, principiante, RPE ruidoso, sin sesgo, RPE siempre
+8, arranque muy ligero, vacaciones, estrés e irregular. Las métricas son las de
+un entrenador: series en zona (dentro del rango y a 0-4 del fallo), imposibles,
+demasiado fáciles, series efectivas por semana, ganancia y saltos de más de un
+escalón por encima del 20%.
+
+**El modelo (`entrenador.py`).**
+
+- e1RM por ejercicio con cada serie y su RPE (tabla RTS, escala RIR de
+  Zourdos/Helms 2016), suavizado con una media exponencial.
+- Las series con RPE < 6 cuentan como cota inferior.
+- Sesgo de RPE asumido: 0.5.
+- Desentrenamiento a partir de 4 semanas, con tope de -15%.
+- Prescribe la carga exacta para el tope del rango al RPE objetivo. El Top Set
+  sube de RPE 8 a 9 a lo largo del mesociclo.
+- Límites por sesión: +10% normal, +15% de sondeo si sobraron 5+ reps, +30% si
+  el dato es fiable (serie a ≤3 del fallo). Hacia abajo, -15%, o -30% si no
+  llegó ni a la mitad del mínimo. Un escalón hacia abajo siempre se permite.
+- Nunca contradice a la doble progresión: una subida ganada da al menos un
+  escalón, y un fallo nunca sube. Sin evidencia (RPE dentro del objetivo) no
+  baja.
+- **Serie de calibración.** Si no sabe tu fuerza en un ejercicio, la última
+  serie pide todas las reps posibles dejando 1-2 en reserva.
+- **Deload por rendimiento.** Se adelanta si la mitad o más de los ejercicios
+  de la última semana rinden 4%+ por debajo de su tendencia, contando solo las
+  sesiones exigentes (un deload no dispara otro).
+- **Estancamiento.** Ahora se mide por e1RM, no por tonelaje.
+- **Aviso** si el RPE es siempre el mismo. En ese caso el modelo se aparta y
+  vuelve la doble progresión clásica.
+
+**Errores encontrados con el simulador y corregidos:**
+
+- `peso_volumen` nunca bajaba.
+- La regla de S4 copiaba "el mejor peso del mes" aunque con ese peso hubiera
+  salido 1 rep (+43% de golpe).
+- El back-off al 80% del Top Set dejaba 8-10 reps en reserva.
+- Las mancuernas ligeras duplicaban el peso al subir un escalón (ahora van de
+  1 kg por mano hasta 10 kg).
+- El curl de muñeca de extensores, el ejercicio del codo, tenía el suelo de
+  20 kg de la barra.
+- El "récord del mes" se medía contra la fecha real y no contra la semana que
+  se planifica.
+- Truncar las series de más de 20 reps tiraba la señal de las calibraciones.
+- Redondear tras el límite de bajada rompía el límite.
+
+**Probado y descartado.** La replanificación diaria en la VM: 59% → 58% de
+series en zona, porque el plan casi no repite ejercicio en la semana. La
+calibración del sesgo con series al fallo daba el signo al revés por la fatiga
+de las series previas.
+
+**Resultado** (mismo simulador final, 3 semillas por perfil, motor anterior →
+nuevo):
+
+| Perfil | En zona | Imposibles | Demasiado fáciles | Efectivas/sem |
+|---|---|---|---|---|
+| intermedio | 67% → 82% | 7% → 3% | 21% → 12% | 41 → 50 |
+| principiante | 68% → 76% | 9% → 6% | 19% → 13% | 41 → 46 |
+| arranque muy ligero | 53% → 68% | 3% → 2% | 42% → 27% | 32 → 42 |
+| estrés | 63% → 76% | 11% → 5% | 22% → 15% | 38 → 42 |
+| irregular | 58% → 72% | 6% → 3% | 32% → 21% | 21 → 25 |
+
+Los saltos de más de un escalón por encima del 20% quedan en el 2-3% de los
+casos, todos de calibración. Corrección honesta: una primera medición daba al
+motor anterior un 48% en zona. Eran 67% una vez que el simulador incluyó el
+ajuste dentro de la sesión que ya hace la app.
+
+**App.** Añadida la opción RPE 5 ("muy fácil, 5+ en reserva"): sin ella, una
+carga ridícula se marcaba como 6 y no disparaba el sondeo. Los escalones de
+mancuerna son ahora iguales a los del motor.
+
+**Pruebas.** Sección 45 de `test_motor` (modelo) y `tests/test_simulacion.py`
+(umbrales sobre los 9 perfiles, unos 2 minutos). `test_barrido` vuelve a tardar
+unos 18 s tras cachear el catálogo y la config.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

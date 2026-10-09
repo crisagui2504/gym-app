@@ -255,16 +255,29 @@ def simular(perfil: Perfil, semanas: int = 20, semilla: int = 1, config: dict | 
     hist = pd.DataFrame()
     semanas_info = []
     prescripciones: dict[str, list[tuple[int, float]]] = {}
+    saltos_reales: list[float] = []
     for w in range(semanas):
         lunes = inicio + timedelta(weeks=w)
         semana, reingreso, avisos = pl.decidir_semana(hist, lunes, inicio)
         plan = generar_plan(cfg, ciclo=w // 5)
         filas = pl.generar_filas(hist, lunes.isoformat(), semana, plan=plan, reingreso=reingreso,
                                  duracion_min=cfg.get("duracion_min", 90))
+        # lo que se LEVANTO la ultima vez por ejercicio y tecnica (la app puede
+        # haberlo subido o bajado dentro de la sesion)
+        levantado = {}
+        if not hist.empty:
+            for (ej, tec), g in hist.groupby(["ejercicio", "tecnica"]):
+                ult = g[g["fecha_entreno"] == g["fecha_entreno"].max()]
+                levantado[(ej, tec)] = float(ult["peso_kg"].max())
         for f in filas:
-            if f.get("peso_sugerido") and (f.get("tecnica") or "").lower() in ("top set", "tradicional"):
-                prescripciones.setdefault(f"{f['ejercicio']}|{f['tecnica']}", []).append(
-                    (w, float(f["peso_sugerido"]), semana, reingreso))
+            k = (f["ejercicio"], f["tecnica"])
+            if f.get("peso_sugerido") and k in levantado and levantado[k] > 0 and semana != 5 and not reingreso:
+                antes, ahora = levantado[k], float(f["peso_sugerido"])
+                escalon = pl.paso_carga(f["ejercicio"], antes)
+                if ahora - antes > escalon + 1e-6:      # mas de UN escalon minimo
+                    saltos_reales.append(ahora / antes - 1)
+                else:
+                    saltos_reales.append(0.0)
         if diario:
             # el entrenador re-prescribe CADA dia con lo que paso en los anteriores
             nuevas = []
@@ -283,10 +296,10 @@ def simular(perfil: Perfil, semanas: int = 20, semilla: int = 1, config: dict | 
                              "avisos": avisos, "fatiga": atleta.fatiga, "sesiones": len({r["fecha_entreno"] for r in nuevas})})
         if nuevas:
             hist = pd.DataFrame(nuevas) if hist.empty else pd.concat([hist, pd.DataFrame(nuevas)], ignore_index=True)
-    return evaluar(atleta, semanas_info, prescripciones)
+    return evaluar(atleta, semanas_info, saltos_reales)
 
 
-def evaluar(atleta: Atleta, semanas_info: list[dict], prescripciones: dict) -> dict:
+def evaluar(atleta: Atleta, semanas_info: list[dict], saltos: list[float]) -> dict:
     reg = pd.DataFrame(atleta.registros)
     con_carga = reg[(~reg["corporal"]) & (~reg["al_fallo"]) & (reg["carga"] > 0)] if not reg.empty else reg
     # imposible: ni yendo al fallo llega al minimo del rango
@@ -301,12 +314,9 @@ def evaluar(atleta: Atleta, semanas_info: list[dict], prescripciones: dict) -> d
     sem_por_ej = reg.groupby("ejercicio")["semana"].nunique() if not reg.empty else {}
     gan = [atleta.fuerza_al_dejarlo.get(n, atleta.fuerza[n]) / atleta.inicial[n] - 1 for n in atleta.fuerza
            if n in sem_por_ej and sem_por_ej[n] >= 8]
-    # saltos semana a semana de la carga prescrita (sin contar deload/reingreso)
-    saltos = []
-    for serie in prescripciones.values():
-        for (w0, p0, s0, r0), (w1, p1, s1, r1) in zip(serie, serie[1:]):
-            if w1 == w0 + 1 and s0 != 5 and s1 != 5 and not r0 and not r1 and p0 > 0:
-                saltos.append(abs(p1 / p0 - 1))
+    # saltos: carga prescrita vs la que SE LEVANTO la ultima vez (sin deload ni
+    # reingreso); subir un solo escalon minimo no cuenta (de 8 a 10 kg en unas
+    # laterales es +25% y no hay forma mas fina de subir)
     # estimulo: series EFECTIVAS por semana (dentro del rango y a 0-4 del fallo)
     n_sem = max(1, len(semanas_info))
     efectivas = float(((con_carga["reps"] >= con_carga["rmin"]) & (con_carga["rir"] <= 4)).sum()) / n_sem         if len(con_carga) else 0.0

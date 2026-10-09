@@ -94,7 +94,7 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly fecha = fechaLocal();
   readonly nombreDia = signal('Rutina de hoy');
   readonly ejercicios = signal<EjercicioVM[]>([]);
-  readonly rpeValores = [6, 7, 8, 9, 10];
+  readonly rpeValores = [5, 6, 7, 8, 9, 10];
   readonly etiquetas = MUSCLE_LABEL;
 
   readonly tema = signal<'light' | 'dark'>('dark');
@@ -949,7 +949,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private autorregular(ej: EjercicioVM, s: SerieVM): void {
     const i = ej.series.indexOf(s);
     const libres = (x: SerieVM) => !x.hecho && !x.manual && x.peso > 0;
-    const paso = pasoCarga(ej.ejercicio);
+    const paso = pasoCarga(ej.ejercicio, s.peso);
     const r2 = (v: number) => Math.round(v * 100) / 100;
 
     if (/top set/i.test(s.tecnica ?? '') && s.peso > 0) {

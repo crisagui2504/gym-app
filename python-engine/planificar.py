@@ -16,6 +16,7 @@ Reglas de progresion (ajustadas a evidencia 2022-2025, ver docs/CAMBIOS_EVIDENCI
 """
 from __future__ import annotations
 
+import functools
 import io
 import os
 import re
@@ -279,6 +280,36 @@ def marca_anterior(lp) -> str:
     return f"Anterior: {reps} reps @RPE {rpe:.0f}."
 
 
+@functools.lru_cache(maxsize=1)
+def _catalogo() -> dict:
+    """Catalogo por nombre normalizado (se construia en CADA llamada: el barrido
+    de 13.440 semanas paso de ~15 s a minutos)."""
+    import ejercicios_db as _db
+    return {_norm(e.nombre): e for e in _db.EJERCICIOS}
+
+
+_PASO_MANCUERNA: tuple[float, float] | None = None   # (mtime de la config, kg)
+_PASO_VISTO = 0.0                                     # ultima vez que se miro el archivo
+
+
+def _paso_mancuerna() -> float:
+    """paso_mancuerna_kg de la config, releida solo si el archivo cambio (y el
+    archivo se mira como mucho una vez por segundo: en OneDrive un stat es lento)."""
+    global _PASO_MANCUERNA, _PASO_VISTO
+    import time
+    if _PASO_MANCUERNA is not None and time.monotonic() - _PASO_VISTO < 1.0:
+        return _PASO_MANCUERNA[1]
+    _PASO_VISTO = time.monotonic()
+    try:
+        from config_usuario import CONFIG_PATH, cargar_config
+        mtime = CONFIG_PATH.stat().st_mtime if CONFIG_PATH.exists() else 0.0
+        if _PASO_MANCUERNA is None or _PASO_MANCUERNA[0] != mtime:
+            _PASO_MANCUERNA = (mtime, float(cargar_config().get("paso_mancuerna_kg", 2.5) or 2.5))
+        return _PASO_MANCUERNA[1]
+    except Exception:  # noqa: BLE001
+        return 2.5
+
+
 def barra_de(ejercicio: str) -> float | None:
     """Peso de la barra (kg) si el ejercicio se carga con discos en una barra.
 
@@ -286,7 +317,7 @@ def barra_de(ejercicio: str) -> float | None:
     (1.25 por lado): 41.25 kg en un press militar NO se puede cargar. El landmine
     (T-Bar) lleva discos en un solo extremo, asi que ahi 1.25 si es real."""
     import ejercicios_db as _db
-    ej = {_norm(e.nombre): e for e in _db.EJERCICIOS}.get(_norm(_db.nombre_canonico(ejercicio)))
+    ej = _catalogo().get(_norm(_db.nombre_canonico(ejercicio)))
     if ej is None or ej.equipo != "barra" or "t-bar" in ej.nombre.lower():
         return None
     # curls de muneca: barra ligera o mancuerna, nunca "minimo 20 kg". Los
@@ -330,11 +361,7 @@ def paso_carga(ejercicio: str, peso: float | None = None) -> float:
         return 2.5
     n = _norm(ejercicio)
     if "mancuerna" in n:
-        try:
-            from config_usuario import cargar_config
-            pm = float(cargar_config().get("paso_mancuerna_kg", 2.5) or 2.5)
-        except Exception:  # noqa: BLE001
-            pm = 2.5
+        pm = _paso_mancuerna()
         manos = 1 if "1 mano" in n else 2
         por_mano = (peso or 0) / manos
         return manos * (1.0 if por_mano and por_mano < 10 else pm)
@@ -504,7 +531,7 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
     import entrenador as _ent
     # hoy: hasta donde mira el modelo. Por defecto el lunes de la semana (plan
     # semanal); la replanificacion diaria pasa el dia en curso
-    modelo = _ent.ModeloFuerza(sanear_historial(df), hoy or date.fromisoformat(semana_inicio))
+    modelo = _ent.ModeloFuerza(df, hoy or date.fromisoformat(semana_inicio))   # sanea por dentro
     if modelo.estados:
         # estancamiento REAL (e1RM sin mejorar 3 semanas) en vez de "tonelaje
         # semanal", que cambia solo con cambiar el numero de series
@@ -594,8 +621,12 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                 and _es(f.tecnica, "top set", "back-off", "back off", "tradicional", "amrap",
                         "drop", "rest-pause", "rest pause", "superserie")):
             _ult = lp[0] if lp and lp[0] and lp[0] > 0 else None
+            # fallo grave (ni la mitad del minimo, p. ej. 0 reps): el peso estaba
+            # muy mal estimado y se permite bajar hasta -30% de una vez
+            _grave = bool(lp) and lp[1] < (f.reps_min or 1) / 2
             _res = modelo.carga(f.ejercicio, f.reps_max, rpe_objetivo(f.tecnica, semana_prog),
-                                _ult, paso_carga(f.ejercicio, _ult or peso), minimo=barra_de(f.ejercicio) or 0.0)
+                                _ult, paso_carga(f.ejercicio, _ult or peso), minimo=barra_de(f.ejercicio) or 0.0,
+                                bajada_max=_ent.BAJADA_MAX_FALLO if _grave else _ent.BAJADA_MAX)
             if _res:
                 # El modelo nunca CONTRADICE a la doble progresion:
                 #  - subida GANADA (tope del rango a RPE razonable): al menos un
@@ -611,6 +642,11 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                     peso = max(_res[0], cargable(f.ejercicio, _ult + paso_carga(f.ejercicio, _ult)))
                 elif _ult and _fallida:
                     peso = min(_res[0], _ult)
+                elif _ult and _res[0] < _ult and lp[2] <= rpe_objetivo(f.tecnica, semana_prog):
+                    # dentro del rango y SIN pasarse del RPE: no hay evidencia para
+                    # bajar. El modelo promedia sesiones y va por detras de quien
+                    # progresa rapido (simulador, principiante: bajaba sin motivo)
+                    peso = _ult
                 else:
                     peso = _res[0]
                 if _es(f.tecnica, "top set"):

@@ -1031,6 +1031,71 @@ check("sin plan para hoy no avisa", not rec.debe_avisar([], 0))
 check("el contacto VAPID es la URL del sitio, no un correo personal",
       av._claims("https://aguilarmunoz.infinityfree.me/api") == {"sub": "https://aguilarmunoz.infinityfree.me"})
 
+print("")
+print("== 45. El entrenador: modelo de fuerza (e1RM con RPE) ==")
+import entrenador as ent
+check("tabla RTS: 1 rep al fallo = 100%, 5 reps ~86%, y la inversa cuadra",
+      ent.pct_1rm(1) == 1.0 and abs(ent.pct_1rm(5) - 0.863) < 1e-9
+      and all(abs(ent.reps_al_fallo(ent.pct_1rm(n)) - n) < 0.01 for n in (2, 5, 8, 12, 20, 35)))
+check("la curva es continua y decreciente (sin escalon al pasar de 12 reps)",
+      all(ent.pct_1rm(n) > ent.pct_1rm(n + 0.5) for n in [x / 2 for x in range(2, 80)])
+      and abs(ent.pct_1rm(12) - ent.pct_1rm(12.0001)) < 1e-3)
+_e = ent.e1rm(100, 5, 8, sesgo=0)       # 5 reps + 2 en reserva = 7 al fallo -> 81.1%
+check("100 kg x 5 a RPE 8 -> e1RM ~123 kg (RTS)", abs(_e - 100 / 0.811) < 0.01, str(_e))
+check("carga_para es la inversa de e1rm", abs(ent.carga_para(_e, 5, 8, sesgo=0) - 100) < 0.01)
+check("al fallo (RPE 10) no se suma sesgo", ent.e1rm(100, 5, 10, sesgo=1) == ent.e1rm(100, 5, 10, sesgo=0))
+def _h45(filas):
+    return pd.DataFrame([{"fecha_entreno": pd.Timestamp(f), "ejercicio": e, "tecnica": tec, "numero_serie": n,
+                          "peso_kg": p, "reps_hechas": r, "rpe": rpe, "tonelaje_serie": p * r}
+                         for f, e, tec, n, p, r, rpe in filas])
+_PB = "Press de Banca con Barra"
+_m = ent.ModeloFuerza(_h45([("2026-10-05", _PB, "Tradicional", 1, 60, 10, 8)]), date(2026, 10, 12))
+_c = _m.carga(_PB, 10, 8, 60, 2.5, minimo=20)
+check("misma prescripcion que el rendimiento real: repite ~60 kg", _c is not None and 57.5 <= _c[0] <= 60, str(_c))
+_m = ent.ModeloFuerza(_h45([("2026-10-05", _PB, "Tradicional", 1, 60, 10, 5)]), date(2026, 10, 12))
+_c = _m.carga(_PB, 10, 8, 60, 2.5, minimo=20)
+check("te sobraron 5+ reps: sondea +15% (no +2.5)", _c is not None and _c[0] == 67.5, str(_c))
+_m = ent.ModeloFuerza(_h45([("2026-10-05", _PB, "Tradicional", 1, 60, 25, 8)]), date(2026, 10, 12))
+_c = _m.carga(_PB, 10, 8, 60, 2.5, minimo=20)
+check("serie fiable (25 reps a RPE 8 = calibracion): salta, pero como mucho +30%", _c is not None and _c[0] == 77.5, str(_c))
+_m = ent.ModeloFuerza(_h45([("2026-10-05", _PB, "Tradicional", 1, 60, 4, 10)]), date(2026, 10, 12))
+_c = _m.carga(_PB, 10, 8, 60, 2.5, minimo=20)
+check("4 reps al fallo con 60 kg: baja, pero como mucho -15%", _c is not None and _c[0] == 52.5, str(_c))
+_h8 = _h45([(f"2026-09-{d:02d}", _PB, "Tradicional", 1, 60, 10, 8) for d in range(1, 29, 2)])
+check("RPE siempre igual (el 8 por defecto): el modelo se aparta y avisa",
+      not ent.ModeloFuerza(_h8, date(2026, 10, 12)).rpe_ok
+      and ent.ModeloFuerza(_h8, date(2026, 10, 12)).carga(_PB, 10, 8, 60, 2.5) is None)
+_vieja = ent.ModeloFuerza(_h45([("2026-06-01", _PB, "Tradicional", 1, 60, 10, 8)]), date(2026, 10, 12))
+_recien = ent.ModeloFuerza(_h45([("2026-10-05", _PB, "Tradicional", 1, 60, 10, 8)]), date(2026, 10, 12))
+check("desentrenamiento: 19 semanas sin hacerlo bajan la estimacion (con tope -15%)",
+      0.85 * _recien.estado(_PB).tendencia - 0.01 <= _vieja.estado(_PB).tendencia < _recien.estado(_PB).tendencia)
+_ej4 = ["Press de Banca con Barra", "Sentadilla Libre con Barra", "Remo con Barra Agarre Prono", "Press Militar con Barra"]
+_bien = [("2026-09-28", e, "Tradicional", 1, 60, 8, 8) for e in _ej4]
+_caida = [("2026-10-05", e, "Tradicional", 1, 60, 5, 9) for e in _ej4]
+_suave = [("2026-10-05", e, "Tradicional", 1, 45, 8, 6) for e in _ej4]
+check("varios ejercicios rindiendo por debajo a la vez = fatiga (deload anticipado)",
+      ent.ModeloFuerza(_h45(_bien + _caida), date(2026, 10, 12)).fatiga_por_rendimiento())
+check("una semana SUAVE (deload) no se confunde con una caida de rendimiento",
+      not ent.ModeloFuerza(_h45(_bien + _suave), date(2026, 10, 12)).fatiga_por_rendimiento())
+_est = [(f"2026-{m}", _PB, "Tradicional", 1, 60, 8, 8) for m in ("08-31", "09-07", "09-14", "09-21", "09-28", "10-05")]
+check("estancamiento real: 3 semanas sin mejorar el e1RM",
+      _PB.lower() in ent.ModeloFuerza(_h45(_est), date(2026, 10, 12)).estancados())
+check("los curls de muneca no tienen el suelo de 20 kg de la barra (extensores = codo)",
+      pl.barra_de("Curl de Muneca Inverso (Extensores)") is None and pl.barra_de("Press de Banca con Barra") == 20)
+check("mancuernas ligeras suben de 1 kg por mano; pesadas, del paso configurado",
+      pl.paso_carga("Elevaciones Laterales Mancuernas", 8) == 2 and pl.paso_carga("Press de Banca con Mancuernas", 40) == 5
+      and pl.paso_carga("Remo con Mancuerna a 1 Mano", 25) == 2.5)
+_hm = _h45([("2026-10-05", _PB, "Tradicional", 1, 60, 12, 8)])
+_pm = generar_plan({"enfoque": "hipertrofia", "split": "upper_lower", "prioridades": [], "duracion_min": 120}, ciclo=0)
+_fm = pl.generar_filas(_hm, "2026-10-12", 2, plan=_pm, duracion_min=120)
+_pb = [f for f in _fm if f["ejercicio"] == _PB and f["tecnica"] == "Tradicional"]
+check("subida GANADA (12/12 a RPE 8): al menos un escalon real", all(f["peso_sugerido"] >= 62.5 for f in _pb), str([f["peso_sugerido"] for f in _pb]))
+_cal = [f for f in _fm if "CALIBRAR" in (f["notas"] or "")]
+check("ejercicios sin datos piden UNA serie de calibracion por semana",
+      len(_cal) > 0 and len({f["ejercicio"] for f in _cal}) == len(_cal) and all(f["ejercicio"] != _PB for f in _cal))
+check("nada de calibrar en deload", not any("CALIBRAR" in (f["notas"] or "")
+      for f in pl.generar_filas(_hm, "2026-10-12", 5, plan=_pm, duracion_min=120)))
+
 print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")

@@ -429,7 +429,11 @@ export const RPE_INFO: Tecnica = {
 
 /** Significado corto del numero de RPE elegido. */
 export function rpeSignificado(rpe: number): string {
-  if (rpe <= 6) return 'facil · ~4 reps en reserva';
+  // RPE 5 = "me sobraban 5 o mas": el motor sube un escalon grande (+15%) y
+  // pide una serie de calibracion. Sin esta opcion, una carga ridicula se
+  // marcaba como 6 y el motor subia de 2.5 en 2.5 durante semanas.
+  if (rpe <= 5) return 'muy facil · 5+ reps en reserva';
+  if (rpe === 6) return 'facil · ~4 reps en reserva';
   if (rpe === 7) return 'comodo · 3 en reserva';
   if (rpe === 8) return 'exigente · 2 en reserva';
   if (rpe === 9) return 'casi al limite · 1 en reserva';
@@ -696,13 +700,17 @@ export function rpeMaxDe(objetivo: string): number | null {
   return m ? Number(m[2] ?? m[1]) : null;
 }
 
-/** Salto de carga REAL que se puede hacer con ese equipo (kg del valor registrado):
- *  barra 2.5 (1.25 por lado); mancuernas (peso TOTAL de las dos) 5 = 2.5 por mano,
- *  y 2.5 si es a una mano (se registra una sola); maquina / polea 2.5. */
-export function pasoCarga(nombre: string): number {
+/** Salto de carga REAL que se puede hacer con ese equipo (kg del valor registrado).
+ *  Igual que paso_carga() del motor: barra 2.5 (1.25 por lado); maquina / polea
+ *  2.5; mancuernas (peso TOTAL de las dos) de 1 en 1 kg por mano hasta 10 kg y de
+ *  2.5 por mano despues; a una mano se registra una sola. */
+export function pasoCarga(nombre: string, peso = 0): number {
   const n = norm(nombre);
   if (barraDe(nombre)) return 2.5;
-  if (contieneClave(n, 'mancuerna')) return /1 mano|una mano|unilateral/.test(n) ? 2.5 : 5;
+  if (contieneClave(n, 'mancuerna')) {
+    const manos = /1 mano|una mano|unilateral/.test(n) ? 1 : 2;
+    return manos * (peso > 0 && peso / manos < 10 ? 1 : 2.5);
+  }
   return 2.5;
 }
 
