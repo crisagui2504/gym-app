@@ -462,28 +462,3 @@ FALLO_LIBRE_INSEGURO: frozenset[str] = frozenset({
 def es_axial(e: Ejercicio) -> bool:
     """True si el ejercicio carga axialmente la columna (peso muerto / RDL)."""
     return e.nombre in BISAGRA_AXIAL
-
-
-# Etiquetas legibles de patrones (para el dashboard)
-PATRON_LABEL = {
-    EMPUJE_HORIZONTAL: "Empuje Horizontal",
-    EMPUJE_VERTICAL:   "Empuje Vertical",
-    TIRON_HORIZONTAL:  "Tiron Horizontal",
-    TIRON_VERTICAL:    "Tiron Vertical",
-    DOMINANTE_RODILLA: "Dominante de Rodilla",
-    DOMINANTE_CADERA:  "Dominante de Cadera",
-    AISL_HOMBRO:       "Hombro lateral (aislamiento)",
-    AISL_HOMBRO_POST:  "Hombro posterior",
-    AISL_BICEPS:       "Biceps",
-    AISL_TRICEPS:      "Triceps",
-    AISL_ISQUIOS:      "Isquios (curl femoral)",
-    AISL_ABDUCTOR:     "Abductor / gluteo medio",
-    AISL_ADUCTOR:      "Aductores",
-    AISL_GLUTEO:       "Gluteo (patada / kickback)",
-    ROTADORES:         "Rotadores / manguito",
-    TRAPECIO:          "Trapecio (encogimientos)",
-    PANTORRILLA:       "Pantorrilla",
-    ANTEBRAZO:         "Antebrazo",
-    CORE:              "Core",
-    CARDIO:            "Cardio",
-}

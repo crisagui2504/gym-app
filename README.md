@@ -16,7 +16,7 @@ Sistema completo de seguimiento de entrenamiento con planificación automática 
 │                         TU PC (local)                               │
 │                                                                     │
 │  ┌─────────────────┐        ┌───────────────────────────────────┐   │
-│  │  python-engine/ │        │  app/ o angular-app/              │   │
+│  │  python-engine/ │        │  app/                             │   │
 │  │  Motor Python   │        │  Angular (interfaz de entreno)    │   │
 │  │  planificar.py  │        │  Tarjetas, series, RPE, timer     │   │
 │  └────────┬────────┘        └───────────────┬───────────────────┘   │
@@ -57,7 +57,6 @@ Sistema completo de seguimiento de entrenamiento con planificación automática 
 ```
 gym/
 ├── app/                  → App Angular principal (interfaz de entrenamiento)
-├── angular-app/          → Versión alternativa / experimental de la app Angular
 ├── infinityfree/         → Backend PHP + SQL para alojar en InfinityFree
 │   └── api/              → Endpoints REST
 ├── GymTracker.bat        → ▶ Ejecutable de un clic (abre el dashboard)
@@ -69,13 +68,14 @@ gym/
 │   ├── generador.py     → Genera el plan dinámicamente según tu config
 │   ├── config_usuario.py → Guarda tu enfoque elegido (lo hace permanente)
 │   ├── planificar.py    → Motor de sobrecarga progresiva (mesociclo 5 semanas)
-│   ├── plan_template.py → Dataclass Fila + plantilla de referencia
+│   ├── plan_template.py → Dataclass Fila (la unidad del plan)
 │   ├── dashboard.py     → Dashboard Dash/Plotly + configuración interactiva
 │   ├── exportar_local.py→ Descarga historial.csv + backups fechados
-│   ├── motor_semanal.py/.bat → Orquestador para el Programador de tareas
+│   ├── entrenador.py    → Modelo de fuerza por ejercicio (e1RM con RPE)
+│   ├── simulador.py     → Atleta virtual para medir al motor como entrenador
+│   ├── motor_semanal.py → Exporta el historial y genera el plan (lo llama respaldo_semanal.py)
 │   ├── tests/test_motor.py → Suite de pruebas + simulaciones de cobertura
 │   └── assets/         → CSS del dashboard (tema oscuro, lo carga Dash solo)
-├── python-scripts/       → Scripts auxiliares (optimización básica)
 ├── docs/                 → Roadmap por sprints
 └── powerbi_guide.md      → Guía alternativa para Power BI
 ```
@@ -337,15 +337,6 @@ Interfaz moderna con **tema oscuro y claro** (botón del header, se guarda en `c
 
 ---
 
-## Módulo 5 — Scripts auxiliares (`python-scripts/`)
-
-Scripts más simples, anteriores al motor completo. Útiles como referencia o para cálculos rápidos offline.
-
-- **`optimizar_rutina.py`**: lee un CSV local, calcula tonelaje por ejercicio y aplica una regla simple: si RPE < 8 sube 2.5 kg, si RPE ≥ 9.5 baja 2.5 kg. Genera `rutina_optimizada.json`.
-- **`rutina_base.json`**: plan de entrenamiento base en JSON, usado como referencia por el script anterior.
-
----
-
 ## Herramientas del repositorio
 
 ### Repomix
@@ -369,7 +360,7 @@ El archivo resultante está ignorado por git (`.gitignore`).
 
 ```
 Domingo por la noche  (automático con la tarea programada, o manual)
-  └── python planificar.py   (o motor_semanal.bat / botón del dashboard)
+  └── respaldo_semanal.py en la VM (o generar_rutina_manual.bat / botón del dashboard)
         ├── Descarga historial del servidor (+ backup fechado)
         ├── Calcula pesos para la semana siguiente (S1–S5 del mesociclo)
         │   → S2 rota Bloque B, S5 es semana de deload
@@ -383,7 +374,7 @@ Lunes a Sábado (en el gimnasio)
         └── Al terminar: "Guardar entreno" → se sube al servidor
 
 Cuando querés analizar tu progreso
-  └── .\run_dashboard.ps1 → dashboard en localhost:8050
+  └── GymTracker.bat (o https://20-150-209-104.sslip.io) → dashboard
         (tonelaje, RPE, PRs, logbook y plan de la semana)
 ```
 

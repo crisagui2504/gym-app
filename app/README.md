@@ -2,7 +2,7 @@
 
 La aplicación con la que entrenás en el gimnasio. Es una **SPA en Angular 20**
 (standalone components + signals) que se compila y se sube a InfinityFree (`htdocs/`).
-Es la versión **oficial/de producción** (la carpeta `angular-app/` es experimental).
+Es la app de producción.
 
 > Documentación técnica completa del proyecto: [`../DOCUMENTACION.md`](../DOCUMENTACION.md)
 

@@ -172,7 +172,6 @@ class Split:
     nombre: str
     descripcion: str
     dias_pesas: list[DiaPlan]   # en orden; el generador les asigna dia_semana
-    cardio_label: str = "Cardio LISS + Core"
 
 
 P = db  # alias corto

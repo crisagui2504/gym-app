@@ -180,7 +180,6 @@ class Atleta:
                             reps = min(rmin, int(math.floor(rtf)))
                     reps = max(1, reps) if rtf >= 1 else 0
                     rir_real = rtf - reps
-                    rpe_rep = None
                     if self.p.rpe_fijo is not None:
                         rpe = self.p.rpe_fijo
                     else:
@@ -254,7 +253,6 @@ def simular(perfil: Perfil, semanas: int = 20, semilla: int = 1, config: dict | 
     atleta = Atleta(perfil, semilla)
     hist = pd.DataFrame()
     semanas_info = []
-    prescripciones: dict[str, list[tuple[int, float]]] = {}
     saltos_reales: list[float] = []
     for w in range(semanas):
         lunes = inicio + timedelta(weeks=w)

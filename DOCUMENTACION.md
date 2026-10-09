@@ -332,13 +332,9 @@ gym-app/
 │       ├── rutina-api.service.ts  → RutinaApiService (cliente HTTP)
 │       └── muscle-map.component.ts→ MuscleMapComponent (mapa muscular SVG)
 │
-├── angular-app/              → Versión experimental/alternativa de la app
-│   └── README.md
-│
 ├── infinityfree/             → ★ Backend PHP + SQL (capa Edge)
 │   ├── README.md
 │   ├── schema.sql            → tablas (plan_rutina, registro_series, ...)
-│   ├── conexion.php
 │   └── api/
 │       ├── bootstrap.php          → helpers (token, CORS, PDO, JSON)
 │       ├── get_rutina_hoy.php     → GET sesión del día
@@ -352,7 +348,7 @@ gym-app/
 │   ├── generador.py          → arma el plan dinámico
 │   ├── enfoques.py           → enfoques + splits + descansos
 │   ├── ejercicios_db.py      → base de datos de ejercicios
-│   ├── plan_template.py      → dataclass Fila + plantilla de referencia
+│   ├── plan_template.py      → dataclass Fila
 │   ├── config_usuario.py     → persistencia del enfoque elegido
 │   ├── planificar.py         → sobrecarga progresiva + sincronización
 │   ├── exportar_local.py     → descarga historial.csv
@@ -360,9 +356,6 @@ gym-app/
 │   ├── dashboard.py          → panel Dash/Plotly
 │   ├── requirements.txt
 │   └── assets/dashboard.css  → estilos del dashboard
-│
-├── python-scripts/           → Scripts auxiliares (legacy / cálculos offline)
-│   └── README.md
 │
 └── docs/
     └── SPRINTS.md            → roadmap por sprints
