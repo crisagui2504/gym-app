@@ -593,6 +593,8 @@ export function barraDe(nombre: string): number | null {
   const n = norm(nombre);
   if (contieneClave(n, 'polea') || contieneClave(n, 'maquina') || contieneClave(n, 'smith')) return null;
   if (contieneClave(n, 't-bar') || contieneClave(n, 'en punta')) return null; // landmine: solo discos
+  // curls de muneca: barra ligera o mancuerna (extensores = epicondilitis, carga ligera)
+  if (n.includes('muneca')) return null;
   if (contieneClave(n, 'ez')) return 10;
   if (contieneClave(n, 'barra') || contieneClave(n, 'peso muerto convencional')) return 20;
   return null;

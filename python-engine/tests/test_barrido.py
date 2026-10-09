@@ -17,12 +17,23 @@ import ejercicios_db as db, generador as gen, planificar as pl, enfoques as enf
 POR = {e.nombre: e for e in db.EJERCICIOS}
 _orig_uyr = pl.ultimas_y_records
 _cache = {}
-def _uyr_cache(df):
-    k = id(df)
+def _uyr_cache(df, hoy=None):
+    k = (id(df), hoy)
     if k not in _cache:
-        _cache[k] = _orig_uyr(df)
+        _cache[k] = _orig_uyr(df, hoy=hoy)
     return _cache[k]
 pl.ultimas_y_records = _uyr_cache
+# el modelo de fuerza se reconstruye en cada generar_filas: con el mismo historial
+# sintetico en las 13.440 semanas, se cachea (solo para que la prueba sea rapida)
+import entrenador as _ent
+_ModeloOrig = _ent.ModeloFuerza
+_cache_mod = {}
+def _modelo_cache(df, hoy):
+    k = (len(df), hoy)
+    if k not in _cache_mod:
+        _cache_mod[k] = _ModeloOrig(df, hoy)
+    return _cache_mod[k]
+_ent.ModeloFuerza = _modelo_cache
 FALLO = ("amrap", "rest", "drop")
 fallos = collections.defaultdict(list)
 def mal(regla, tag, det=""):

@@ -168,8 +168,9 @@ def sanear_historial(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def ultimas_y_records(df: pd.DataFrame) -> tuple[dict, dict, set]:
-    """Devuelve (ultima, record_mes, estancados) por (ejercicio, familia_tecnica)."""
+def ultimas_y_records(df: pd.DataFrame, hoy: date | None = None) -> tuple[dict, dict, set]:
+    """Devuelve (ultima, record_mes, estancados) por (ejercicio, familia_tecnica).
+    hoy = referencia del "ultimo mes" (la semana que se planifica; por defecto hoy)."""
     df = sanear_historial(df)
     if df is None or df.empty or "ejercicio" not in df:
         return {}, {}, set()
@@ -182,7 +183,7 @@ def ultimas_y_records(df: pd.DataFrame) -> tuple[dict, dict, set]:
     ultima: dict = {}
     record: dict = {}
     estancados: set = set()
-    hace_mes = pd.Timestamp(date.today() - timedelta(days=28))
+    hace_mes = pd.Timestamp((hoy or date.today()) - timedelta(days=28))
 
     for k, g in df.groupby("k"):
         g = g.sort_values("fecha_entreno")
@@ -288,6 +289,12 @@ def barra_de(ejercicio: str) -> float | None:
     ej = {_norm(e.nombre): e for e in _db.EJERCICIOS}.get(_norm(_db.nombre_canonico(ejercicio)))
     if ej is None or ej.equipo != "barra" or "t-bar" in ej.nombre.lower():
         return None
+    # curls de muneca: barra ligera o mancuerna, nunca "minimo 20 kg". Los
+    # extensores son debiles y son el ejercicio de la epicondilitis (Tyler 2010:
+    # cargas ligeras); con el suelo de la barra olimpica un principiante quedaba
+    # atascado en 20 kg sin llegar al rango (simulador: 9 reps de 12-15, siempre)
+    if "muneca" in _norm(ej.nombre):
+        return None
     return 10.0 if "EZ" in ej.nombre else 20.0
 
 
@@ -310,6 +317,42 @@ def cargable(ejercicio: str, peso: float | None) -> float | None:
     if not barra or not peso or peso <= 0:
         return peso
     return max(barra, round(int(peso / 2.5 + 1e-9) * 2.5, 2))
+
+
+def paso_carga(ejercicio: str, peso: float | None = None) -> float:
+    """Salto REAL de carga del valor registrado: barra 2.5 (1.25 por lado);
+    maquina / polea 2.5; mancuernas (se registra el peso TOTAL de las dos):
+    las ligeras van de 1 en 1 kg por mano hasta 10 kg, y de ahi de
+    paso_mancuerna_kg (config, por defecto 2.5) por mano. A una mano se registra
+    una sola. Sin esto, unas laterales de 5 kg en total "subian un escalon" a 10
+    (+100%) en el simulador."""
+    if barra_de(ejercicio):
+        return 2.5
+    n = _norm(ejercicio)
+    if "mancuerna" in n:
+        try:
+            from config_usuario import cargar_config
+            pm = float(cargar_config().get("paso_mancuerna_kg", 2.5) or 2.5)
+        except Exception:  # noqa: BLE001
+            pm = 2.5
+        manos = 1 if "1 mano" in n else 2
+        por_mano = (peso or 0) / manos
+        return manos * (1.0 if por_mano and por_mano < 10 else pm)
+    return 2.5
+
+
+# RPE objetivo con el que el modelo prescribe la carga para el TOPE del rango.
+# Coincide con lo que pide la app (Top Set "RPE 8-9", resto "RPE 7-8 · deja 2-3")
+# y sube a lo largo del mesociclo (S1 base -> S4 pico), como la proximidad al
+# fallo creciente de RP / Juggernaut. El deload (S5) no pasa por el modelo.
+RPE_TOP_SET = {1: 8.0, 2: 8.5, 3: 8.5, 4: 9.0}
+RPE_VOLUMEN = 8.0
+
+
+def rpe_objetivo(tecnica: str | None, semana: int) -> float:
+    if _es(tecnica, "top set"):
+        return RPE_TOP_SET.get(semana, 8.5)
+    return RPE_VOLUMEN
 
 
 # ---- Reglas de progresion por bloque ----
@@ -346,6 +389,11 @@ def peso_volumen(fila: Fila, lp, micro) -> float | None:
         return fila.peso_base  # peso corporal: progresa por reps, no por carga
     if reps >= (fila.reps_max or 12) and rpe <= 8:
         return redondear(peso + micro)
+    if fila.reps_min and reps < fila.reps_min:
+        # no llego al minimo del rango: -5%. Antes el peso se quedaba IGUAL para
+        # siempre (solo existia la regla de subir) y el ejercicio quedaba atascado
+        # en una carga que no se podia hacer en el rango
+        return redondear(peso * 0.95)
     return redondear(peso)
 
 
@@ -377,7 +425,8 @@ _RATIO_EQUIPO: dict[tuple[str, str], float] = {
 MARGEN_ESTIMACION = 0.85
 
 
-def estimar_peso(nombre: str, familia: str, ultima: dict) -> tuple[float, str] | None:
+def estimar_peso(nombre: str, familia: str, ultima: dict, modelo=None,
+                 reps_obj: int | None = None) -> tuple[float, str] | None:
     """Peso de partida para un ejercicio SIN historial, desde un analogo que si
     lo tiene (mismo patron, equipo convertible). None si no hay base fiable.
 
@@ -409,8 +458,21 @@ def estimar_peso(nombre: str, familia: str, ultima: dict) -> tuple[float, str] |
         ratio = _RATIO_EQUIPO.get((an.equipo, ej.equipo))
         if ratio is None or not lp or not lp[0] or lp[0] <= 0:
             continue
+        # a una mano se registra UNA mancuerna; bilateral, la suma de las dos
+        una_ej, una_an = "1 mano" in ej.nombre.lower(), "1 mano" in an.nombre.lower()
+        if una_ej != una_an:
+            ratio *= 0.55 if una_ej else 1.8
         prioridad = 0 if fam == familia else 1   # top set desde top set, etc.
-        candidatos.append((prioridad, lp[0] * ratio * MARGEN_ESTIMACION, an.nombre))
+        base = lp[0] * ratio * MARGEN_ESTIMACION
+        # con el modelo de fuerza: desde el 1RM estimado del analogo y para las
+        # reps de ESTE ejercicio (su ultimo peso era para OTRO rango: un top set
+        # de 6-8 copiado a un ejercicio de 12-15 salia imposible, y al reves, ligero)
+        est_an = modelo.estado(an.nombre) if modelo is not None else None
+        if est_an is not None and reps_obj:
+            from entrenador import carga_para
+            base = carga_para(est_an.tendencia * ratio * MARGEN_ESTIMACION, reps_obj, 7.0)
+            prioridad = 0
+        candidatos.append((prioridad, base, an.nombre))
     if not candidatos:
         return None
     mejor_prio = min(c[0] for c in candidatos)
@@ -429,15 +491,28 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                   duracion_min: int | None = None,
                   ajustes: dict[str, int] | None = None,
                   dolor: dict[str, int] | None = None,
-                  avisos: list[str] | None = None) -> list[dict]:
+                  avisos: list[str] | None = None,
+                  hoy: date | None = None) -> list[dict]:
     """reingreso: 0/False normal, 1 = primera semana de vuelta (~1/3 del
     volumen, -10% carga), 2 = segunda (~2/3, -5%). Ver fase_reingreso().
     ajustes/dolor: la encuesta de la sesion (feedback.py): series por musculo y
     sesiones con dolor articular por ejercicio. Los avisos se anaden a `avisos`."""
     import feedback as _fb
     _avisos = avisos if avisos is not None else []
-    ultima, record, estancados = ultimas_y_records(df)
+    ultima, record, estancados = ultimas_y_records(df, hoy=date.fromisoformat(semana_inicio))
+    # el "entrenador": 1RM estimado por ejercicio con RPE (ver entrenador.py)
+    import entrenador as _ent
+    # hoy: hasta donde mira el modelo. Por defecto el lunes de la semana (plan
+    # semanal); la replanificacion diaria pasa el dia en curso
+    modelo = _ent.ModeloFuerza(sanear_historial(df), hoy or date.fromisoformat(semana_inicio))
+    if modelo.estados:
+        # estancamiento REAL (e1RM sin mejorar 3 semanas) en vez de "tonelaje
+        # semanal", que cambia solo con cambiar el numero de series
+        _est = modelo.estancados()
+        estancados = {k for k in ultima if k[0] in _est} | {
+            k for k in estancados if modelo.estado(k[0]) is None}
     filas: list[dict] = []
+    calibrados: set[tuple[str]] = set()
     top_del_dia: dict[tuple[int, str], float | None] = {}
     _fase = int(reingreso or 0)  # True -> 1, asi los llamadores antiguos siguen valiendo
 
@@ -486,7 +561,7 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                 peso = peso_top_set(f, lp, record.get(clave), micro, semana_prog, clave in estancados)
             nota = f"{marca} {f.notas or ''} {nota_semana(semana)}".strip()
             if peso is None:
-                _est = estimar_peso(f.ejercicio, clave[1], ultima)
+                _est = estimar_peso(f.ejercicio, clave[1], ultima, modelo, f.reps_max)
                 if _est:
                     peso, origen = _est
                     nota = f"Peso ESTIMADO desde {origen}: primera vez con este ejercicio. Empieza dejando 3-4 reps en reserva y ajusta. {nota or ''}".strip()
@@ -501,13 +576,60 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
             if marca:
                 nota = f"{marca} {nota or ''}".strip()
             if peso is None:
-                _est = estimar_peso(f.ejercicio, clave[1], ultima)
+                _est = estimar_peso(f.ejercicio, clave[1], ultima, modelo, f.reps_max)
                 if _est:
                     peso, origen = _est
                     nota = f"Peso ESTIMADO desde {origen}: primera vez con este ejercicio. Empieza dejando 3-4 reps en reserva y ajusta. {nota or ''}".strip()
 
         else:
             peso = f.peso_base  # cardio / descanso / farmer's carry
+
+        # ── EL ENTRENADOR: carga exacta para el tope del rango al RPE objetivo ─
+        # Sustituye a la regla fija (+2.5 al cerrar el rango) cuando hay datos:
+        # converge en 1-2 sesiones desde una carga mal estimada, baja si no se
+        # llega al rango, y el Back-off sale del 1RM real y no de "80% del Top
+        # Set" (con mas reps que el Top Set, el 80% dejaba 8-10 reps en reserva).
+        # El deload (S5) no pasa por aqui: ahi la carga baja a proposito.
+        if (semana != 5 and peso and peso > 0 and f.tecnica and f.reps_max
+                and _es(f.tecnica, "top set", "back-off", "back off", "tradicional", "amrap",
+                        "drop", "rest-pause", "rest pause", "superserie")):
+            _ult = lp[0] if lp and lp[0] and lp[0] > 0 else None
+            _res = modelo.carga(f.ejercicio, f.reps_max, rpe_objetivo(f.tecnica, semana_prog),
+                                _ult, paso_carga(f.ejercicio, _ult or peso), minimo=barra_de(f.ejercicio) or 0.0)
+            if _res:
+                # El modelo nunca CONTRADICE a la doble progresion:
+                #  - subida GANADA (tope del rango a RPE razonable): al menos un
+                #    escalon real; el modelo puede subir mas, no menos.
+                #  - no llego al MINIMO: nunca sube; el modelo puede bajar mas.
+                #  - entre medias manda el modelo.
+                # La regla de S4 "superar el mejor peso del mes" NO entra aqui: el
+                # mejor peso del mes podia ser uno con el que solo salio 1 rep
+                # (simulador: +43% de golpe). El pico de S4 ya lo da el RPE 9.
+                _ganada = bool(lp) and lp[1] >= f.reps_max and lp[2] <= (9 if _es(f.tecnica, "top set") else 8)
+                _fallida = bool(lp) and lp[1] < (f.reps_min or 1)
+                if _ult and _ganada:
+                    peso = max(_res[0], cargable(f.ejercicio, _ult + paso_carga(f.ejercicio, _ult)))
+                elif _ult and _fallida:
+                    peso = min(_res[0], _ult)
+                else:
+                    peso = _res[0]
+                if _es(f.tecnica, "top set"):
+                    top_del_dia[(f.dia, _norm(f.ejercicio))] = peso
+
+        # ── SERIE DE CALIBRACION ─────────────────────────────────────────────
+        # Si el modelo no sabe tu fuerza aqui (ejercicio nuevo o la ultima vez te
+        # sobraban 5+ reps), la ultima serie es una prueba: todas las reps que
+        # puedas dejando 1-2 en reserva. Una serie asi informa mas que diez
+        # faciles (es el "rep-out" de RTS / Juggernaut). Solo una vez por
+        # ejercicio y semana, nunca en deload/reingreso/S4, ni en tecnicas que ya
+        # van al fallo.
+        if (semana in (1, 2, 3) and not _fase and peso and peso > 0 and f.reps_max
+                and _es(f.tecnica, "top set", "back-off", "back off", "tradicional", "superserie")
+                and (f.ejercicio, ) not in calibrados and modelo.necesita_calibrar(f.ejercicio)):
+            calibrados.add((f.ejercicio, ))
+            nota = (f"{_ent.NOTA_CALIBRAR} en la ULTIMA serie haz todas las reps que puedas "
+                    f"dejando 1-2 en reserva y anota el RPE real (el motor ajusta tu peso con eso). "
+                    f"{nota or ''}").strip()
 
         # ── POR QUE no subio la carga ────────────────────────────────────────
         # Cerrar el rango con RPE alto bloquea la progresion (peso_volumen exige
@@ -684,6 +806,20 @@ def decidir_semana(historial: pd.DataFrame, objetivo: date, inicio: date) -> tup
         avisos.append("DELOAD REACTIVO: RPE promedio semanal >= 9 las ultimas 2 semanas. "
                       "Se adelanta la semana de descarga.")
         semana = 5
+    # Deload por RENDIMIENTO: la mitad o mas de los ejercicios recientes rinden
+    # 4%+ por debajo de su tendencia a la vez. Un mal dia afecta a uno o dos;
+    # la fatiga acumulada (o el estres de fuera del gym) afecta a todos. No en la
+    # S1 (acaba de haber descarga) ni durante un reingreso.
+    import entrenador as _ent
+    modelo = _ent.ModeloFuerza(historial, objetivo)
+    if semana in (2, 3, 4) and not reingreso and modelo.fatiga_por_rendimiento():
+        avisos.append("DELOAD POR RENDIMIENTO: la mayoria de tus ejercicios rinde por debajo "
+                      "de su tendencia. Se adelanta la descarga para recuperar.")
+        semana = 5
+    # Avisos de entrenador (no cambian el plan)
+    if not modelo.rpe_ok:
+        avisos.append("RPE: casi todas tus series tienen el MISMO RPE. Si no lo cambias, el motor "
+                      "no sabe si te sobran reps y progresa a ciegas (solo por repeticiones).")
     return semana, reingreso, avisos
 
 
