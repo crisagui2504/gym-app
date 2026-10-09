@@ -6,7 +6,7 @@ import { EjercicioPlan, FeedbackItem, RutinaApiService, SerieHistorial, SeriePay
 import { MuscleMapComponent } from './muscle-map.component';
 import { AcentosPipe } from './acentos';
 import * as almacen from './almacen';
-import { ES_DEMO, entrarDemo, salirDemo } from './demo';
+import { DemoApiService, ES_DEMO, entrarDemo, salirDemo } from './demo';
 import { environment } from '../environments/environment';
 import {
   ajusteIntraSesion,
@@ -171,6 +171,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   // ----- Modo demo (oculto: 5 toques al logo) -----
   readonly esDemo = ES_DEMO;
+  readonly demo = ES_DEMO ? inject(DemoApiService) : null;
   readonly diaDemo = signal(((new Date().getDay() + 6) % 7) + 1);
   private toquesLogo: number[] = [];
 
@@ -189,6 +190,12 @@ export class AppComponent implements OnInit, OnDestroy {
     this.diaDemo.set(dia);
     this.mostrarSemana.set(false);
     this.cargarSesion(dia);
+  }
+
+  /** Otra semana del mesociclo (S1..S5) u otro tipo de entreno: el motor lo genera. */
+  cambiarDemo(cambio: { enfoque?: string; split?: string; duracion?: number; semana?: number }): void {
+    this.demo?.cambiar(cambio);
+    this.verDiaDemo(this.diaDemo());
   }
 
   salirDemo(): void {

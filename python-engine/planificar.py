@@ -292,10 +292,29 @@ _CFG: tuple[float, dict] | None = None   # (mtime de la config, config)
 _CFG_VISTO = 0.0                         # ultima vez que se miro el archivo
 
 
+_LOCAL = __import__("threading").local()
+
+
+@__import__("contextlib").contextmanager
+def config_fija(cfg: dict):
+    """Durante el bloque, los helpers que leen la config (mancuernas, asistidas,
+    peso corporal) usan ESTA y no la del usuario. Por hilo: la demo del dashboard
+    calcula sin que una peticion real a la vez vea la config de la demo."""
+    previa = getattr(_LOCAL, "cfg", None)
+    _LOCAL.cfg = cfg
+    try:
+        yield
+    finally:
+        _LOCAL.cfg = previa
+
+
 def _cfg() -> dict:
     """La config, releida solo si el archivo cambio (y mirado como mucho una vez
     por segundo: en OneDrive un stat es lento y el barrido llama miles de veces)."""
     global _CFG, _CFG_VISTO
+    fija = getattr(_LOCAL, "cfg", None)
+    if fija is not None:
+        return fija
     import time
     if _CFG is not None and time.monotonic() - _CFG_VISTO < 1.0:
         return _CFG[1]

@@ -1947,6 +1947,70 @@ body.teclado .timer {
   touch-action: manipulation;
 }
 
+.demo-tipo {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.8fr;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.demo-tipo label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.demo-tipo span {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.demo-tipo select {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 6px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.demo-semanas {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.demo-semanas button {
+  min-height: 32px;
+  border-radius: 10px;
+  background: var(--card);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.demo-semanas button.on {
+  background: var(--violet);
+  color: #ffffff;
+}
+
+.demo-nota {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
 .demo-dias button.on {
   background: var(--accent);
   color: var(--on-accent);

@@ -3,5 +3,7 @@ export const environment = {
   // Clave PUBLICA VAPID de los avisos push (la privada vive solo en el .env de
   // la VM y del PC). Es publica por diseno: identifica a quien envia.
   vapidPublica: 'BCS9_hdrxNSozLVBuyaFF7B-BXYDxL4D4bNgVPtPWSYNU8XBxZyWnuw0HzXEK-wxw611rA5b2G17YCier15jfdc',
-  apiToken: 'GymTracker2026_SecureToken_xyz'
+  apiToken: 'GymTracker2026_SecureToken_xyz',
+  // API PUBLICA del modo demo (dashboard de la VM): solo datos simulados
+  demoApi: 'https://20-150-209-104.sslip.io/demo/api'
 };

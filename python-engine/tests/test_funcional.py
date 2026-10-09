@@ -98,6 +98,8 @@ check("los 6 callbacks del servidor estan registrados", not faltan, f"faltan: {f
 
 print()
 print("== Modo demo del dashboard: aislado y de solo lectura ==")
+import json as _json
+import demo_motor as _dm
 import exportar_demo as _dem
 _cfg_ruta = pathlib.Path(dsh.__file__).resolve().parent / "config_usuario.json"
 _cfg_antes = _cfg_ruta.read_text(encoding="utf-8") if _cfg_ruta.exists() else None
@@ -106,25 +108,71 @@ with dsh.server.test_request_context("/", headers={"Cookie": "gym_demo=1"}):
     check("con la cookie de demo se ven los datos del atleta virtual", _estado == "demo" and len(_df) > 100)
     check("la demo termina la semana pasada (fechas relativas a hoy)",
           _df["fecha_entreno"].max().date() < __import__("datetime").date.today())
-    check("en demo no se muestran tu peso, tu config ni tu encuesta",
-          "oculto" in str(dsh._panel_peso()) and "desactivada" in str(dsh._tab_config_children())
-          and dsh._panel_encuesta() is None)
-    check("en demo NINGUN callback escribe",
-          "Modo demo" in str(dsh._guardar_enfoque(1, "fuerza", "ppl", [], 99, 60, []))
-          and "no se sube" in str(dsh._subir_plan(1)) and "oculto" in str(dsh._guardar_peso_cb(1, 80, None))
+    check("en demo no se muestran tu peso ni tu encuesta",
+          "oculto" in str(dsh._panel_peso()) and dsh._panel_encuesta() is None)
+    check("en demo la configuracion muestra la de la DEMO y avisa que no toca la tuya",
+          "no se toca" in str(dsh._tab_config_children()))
+    check("en demo ningun otro callback escribe",
+          "no se sube" in str(dsh._subir_plan(1)) and "oculto" in str(dsh._guardar_peso_cb(1, 80, None))
           and "NoUpdate" in type(dsh._cambiar_tema(1)).__name__
           and "Modo demo" in str(dsh._refrescar_datos(1)[0]))
+    _meso = str(dsh._tabla_mesociclo(_df))
+    check("en demo el mesociclo muestra las 5 semanas", all(s in _meso for s in ("S1", "S2", "S3", "S4", "S5")))
+
+# guardar la config en demo: va a una COOKIE, nunca al archivo
+_cfg_ppl = _json.dumps({"enfoque": "fuerza", "split": "ppl", "duracion": 60, "prioridades": ["pecho"]})
+_cli = dsh.server.test_client()
+_cli.set_cookie("gym_demo", "1")
+_r = _cli.post("/_dash-update-component", json={
+    "output": "cfg-resultado.children", "outputs": {"id": "cfg-resultado", "property": "children"},
+    "inputs": [{"id": "cfg-guardar", "property": "n_clicks", "value": 1}],
+    "state": [{"id": "cfg-enfoque", "property": "value", "value": "fuerza"},
+              {"id": "cfg-split", "property": "value", "value": "ppl"},
+              {"id": "cfg-prioridades", "property": "value", "value": ["pecho"]},
+              {"id": "cfg-peso", "property": "value", "value": 99},
+              {"id": "cfg-duracion", "property": "value", "value": 60},
+              {"id": "cfg-equipo", "property": "value", "value": []}],
+    "changedPropIds": ["cfg-guardar.n_clicks"]})
+check("en demo, guardar la configuracion la pone en la cookie de la demo",
+      _r.status_code == 200 and "gym_demo_cfg=" in _r.headers.get("Set-Cookie", "")
+      and "ppl" in _r.headers.get("Set-Cookie", ""), f"{_r.status_code} {_r.get_data(as_text=True)[:200]}")
+with dsh.server.test_request_context("/", headers={"Cookie": f"gym_demo=1; gym_demo_cfg={_cfg_ppl}"}):
+    check("la demo usa el tipo de entreno elegido (PPL fuerza)",
+          dsh._demo_cfg()["split"] == "ppl" and dsh._demo_cfg()["enfoque"] == "fuerza")
 check("tu config sigue intacta despues de usar la demo",
       _cfg_antes == (_cfg_ruta.read_text(encoding="utf-8") if _cfg_ruta.exists() else None))
 with dsh.server.test_request_context("/"):
     check("sin la cookie, el dashboard no esta en demo", dsh._cargar_df()[1] != "demo")
 _cli = dsh.server.test_client()
-check("/demo pone la cookie y /demo/salir la quita",
+check("/demo pone la cookie y /demo/salir quita las dos",
       "gym_demo=1" in _cli.get("/demo").headers.get("Set-Cookie", "")
-      and "gym_demo=;" in _cli.get("/demo/salir").headers.get("Set-Cookie", ""))
+      and all(f"{c}=;" in " ".join(_cli.get("/demo/salir").headers.getlist("Set-Cookie"))
+              for c in ("gym_demo", "gym_demo_cfg")))
+
+print()
+print("== API publica de la demo (la usa la app) ==")
+_o = _cli.get("/demo/api/opciones")
+check("/demo/api/opciones lista enfoques, splits y las 5 semanas, con CORS",
+      _o.headers.get("Access-Control-Allow-Origin") == "*"
+      and len(_o.json["enfoques"]) >= 5 and len(_o.json["splits"]) >= 4 and len(_o.json["semanas"]) == 5)
+_e = _cli.get("/demo/api/escenario?enfoque=fuerza&split=ppl&duracion=60")
+_sem = _e.json["semanas"] if _e.status_code == 200 else {}
+check("/demo/api/escenario genera las 5 semanas x 7 dias del tipo pedido",
+      _e.headers.get("Access-Control-Allow-Origin") == "*" and sorted(_sem) == ["1", "2", "3", "4", "5"]
+      and all(sorted(_sem[s]) == [str(d) for d in range(1, 8)] for s in _sem)
+      and _e.json["config"]["split"] == "ppl")
+check("S5 es deload: menos series que S4",
+      sum(f["series_objetivo"] for d in _sem["5"].values() for f in d)
+      < sum(f["series_objetivo"] for d in _sem["4"].values() for f in d))
+check("la API tolera parametros basura (cae a la config por defecto)",
+      _cli.get("/demo/api/escenario?enfoque=<x>&split=../../etc&duracion=abc").json["config"]["split"] == "upper_lower")
+_todos = [(e, s) for e in _dm.opciones()["enfoques"] for s in _dm.opciones()["splits"]][:3]
+check("cualquier enfoque x split genera dias con ejercicios",
+      all(any(_dm.escenario({"enfoque": e["id"], "split": s["id"]})["semanas"][1][d] for d in range(1, 8))
+          for e, s in _todos))
 _ts = (pathlib.Path(_dem.DESTINO_TS)).read_text(encoding="utf-8")
-check("los datos de demo de la app existen y traen los 7 dias",
-      all(f'"{d}": [' in _ts for d in range(1, 8)) and "DEMO_HISTORIAL" in _ts)
+check("el respaldo de la app existe y trae las 5 semanas y las opciones",
+      "DEMO_ESCENARIO" in _ts and "DEMO_OPCIONES" in _ts and _ts.strip() == _dem.generar().strip())
 
 print()
 if FALLOS:

@@ -184,11 +184,23 @@ def _generar_demo() -> pd.DataFrame:
 # ─────────────────────────────────────────────────────────────────────────────
 # ─────────────────────────────────────────────────────────────────────────────
 # MODO DEMO (oculto): enlace invisible en el titulo -> /demo pone una cookie y
-# todo el dashboard usa los datos del atleta virtual (exportar_demo.py). Nada se
+# todo el dashboard usa los datos del atleta virtual (demo_motor.py, con el tipo de entreno que elijas). Nada se
 # escribe: los callbacks que guardan devuelven un aviso. /demo/salir lo apaga.
 # ─────────────────────────────────────────────────────────────────────────────
 COOKIE_DEMO = "gym_demo"
-_DEMO_CACHE: dict = {}
+COOKIE_DEMO_CFG = "gym_demo_cfg"     # el tipo de entreno elegido DENTRO de la demo
+
+
+def _demo_cfg() -> dict:
+    """Config de la demo (cookie). Nunca toca config_usuario.json."""
+    import json
+    import demo_motor
+    try:
+        from flask import request
+        crudo = json.loads(request.cookies.get(COOKIE_DEMO_CFG) or "{}")
+    except Exception:  # noqa: BLE001  (sin peticion o cookie rota)
+        crudo = {}
+    return demo_motor.normalizar(crudo)
 
 
 def _es_demo() -> bool:
@@ -200,12 +212,9 @@ def _es_demo() -> bool:
 
 
 def _df_demo() -> pd.DataFrame:
-    hoy = date.today()
-    if _DEMO_CACHE.get("dia") != hoy:
-        import exportar_demo
-        from planificar import sanear_historial
-        _DEMO_CACHE.update(dia=hoy, df=sanear_historial(exportar_demo.cargar_historial_demo(hoy)))
-    return _DEMO_CACHE["df"].copy()
+    import demo_motor
+    from planificar import sanear_historial
+    return sanear_historial(demo_motor.historial_dashboard(_demo_cfg()))
 
 
 def _aviso_demo(texto: str = "Modo demo: los datos son simulados y no se guarda nada.") -> html.Div:
@@ -825,16 +834,10 @@ def _tabla_logbook(df: pd.DataFrame):
 # Tabla del plan próxima semana
 # ─────────────────────────────────────────────────────────────────────────────
 def _tabla_plan_demo(df: pd.DataFrame, objetivo: date) -> dash_table.DataTable | html.Div:
-    """Plan de la demo: config del atleta virtual, sin tu encuesta ni preferencias."""
-    import exportar_demo as dem
-    from generador import generar_plan
-    from planificar import decidir_semana, generar_filas
-    inicio = objetivo - timedelta(weeks=dem.SEMANAS)
-    semana, reingreso, _ = decidir_semana(df, objetivo, inicio)
-    filas = generar_filas(df, objetivo.isoformat(), semana, reingreso=reingreso,
-                          plan=generar_plan(dem.CONFIG_DEMO, ciclo=dem.SEMANAS // 5),
-                          duracion_min=dem.CONFIG_DEMO["duracion_min"])
-    return _tabla_de_filas(filas)
+    """Plan de la demo: la S1 del escenario (tipo de entreno elegido en la demo)."""
+    import demo_motor
+    semanas = demo_motor.escenario(_demo_cfg())["semanas"]
+    return _tabla_de_filas([f for d in range(1, 8) for f in semanas[1][d]])
 
 
 def _tabla_plan(df: pd.DataFrame) -> dash_table.DataTable | html.Div:
@@ -928,21 +931,19 @@ def _tabla_mesociclo(df: pd.DataFrame):
         )
         inicio = date.fromisoformat(inicio_env) if inicio_env else objetivo
         ciclo = ciclo_mesociclo(objetivo)
-        extra: dict = {}
-        if _es_demo():
-            # demo: el mesociclo y la config del atleta virtual, no los tuyos
-            import exportar_demo as dem
-            from generador import generar_plan
-            inicio = objetivo - timedelta(weeks=dem.SEMANAS)
-            ciclo = (objetivo - inicio).days // 35
-            extra = {"plan": generar_plan(dem.CONFIG_DEMO, ciclo=ciclo),
-                     "duracion_min": dem.CONFIG_DEMO["duracion_min"]}
         cycle_start = inicio + timedelta(days=ciclo * 35)
+        demo_semanas = None
+        if _es_demo():
+            # demo: las 5 semanas del escenario (tipo de entreno elegido en la demo)
+            import demo_motor
+            demo_semanas = demo_motor.escenario(_demo_cfg())["semanas"]
 
         filas_all: list[dict] = []
         for sem in (1, 2, 3, 4, 5):
             fecha = cycle_start + timedelta(days=(sem - 1) * 7)
-            for f in generar_filas(df, fecha.isoformat(), sem, **extra):
+            filas_sem = ([f for d in range(1, 8) for f in demo_semanas[sem][d]] if demo_semanas
+                         else generar_filas(df, fecha.isoformat(), sem))
+            for f in filas_sem:
                 if not f.get("tecnica"):
                     continue
                 filas_all.append({
@@ -1025,9 +1026,15 @@ _DD_STYLE = {"marginTop": "6px"}
 
 def _tab_config_children(estado: str = "real") -> html.Div:
     if _es_demo():
-        return _aviso_demo("Modo demo: la configuración está desactivada (no se puede cambiar ni ver la tuya).")
-    cfg = cargar_config()
+        # demo: el mismo formulario, con la config DE LA DEMO; guardar no toca tu archivo
+        d = _demo_cfg()
+        cfg = {"enfoque": d["enfoque"], "split": d["split"], "prioridades": d["prioridades"],
+               "duracion_min": d["duracion_min"], "peso_corporal": 75, "equipo_excluido": []}
+    else:
+        cfg = cargar_config()
     return html.Div([
+        *([_aviso_demo("Modo demo: prueba cualquier tipo de entreno. Se guarda solo en esta demo "
+                       "(una cookie de tu navegador); tu configuración real no se toca.")] if _es_demo() else []),
         _card([
             html.Div("Configura tu entrenamiento",
                      style={"color": TEXT, "fontWeight": "700", "fontSize": "16px",
@@ -1499,7 +1506,43 @@ def _salir_demo():
     from flask import make_response, redirect
     r = make_response(redirect("/"))
     r.delete_cookie(COOKIE_DEMO)
+    r.delete_cookie(COOKIE_DEMO_CFG)
     return r
+
+
+# API PUBLICA de la demo: solo datos SIMULADOS (demo_motor), nunca los reales.
+# La consume el modo demo de la app (otro origen: InfinityFree), de ahi el CORS.
+def _json_demo(datos):
+    from flask import jsonify
+    r = jsonify(datos)
+    r.headers["Access-Control-Allow-Origin"] = "*"
+    r.headers["Cache-Control"] = "public, max-age=600"
+    return r
+
+
+@server.route("/demo/api/opciones")
+def _api_demo_opciones():
+    import demo_motor
+    return _json_demo(demo_motor.opciones())
+
+
+@server.route("/demo/api/escenario")
+def _api_demo_escenario():
+    import demo_motor
+    from flask import request
+    return _json_demo(demo_motor.para_app(dict(request.args)))
+
+
+def _calentar_demo() -> None:
+    """Genera en segundo plano el escenario por defecto: la demo abre al instante."""
+    try:
+        import demo_motor
+        demo_motor.escenario({})
+    except Exception:  # noqa: BLE001  (la demo nunca debe tumbar el dashboard)
+        pass
+
+
+__import__("threading").Thread(target=_calentar_demo, daemon=True).start()
 
 
 def _serve_layout() -> html.Div:
@@ -1597,7 +1640,19 @@ app.clientside_callback(
 )
 def _guardar_enfoque(n_clicks, enfoque, split, prioridades, peso, duracion, equipo):
     if _es_demo():
-        return _aviso_demo()
+        import json
+        import demo_motor
+        from dash import callback_context
+        nueva = demo_motor.normalizar({"enfoque": enfoque, "split": split, "duracion": duracion,
+                                       "prioridades": prioridades or []})
+        demo_motor.escenario(nueva)          # se calcula ya (unos segundos) y queda en cache
+        callback_context.response.set_cookie(
+            COOKIE_DEMO_CFG, json.dumps({"enfoque": nueva["enfoque"], "split": nueva["split"],
+                                         "duracion": nueva["duracion_min"],
+                                         "prioridades": nueva["prioridades"]}),
+            max_age=3 * 3600, samesite="Lax")
+        return _aviso_demo([html.Span("✓ Demo cambiada a otro tipo de entreno. "),
+                            html.A("Recargar para verla", href="/", style={"color": ACCENT, "fontWeight": "700"})])
     cfg = {
         "enfoque": enfoque,
         "split": split,

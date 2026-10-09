@@ -2113,6 +2113,59 @@ siguiente. Las fechas se guardan relativas al lunes, así que la demo nunca
 envejece. Archivos: `demo.generado.ts` (app) y `demo_historial.csv`
 (dashboard).
 
+## BW. Demo con cualquier tipo de entreno y las 5 semanas del mesociclo (2026-10-09)
+
+La demo de BV solo mostraba una config fija y una semana. Ahora enseña todo
+lo que el motor sabe hacer.
+
+**Motor de la demo (`demo_motor.py`).** Para cualquier config (5 enfoques × 4
+splits, duración, prioridades, básquetbol sí/no), el atleta virtual entrena dos
+mesociclos con ella y el motor planifica las 5 semanas del siguiente, de S1 Base
+a S5 Deload. Corre dentro de `planificar.config_fija(...)`, un override por hilo
+de `_cfg()`: no lee tu `config_usuario.json` (mancuernas, asistidas) y no
+interfiere con el dashboard real que atiende otras peticiones al mismo tiempo.
+
+- Tarda 3–7 s la primera vez por config.
+- Queda en caché, con 16 configs como máximo.
+- El escenario por defecto se precalcula al arrancar el dashboard.
+
+**Dashboard.** En demo, Configuración muestra el formulario normal con la
+config de la demo. "Generar y guardar plan" la guarda en la cookie
+`gym_demo_cfg` (3 h) y nunca en el archivo. El historial, el plan y la pestaña
+Mesociclo (S1–S5) salen de ese escenario. `/demo/salir` borra las dos cookies.
+
+**API pública de la demo** (CORS abierto, solo datos simulados):
+
+- `/demo/api/opciones` devuelve los enfoques, splits, duraciones y semanas.
+- `/demo/api/escenario?enfoque=&split=&duracion=&prioridades=&deporte=`
+  devuelve las 5 semanas × 7 días y el último mes de historial.
+- Un valor desconocido cae al valor por defecto.
+
+**App.** La banda de demo tiene:
+
+- selectores de Enfoque, Split y Duración;
+- botones S1–S5 con el nombre de la semana;
+- los 7 días.
+
+Lo elegido va en la URL (`?demo=1&enfoque=…&split=…&sem=…`), así que recargar
+lo conserva. Los planes los pide a la API de la VM. Si la VM no responde, usa
+`demo.generado.ts`, el escenario por defecto con sus 5 semanas, y avisa.
+`demo.generado.ts` se carga con `import()` en un archivo aparte, así que la app
+normal no crece. `demo_historial.csv` desaparece: el dashboard genera al vuelo.
+
+**Verificación.**
+
+- `test_funcional` tiene 17 pruebas de demo, entre ellas:
+  - la config se guarda en la cookie y el archivo real queda intacto;
+  - el mesociclo muestra S1–S5;
+  - la API tiene CORS, devuelve 5 × 7 días, el S5 lleva menos series que el S4
+    y tolera parámetros basura;
+  - el respaldo TS está sincronizado.
+- Se generaron las 20 combinaciones de enfoque × split: ninguna semana quedó
+  vacía y el deload salió en todas.
+- En el navegador se probó el cambio de semana, de split y de día, el aviso de
+  "Generando…" y el respaldo sin servidor.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

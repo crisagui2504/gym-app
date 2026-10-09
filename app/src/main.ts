@@ -11,6 +11,6 @@ if (ES_DEMO) activarAlmacenDemo();
 bootstrapApplication(AppComponent, {
   providers: [
     provideHttpClient(),
-    ...(ES_DEMO ? [{ provide: RutinaApiService, useClass: DemoApiService }] : [])
+    ...(ES_DEMO ? [DemoApiService, { provide: RutinaApiService, useExisting: DemoApiService }] : [])
   ]
 }).catch((err) => console.error(err));
