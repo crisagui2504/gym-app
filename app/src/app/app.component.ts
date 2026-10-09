@@ -2,11 +2,16 @@ import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
-import { EjercicioPlan, RutinaApiService, SerieHistorial, SeriePayload } from './rutina-api.service';
+import { EjercicioPlan, FeedbackItem, RutinaApiService, SerieHistorial, SeriePayload } from './rutina-api.service';
 import { MuscleMapComponent } from './muscle-map.component';
+import { environment } from '../environments/environment';
 import {
+  ajusteIntraSesion,
   Alternativa,
+  barraDe,
   Calentamiento,
+  Carga,
+  discosPorLado,
   MUSCLE_LABEL,
   MuscleId,
   Tecnica,
@@ -14,16 +19,20 @@ import {
   calentamientoDe,
   descansoPorTecnica,
   explicacionTecnica,
+  fatigaMuscular,
   fechaLocal,
   Medida,
   medidaDe,
   musculosDe,
   norm,
   nSeriesDe,
+  pasoCarga,
   RPE_INFO,
+  rpeMaxDe,
   rpeObjetivoDe,
   rpeSignificado,
-  seriesAproximacion
+  seriesAproximacion,
+  textoDiscos
 } from './entreno-data';
 
 interface SerieVM {
@@ -39,6 +48,9 @@ interface SerieVM {
   rpe: number;
   hecho: boolean;
   abierta: boolean;      // desplegada a mano para editarla (si no, solo la activa lo esta)
+  repsMin: number | null;
+  repsMax: number | null;
+  manual: boolean;       // el usuario toco el peso: la autorregulacion ya no lo cambia
 }
 
 interface EjercicioVM {
@@ -51,6 +63,11 @@ interface EjercicioVM {
   series: SerieVM[];     // todas las series del ejercicio, juntas
   mostrarAlt: boolean;
   alternativas: Alternativa[];
+  barra: number | null;  // kg de la barra si se carga con discos (calculadora); null si no
+  notasMotor: string[];  // lo que explica el motor (de donde sale el peso, por que no subio...)
+  verNotas: boolean;     // notas del motor desplegadas
+  miNota: string;        // nota propia ("asiento en 4"): se guarda y reaparece la proxima vez
+  aviso: { texto: string; sube: boolean } | null; // ajuste automatico de las series siguientes
 }
 
 @Component({
@@ -70,7 +87,10 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly reintentando = signal(false);
   readonly yaGuardadoHoy = signal(false);
   readonly modoOffline = signal(false);
-  private readonly onOnline = () => this.reenviarPendientes();
+  private readonly onOnline = () => {
+    this.reenviarPendientes();
+    this.reenviarFeedback();
+  };
   readonly fecha = fechaLocal();
   readonly nombreDia = signal('Rutina de hoy');
   readonly ejercicios = signal<EjercicioVM[]>([]);
@@ -78,11 +98,48 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly etiquetas = MUSCLE_LABEL;
 
   readonly tema = signal<'light' | 'dark'>('dark');
+  // Avisos push: 'on' suscrito, 'off' no, 'instalar' = iPhone sin instalar la app
+  // (Safari solo da push a apps en la pantalla de inicio), 'no' = sin soporte.
+  readonly avisos = signal<'on' | 'off' | 'instalar' | 'no'>('off');
+  readonly cambiandoAvisos = signal(false);
   readonly racha = signal(0);
   readonly mostrarCalentamiento = signal(false);
 
   // Readiness: como llegas hoy -> modula el objetivo de RPE del dia
   readonly readiness = signal<'bien' | 'normal' | 'baja' | null>(null);
+
+  // ----- Encuesta de la sesion (el motor ajusta el volumen con esto) -----
+  /** Musculos PRINCIPALES de hoy (el primero de cada ejercicio de pesas). */
+  readonly musculosHoy = computed<MuscleId[]>(() => {
+    const out: MuscleId[] = [];
+    for (const e of this.ejercicios()) {
+      const m = e.musculos[0];
+      if (!e.medida.cardio && e.medida.rpe && m && !out.includes(m)) out.push(m);
+    }
+    return out;
+  });
+  readonly agujetas = signal<Partial<Record<MuscleId, number>>>({});
+  readonly mostrarEncuesta = signal(false);
+  readonly encBombeo = signal<Partial<Record<MuscleId, number>>>({});
+  readonly encCarga = signal<Partial<Record<MuscleId, number>>>({});
+  readonly encDolor = signal<string[]>([]);
+  readonly opcionesAgujetas = [
+    { v: 1, t: 'Nada' }, { v: 2, t: 'Justo sanaron' }, { v: 3, t: 'Aún duelen' }
+  ];
+  readonly opcionesBombeo = [{ v: 1, t: 'Poco' }, { v: 2, t: 'Bueno' }, { v: 3, t: 'Brutal' }];
+  readonly opcionesCarga = [{ v: 1, t: 'Fácil' }, { v: 2, t: 'Justa' }, { v: 3, t: 'Demasiado' }];
+
+  // Mapa de recuperacion (dias de descanso y de deporte)
+  readonly recuperacion = signal<{
+    niveles: Partial<Record<MuscleId, number>>;
+    cargados: string[];
+    medios: string[];
+    listos: string[];
+  } | null>(null);
+
+  // Ultima nota propia por ejercicio (clave normalizada). Cacheada en el
+  // telefono para que aparezca tambien sin conexion.
+  private notasUsuario: Record<string, string> = {};
 
   // Historial (ultimas sesiones, desde el servidor)
   readonly mostrarHistorial = signal(false);
@@ -106,7 +163,7 @@ export class AppComponent implements OnInit, OnDestroy {
     return e.length > 0 && e.every((x) => /deporte/i.test(x.bloque || ''));
   });
   readonly calentamiento = computed<Calentamiento>(() => calentamientoDe(this.nombreDia()));
-  readonly aproximacion = computed<{ ejercicio: string; series: ReturnType<typeof seriesAproximacion> } | null>(() => {
+  readonly aproximacion = computed<{ ejercicio: string; barra: number | null; series: ReturnType<typeof seriesAproximacion> } | null>(() => {
     let mejor: EjercicioVM | null = null;
     let maxPeso = 0;
     for (const e of this.ejercicios()) {
@@ -118,7 +175,7 @@ export class AppComponent implements OnInit, OnDestroy {
     }
     if (!mejor || maxPeso < 10) return null;
     const series = seriesAproximacion(maxPeso);
-    return series.length ? { ejercicio: mejor.ejercicio, series } : null;
+    return series.length ? { ejercicio: mejor.ejercicio, barra: mejor.barra, series } : null;
   });
 
   readonly tecnicaActiva = signal<Tecnica | null>(null);
@@ -151,11 +208,20 @@ export class AppComponent implements OnInit, OnDestroy {
   });
   readonly tmrPct = computed(() => (this.tmrTotal() ? (this.tmrSeg() / this.tmrTotal()) * 100 : 0));
   private intervalo: ReturnType<typeof setInterval> | null = null;
+
+  // Pantalla siempre encendida mientras hay un entreno en curso (Screen Wake
+  // Lock). Sin esto el telefono se bloquea entre series y hay que desbloquearlo
+  // para marcar cada una. iPhone: funciona con la app instalada desde iOS 18.4+.
+  private wakeLock: WakeLockSentinel | null = null;
+  readonly pantallaFija = signal(false);
   private finAt = 0;            // timestamp (ms) en que termina el descanso
   private alarmaSonada = false;
   // recalcula al volver a la app (el setInterval se frena en segundo plano)
   private readonly onVisibilidad = () => {
-    if (!document.hidden && this.finAt > 0) this.tick();
+    if (document.hidden) return;
+    if (this.finAt > 0) this.tick();
+    // el sistema suelta el wake lock al salir de la app: se vuelve a pedir
+    if (this.entrenoEnCurso()) this.fijarPantalla();
   };
 
   ngOnInit(): void {
@@ -169,14 +235,156 @@ export class AppComponent implements OnInit, OnDestroy {
     // readiness del dia (persiste si recargas la app en el gym)
     const r = localStorage.getItem('readiness-' + this.fecha);
     if (r === 'bien' || r === 'normal' || r === 'baja') this.readiness.set(r);
+    try {
+      this.agujetas.set(JSON.parse(localStorage.getItem('agujetas-' + this.fecha) ?? '{}'));
+    } catch {
+      /* noop */
+    }
 
     // guardado blindado: estado de la cola y reintento automatico
     this.yaGuardadoHoy.set(localStorage.getItem('ultimoGuardado') === this.fecha);
     this.pendientes.set(this.leerCola().length);
     window.addEventListener('online', this.onOnline);
     this.reenviarPendientes();
+    this.reenviarFeedback();
 
+    this.cargarNotas();
     this.cargarSesion(this.sesionDe(this.weekdayHoy()));
+    this.estadoAvisos();
+    if (localStorage.getItem('inicio-' + this.fecha)) this.arrancarReloj();
+  }
+
+  // ----- Mapa de recuperacion -----
+  /** En descanso / deporte: que musculos siguen cargados segun las series de los
+   *  ultimos dias (y el partido de hoy o de ayer). Estimacion, no medicion. */
+  private cargarRecuperacion(): void {
+    this.recuperacion.set(null);
+    if (!this.esDiaDescanso() && !this.esDiaDeporte()) return;
+    const ayer = new Date();
+    ayer.setDate(ayer.getDate() - 1);
+    forkJoin([this.api.getHistorial(4), this.api.getRutinaHoy(ayer)]).subscribe({
+      next: ([hist, rutAyer]) => {
+        const series = (hist.series ?? []).map((s) => ({
+          fecha: String(s.fecha_entreno).slice(0, 10),
+          ejercicio: s.ejercicio,
+          rpe: Number(s.rpe) || 0
+        }));
+        const deporte: string[] = [];
+        if (this.esDiaDeporte()) deporte.push(this.fecha);
+        if ((rutAyer.rutina ?? []).some((f) => /deporte/i.test(f.bloque ?? ''))) deporte.push(fechaLocal(ayer));
+        const niveles = fatigaMuscular(series, new Date(), deporte);
+        const todos = Object.keys(MUSCLE_LABEL) as MuscleId[];
+        const de = (min: number, max: number) =>
+          todos.filter((m) => (niveles[m] ?? 0) >= min && (niveles[m] ?? 0) < max).map((m) => MUSCLE_LABEL[m]);
+        this.recuperacion.set({ niveles, cargados: de(0.6, 2), medios: de(0.25, 0.6), listos: de(0, 0.25) });
+      },
+      error: () => undefined // sin conexion: simplemente no se muestra
+    });
+  }
+
+  // ----- Avisos push -----
+  private esIosSinInstalar(): boolean {
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const instalada = window.matchMedia?.('(display-mode: standalone)').matches
+      || (navigator as unknown as { standalone?: boolean }).standalone === true;
+    return ios && !instalada;
+  }
+
+  private async estadoAvisos(): Promise<void> {
+    if (this.esIosSinInstalar()) return this.avisos.set('instalar');
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      return this.avisos.set('no');
+    }
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = await reg?.pushManager.getSubscription();
+      this.avisos.set(sub && Notification.permission === 'granted' ? 'on' : 'off');
+    } catch {
+      this.avisos.set('off');
+    }
+  }
+
+  async toggleAvisos(): Promise<void> {
+    const estado = this.avisos();
+    if (estado === 'instalar') {
+      this.mensaje.set('🔔 En iPhone los avisos solo llegan con la app instalada: Compartir → «Agregar a inicio», y actívalos desde ahí.');
+      return;
+    }
+    if (estado === 'no') {
+      this.mensaje.set('Este navegador no admite avisos push.');
+      return;
+    }
+    if (this.cambiandoAvisos()) return;
+    this.cambiandoAvisos.set(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      if (estado === 'on') {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          this.api.guardarSuscripcion({ endpoint: sub.endpoint, baja: true }).subscribe({ error: () => undefined });
+          await sub.unsubscribe();
+        }
+        this.avisos.set('off');
+        this.mensaje.set('🔕 Avisos desactivados.');
+        return;
+      }
+      const permiso = await Notification.requestPermission();
+      if (permiso !== 'granted') {
+        this.mensaje.set('Sin permiso de notificaciones: actívalo en los ajustes del navegador para recibir avisos.');
+        return;
+      }
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: this.claveVapid(environment.vapidPublica)
+      });
+      this.api.guardarSuscripcion(sub.toJSON()).subscribe({
+        next: () => {
+          this.avisos.set('on');
+          this.mensaje.set('🔔 Avisos activados: rutina lista el domingo y recordatorio si un día de gym no has registrado.');
+        },
+        error: () => {
+          sub.unsubscribe().catch(() => undefined);
+          this.mensaje.set('No se pudo activar los avisos (sin conexión con el servidor). Inténtalo de nuevo.');
+        }
+      });
+    } catch {
+      this.mensaje.set('No se pudo activar los avisos en este dispositivo.');
+    } finally {
+      this.cambiandoAvisos.set(false);
+    }
+  }
+
+  /** Clave VAPID base64url -> bytes (lo que pide pushManager.subscribe). */
+  private claveVapid(b64: string): Uint8Array<ArrayBuffer> {
+    const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+    const bin = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    const out = new Uint8Array(new ArrayBuffer(bin.length));
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  /** Notas propias por ejercicio: primero la copia del telefono, luego el servidor. */
+  private cargarNotas(): void {
+    try {
+      this.notasUsuario = JSON.parse(localStorage.getItem('notasEjercicio') ?? '{}');
+    } catch {
+      this.notasUsuario = {};
+    }
+    this.api.getNotas().subscribe({
+      next: (res) => {
+        const m: Record<string, string> = {};
+        for (const n of res.notas ?? []) if (n.notas) m[norm(n.ejercicio)] = n.notas;
+        this.notasUsuario = m;
+        try {
+          localStorage.setItem('notasEjercicio', JSON.stringify(m));
+        } catch {
+          /* noop */
+        }
+        // si las tarjetas ya estaban pintadas, rellena las notas que falten
+        for (const e of this.ejercicios()) if (!e.miNota) e.miNota = m[norm(e.ejercicio)] ?? '';
+      },
+      error: () => undefined // sin conexion: vale la copia local
+    });
   }
 
   /** Carga la sesion (dia del plan) que corresponde mostrar hoy.
@@ -193,6 +401,7 @@ export class AppComponent implements OnInit, OnDestroy {
         this.ejercicios.set(this.agrupar(res.rutina));
         this.recalcularProgreso();
         this.cargando.set(false);
+        this.cargarRecuperacion();
         try {
           localStorage.setItem(cacheKey, JSON.stringify(res.rutina));
         } catch {
@@ -348,6 +557,8 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.soltarPantalla();
+    if (this.relojSesion) clearInterval(this.relojSesion);
     if (this.intervalo) clearInterval(this.intervalo);
     document.removeEventListener('visibilitychange', this.onVisibilidad);
     window.removeEventListener('online', this.onOnline);
@@ -370,7 +581,12 @@ export class AppComponent implements OnInit, OnDestroy {
           tecnicas: [],
           series: [],
           mostrarAlt: false,
-          alternativas: []
+          alternativas: [],
+          barra: barraDe(ej.ejercicio),
+          notasMotor: [],
+          verNotas: false,
+          miNota: this.notasUsuario[norm(ej.ejercicio)] ?? '',
+          aviso: null
         });
       }
       this.agregarSegmento(cards[cards.length - 1], ej);
@@ -381,6 +597,8 @@ export class AppComponent implements OnInit, OnDestroy {
   /** Agrega las series de una fila del plan a su tarjeta, segun su medida. */
   private agregarSegmento(card: EjercicioVM, ej: EjercicioPlan): void {
     if (ej.tecnica && !card.tecnicas.includes(ej.tecnica)) card.tecnicas.push(ej.tecnica);
+    const nota = (ej.notas ?? '').trim();
+    if (nota && !card.notasMotor.includes(nota)) card.notasMotor.push(nota);
 
     const med = card.medida;
     const unidad = med.cuenta?.unidad ?? '';
@@ -413,7 +631,10 @@ export class AppComponent implements OnInit, OnDestroy {
         peso,
         rpe: med.rpe ? 8 : (med.cardio ? 6 : 8),
         hecho: false,
-        abierta: false
+        abierta: false,
+        repsMin: ej.reps_min,
+        repsMax: ej.reps_max,
+        manual: false
       });
     }
   }
@@ -506,6 +727,96 @@ export class AppComponent implements OnInit, OnDestroy {
     } catch {
       /* noop */
     }
+  }
+
+  // ----- Encuesta: agujetas al empezar, bombeo/carga/dolor al terminar -----
+  setAgujetas(m: MuscleId, v: number): void {
+    this.agujetas.update((a) => ({ ...a, [m]: v }));
+    try {
+      localStorage.setItem('agujetas-' + this.fecha, JSON.stringify(this.agujetas()));
+    } catch {
+      /* noop */
+    }
+    this.enviarFeedback([{ tipo: 'musculo', clave: m, agujetas: v }]);
+  }
+
+  setEnc(campo: 'bombeo' | 'carga', m: MuscleId, v: number): void {
+    (campo === 'bombeo' ? this.encBombeo : this.encCarga).update((a) => ({ ...a, [m]: v }));
+  }
+
+  toggleDolor(ejercicio: string): void {
+    this.encDolor.update((d) => (d.includes(ejercicio) ? d.filter((x) => x !== ejercicio) : [...d, ejercicio]));
+  }
+
+  /** Ejercicios de pesas de hoy (para marcar dolor articular). */
+  ejerciciosPesas(): string[] {
+    return this.ejercicios().filter((e) => !e.medida.cardio && e.medida.rpe).map((e) => e.ejercicio);
+  }
+
+  private abrirEncuesta(): void {
+    if (localStorage.getItem('encuesta-' + this.fecha) || !this.musculosHoy().length) return;
+    this.encBombeo.set({});
+    this.encCarga.set({});
+    this.encDolor.set([]);
+    this.mostrarEncuesta.set(true);
+  }
+
+  enviarEncuesta(): void {
+    const items: FeedbackItem[] = [];
+    for (const m of this.musculosHoy()) {
+      const bombeo = this.encBombeo()[m] ?? null;
+      const carga = this.encCarga()[m] ?? null;
+      if (bombeo || carga) items.push({ tipo: 'musculo', clave: m, bombeo, carga });
+    }
+    for (const e of this.encDolor()) items.push({ tipo: 'ejercicio', clave: e, dolor: 1 });
+    if (items.length) this.enviarFeedback(items);
+    this.cerrarEncuesta();
+    if (items.length) this.mensaje.set('✓ Gracias: con esto el motor ajusta tus series de la próxima semana.');
+  }
+
+  cerrarEncuesta(): void {
+    this.mostrarEncuesta.set(false);
+    try {
+      localStorage.setItem('encuesta-' + this.fecha, '1');
+    } catch {
+      /* noop */
+    }
+  }
+
+  /** Envia respuestas; si no hay conexion quedan en cola y se reenvian solas. */
+  private enviarFeedback(items: FeedbackItem[], fecha = this.fecha): void {
+    this.api.guardarFeedback(fecha, items).subscribe({
+      error: () => {
+        const cola = this.leerColaFeedback();
+        cola.push({ fecha, items });
+        this.escribirColaFeedback(cola);
+      }
+    });
+  }
+
+  private leerColaFeedback(): Array<{ fecha: string; items: FeedbackItem[] }> {
+    try {
+      const c = JSON.parse(localStorage.getItem('colaFeedback') ?? '[]');
+      return Array.isArray(c) ? c : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private escribirColaFeedback(cola: Array<{ fecha: string; items: FeedbackItem[] }>): void {
+    try {
+      localStorage.setItem('colaFeedback', JSON.stringify(cola.slice(-40)));
+    } catch {
+      /* noop */
+    }
+  }
+
+  /** Reenvia la cola de encuestas (es un upsert: reenviar no duplica nada). */
+  private reenviarFeedback(): void {
+    const cola = this.leerColaFeedback();
+    if (!cola.length) return;
+    this.escribirColaFeedback([]);
+    for (const e of cola) this.enviarFeedback(e.items, e.fecha);
   }
 
   // ----- Historial (ultimas sesiones) -----
@@ -616,13 +927,137 @@ export class AppComponent implements OnInit, OnDestroy {
   elegirAlternativa(ej: EjercicioVM, alt: Alternativa): void {
     ej.ejercicio = alt.nombre;            // cambia TODA la tarjeta (todas sus series)
     ej.musculos = alt.musculos;
+    ej.barra = barraDe(alt.nombre);
+    ej.miNota = this.notasUsuario[norm(alt.nombre)] ?? '';
+    // las notas del motor hablaban del ejercicio original (su peso anterior...)
+    ej.notasMotor = [];
     ej.mostrarAlt = false;
   }
 
   // ----- Series -----
-  ajustar(serie: SerieVM, campo: 'peso' | 'reps', delta: number): void {
-    const paso = campo === 'peso' ? 1.25 : 1;
+  ajustar(serie: SerieVM, campo: 'peso' | 'reps', delta: number, ej?: EjercicioVM): void {
+    // con barra el salto minimo real es 2.5 kg (el disco mas chico, 1.25, por lado)
+    const paso = campo === 'peso' ? (ej?.barra ? 2.5 : 1.25) : 1;
     serie[campo] = Math.max(0, Number((serie[campo] + delta * paso).toFixed(2)));
+    if (campo === 'peso') serie.manual = true;
+  }
+
+  // ----- Autorregulacion dentro de la sesion -----
+  /** Al completar una serie: corrige el peso de las SIGUIENTES si el RPE real se
+   *  alejo claramente del objetivo, y recalcula el back-off desde el Top Set REAL.
+   *  No toca series que el usuario ya edito a mano. */
+  private autorregular(ej: EjercicioVM, s: SerieVM): void {
+    const i = ej.series.indexOf(s);
+    const libres = (x: SerieVM) => !x.hecho && !x.manual && x.peso > 0;
+    const paso = pasoCarga(ej.ejercicio);
+    const r2 = (v: number) => Math.round(v * 100) / 100;
+
+    if (/top set/i.test(s.tecnica ?? '') && s.peso > 0) {
+      const backs = ej.series.filter((x) => /back/i.test(x.tecnica ?? '') && libres(x));
+      const nuevo = r2(Math.max(ej.barra ?? paso, Math.round((s.peso * 0.8) / paso) * paso));
+      if (backs.length && backs.some((b) => b.peso !== nuevo)) {
+        backs.forEach((b) => (b.peso = nuevo));
+        ej.aviso = { texto: `Back-off = 80% de tu Top Set real (${s.peso} kg) → ${nuevo} kg`, sube: nuevo >= s.peso * 0.8 };
+      }
+    }
+
+    const siguientes = ej.series.slice(i + 1).filter((x) => libres(x) && x.tecnica === s.tecnica);
+    if (!siguientes.length) return;
+    const aj = ajusteIntraSesion({
+      peso: s.peso, reps: s.reps, rpe: s.rpe, repsMin: s.repsMin, repsMax: s.repsMax,
+      rpeObjetivoMax: rpeMaxDe(this.rpeObjetivo(s, i === ej.series.length - 1)),
+      tecnica: s.tecnica, alFallo: s.alFallo, barra: ej.barra, paso
+    });
+    if (!aj) return;
+    siguientes.forEach((x) => (x.peso = aj.peso));
+    ej.aviso = { texto: `${aj.sube ? '↑' : '↓'} Siguientes series a ${aj.peso} kg · ${aj.motivo}`, sube: aj.sube };
+  }
+
+  // ----- Reloj de la sesion -----
+  readonly minutosSesion = signal<number | null>(null);
+  private relojSesion: ReturnType<typeof setInterval> | null = null;
+
+  private marcarInicioSesion(): void {
+    if (!localStorage.getItem('inicio-' + this.fecha)) {
+      try {
+        localStorage.setItem('inicio-' + this.fecha, String(Date.now()));
+      } catch {
+        /* noop */
+      }
+    }
+    this.arrancarReloj();
+  }
+
+  private arrancarReloj(): void {
+    this.tickReloj();
+    if (!this.relojSesion && !this.yaGuardadoHoy()) this.relojSesion = setInterval(() => this.tickReloj(), 30000);
+  }
+
+  private tickReloj(): void {
+    const ini = Number(localStorage.getItem('inicio-' + this.fecha) || 0);
+    if (!ini) return this.minutosSesion.set(null);
+    const fin = Number(localStorage.getItem('fin-' + this.fecha) || 0) || Date.now();
+    this.minutosSesion.set(Math.max(0, Math.round((fin - ini) / 60000)));
+  }
+
+  private pararReloj(): void {
+    try {
+      if (!localStorage.getItem('fin-' + this.fecha)) localStorage.setItem('fin-' + this.fecha, String(Date.now()));
+    } catch {
+      /* noop */
+    }
+    this.tickReloj();
+    if (this.relojSesion) clearInterval(this.relojSesion);
+    this.relojSesion = null;
+  }
+
+  // ----- Calculadora de discos -----
+  /** Discos por lado para el peso de la serie; null si no es de barra o no hace falta. */
+  cargaDe(ej: EjercicioVM, peso: number): Carga | null {
+    return ej.barra ? discosPorLado(peso, ej.barra) : null;
+  }
+
+  discosRampa(peso: number, barra: number): Carga | null {
+    return discosPorLado(peso, barra);
+  }
+
+  textoCarga(c: Carga): string {
+    return textoDiscos(c);
+  }
+
+  /** Mancuernas (peso TOTAL de las dos): "2 × 12.5 kg" para saber que agarrar. */
+  porMancuerna(ej: EjercicioVM, peso: number): string | null {
+    if (!peso || !ej.ejercicio.toLowerCase().includes('mancuerna')) return null;
+    const m = Math.round((peso / 2) * 100) / 100;
+    return `2 × ${m} kg`;
+  }
+
+  // ----- Pantalla siempre encendida -----
+  /** Hay un entreno empezado y sin guardar: es cuando la pantalla no debe apagarse. */
+  private entrenoEnCurso(): boolean {
+    return !this.yaGuardadoHoy() && this.progreso().hechas > 0;
+  }
+
+  private async fijarPantalla(): Promise<void> {
+    if (this.wakeLock || document.hidden || !('wakeLock' in navigator)) return;
+    try {
+      const wl = await navigator.wakeLock.request('screen');
+      this.wakeLock = wl;
+      this.pantallaFija.set(true);
+      wl.addEventListener('release', () => {
+        if (this.wakeLock === wl) this.wakeLock = null;
+        this.pantallaFija.set(false);
+      });
+    } catch {
+      /* bateria baja o el sistema lo niega: se sigue sin el */
+    }
+  }
+
+  private soltarPantalla(): void {
+    const wl = this.wakeLock;
+    this.wakeLock = null;
+    this.pantallaFija.set(false);
+    wl?.release().catch(() => undefined);
   }
 
   setRpe(serie: SerieVM, rpe: number): void {
@@ -647,7 +1082,12 @@ export class AppComponent implements OnInit, OnDestroy {
     serie.hecho = !serie.hecho;
     if (serie.hecho) serie.abierta = false; // al completarla se pliega y pasa la siguiente
     this.recalcularProgreso();
-    if (serie.hecho) this.iniciarDescanso(serie, ej.ejercicio);
+    if (serie.hecho) {
+      this.iniciarDescanso(serie, ej.ejercicio);
+      this.fijarPantalla();
+      this.marcarInicioSesion();
+      this.autorregular(ej, serie);
+    }
   }
 
   // ----- Estructura "Atleta": una serie a la vez -----
@@ -803,7 +1243,8 @@ export class AppComponent implements OnInit, OnDestroy {
     }
     const items: SeriePayload[] = [];
     for (const ej of this.ejercicios()) {
-      for (const s of ej.series) {
+      const nota = ej.miNota.trim().slice(0, 200) || null;
+      ej.series.forEach((s, i) => {
         items.push({
           plan_id: s.planId,
           ejercicio: ej.ejercicio,
@@ -811,9 +1252,16 @@ export class AppComponent implements OnInit, OnDestroy {
           numero_serie: s.numeroSerie,
           peso_kg: s.peso,
           repeticiones: s.reps,
-          rpe: s.rpe
+          rpe: s.rpe,
+          notas: i === 0 ? nota : null   // la nota va una vez por ejercicio
         });
-      }
+      });
+      if (nota) this.notasUsuario[norm(ej.ejercicio)] = nota;
+    }
+    try {
+      localStorage.setItem('notasEjercicio', JSON.stringify(this.notasUsuario));
+    } catch {
+      /* noop */
     }
 
     this.guardando.set(true);
@@ -822,6 +1270,8 @@ export class AppComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.registrarRacha();
         this.marcarGuardadoHoy();
+        this.soltarPantalla();
+        this.pararReloj();
         const prs = this.detectarPrs(items);
         if (prs.length) {
           this.celebrar();
@@ -831,12 +1281,14 @@ export class AppComponent implements OnInit, OnDestroy {
         }
         this.guardando.set(false);
         this.reenviarPendientes();
+        this.abrirEncuesta();
       },
       error: () => {
         // No se pierde nada: queda en el telefono y se reenvia solo
         this.encolar(this.fecha, items);
         this.mensaje.set(`📥 Sin conexion: tu entreno (${items.length} series) quedo guardado en el telefono. Se reenviara solo al volver internet, o toca "Reintentar".`);
         this.guardando.set(false);
+        this.abrirEncuesta();
       }
     });
   }

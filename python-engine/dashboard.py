@@ -379,6 +379,79 @@ def _fig_rpe(df: pd.DataFrame) -> go.Figure:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Volumen por músculo (series efectivas/semana vs landmarks MEV-MAV-MRV)
+# ─────────────────────────────────────────────────────────────────────────────
+def _fig_volumen_musculo(df: pd.DataFrame, hoy: date | None = None) -> go.Figure:
+    import volumen as vol
+    hoy = hoy or date.today()
+    pasada, esta, proxima = vol.semanas_recientes(hoy)
+    s_pas = vol.series_por_grupo(df, pasada, esta)
+    s_act = vol.series_por_grupo(df, esta, proxima)
+    grupos = list(vol.GRUPOS)
+    fig = go.Figure()
+    # banda MAV (rango productivo) y marcas de MEV / MRV por fila
+    for i, g in enumerate(grupos):
+        mev, lo, hi, mrv = vol.LANDMARKS[g]
+        fig.add_shape(type="rect", xref="x", yref="y", x0=lo, x1=hi, y0=i - 0.42, y1=i + 0.42,
+                      fillcolor="rgba(170,255,0,0.10)", line_width=0, layer="below")
+        for x, c in ((mev, MUTED), (mrv, DANGER)):
+            fig.add_shape(type="line", xref="x", yref="y", x0=x, x1=x, y0=i - 0.42, y1=i + 0.42,
+                          line=dict(color=c, width=2, dash="dot"), layer="below")
+    colores = {"bajo": MUTED, "mínimo": WARN, "productivo": ACCENT, "alto": ACCENT2, "sobre MRV": DANGER}
+    fig.add_trace(go.Bar(
+        y=grupos, x=[s_pas[g] for g in grupos], orientation="h", name="Semana pasada",
+        marker_color=[colores[vol.zona(g, s_pas[g])] for g in grupos], marker_line_width=0,
+        text=[f"{s_pas[g]:g}" for g in grupos], textposition="outside",
+        textfont=dict(color=TEXT, size=11),
+        hovertemplate="%{y}: %{x} series (semana pasada)<extra></extra>",
+    ))
+    fig.add_trace(go.Bar(
+        y=grupos, x=[s_act[g] for g in grupos], orientation="h", name="Esta semana (en curso)",
+        marker_color="rgba(125,81,254,0.55)", marker_line_width=0,
+        hovertemplate="%{y}: %{x} series (esta semana)<extra></extra>",
+    ))
+    fig.update_layout(
+        **{**PLOTLY_THEME, "margin": dict(l=20, r=30, t=64, b=40)},
+        title=_titulo("Series efectivas por músculo · semana"),
+        barmode="group", bargap=0.25, height=620,
+        xaxis=dict(title="series / semana", gridcolor=GRID, rangemode="tozero"),
+        yaxis=dict(autorange="reversed", gridcolor="rgba(0,0,0,0)"),
+        legend=dict(orientation="h", y=-0.08, x=0),
+    )
+    return fig
+
+
+def _panel_encuesta() -> html.Div | None:
+    """Que cambio el motor por la encuesta de la sesion (si hay respuestas)."""
+    try:
+        import feedback as fbk
+        from planificar import lunes_objetivo
+        from dotenv import load_dotenv
+        load_dotenv()
+        objetivo = lunes_objetivo()
+        inicio = date.fromisoformat(os.getenv("MES_INICIO") or objetivo.isoformat())
+        ajustes, dolor = fbk.ajustes_para(fbk.leer_csv(CSV_PATH.parent), objetivo, inicio)
+    except Exception:  # noqa: BLE001
+        return None
+    if not ajustes and not dolor:
+        texto = [html.P("Sin ajustes todavía: responde la encuesta al terminar cada entreno "
+                        "(y las agujetas al empezar) y el motor moverá tus series músculo por músculo.",
+                        style={"color": MUTED, "fontSize": "13px", "margin": "0"})]
+    else:
+        texto = [html.P(f"{'▲' if k > 0 else '▼'} {m.capitalize()}: {k:+d} series/semana",
+                        style={"color": ACCENT if k > 0 else WARN, "fontWeight": "700",
+                               "fontSize": "13.5px", "margin": "2px 0"})
+                 for m, k in sorted(ajustes.items())]
+        texto += [html.P(f"⚠ {e}: dolor articular en {n} sesión(es)"
+                         + (" → se cambia por otro ejercicio" if n >= fbk.DOLOR_PARA_CAMBIAR else ""),
+                         style={"color": DANGER, "fontSize": "13px", "margin": "2px 0"})
+                  for e, n in sorted(dolor.items())]
+    return _card([html.Div("🧭 Ajustes por tu encuesta (próxima semana)", style={
+        "color": ACCENT, "fontWeight": "700", "fontSize": "14px", "marginBottom": "6px"}), *texto],
+        {"marginBottom": "16px"})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Peso corporal — registro local + tendencia (la báscula pilota las kcal)
 # ─────────────────────────────────────────────────────────────────────────────
 PESO_CSV = pathlib.Path(__file__).resolve().parent / "peso_corporal.csv"
@@ -726,7 +799,11 @@ def _tabla_plan(df: pd.DataFrame) -> dash_table.DataTable | html.Div:
         # antes el dashboard calculaba solo la semana del calendario y mostraba un
         # plan distinto del que se subia al telefono
         semana, reingreso, _avisos = decidir_semana(df, objetivo, inicio)
-        filas = generar_filas(df, objetivo.isoformat(), semana, reingreso=reingreso)
+        # la encuesta de la sesion ajusta series igual que en el motor
+        import feedback as _fbk
+        ajustes, dolor = _fbk.ajustes_para(_fbk.leer_csv(CSV_PATH.parent), objetivo, inicio)
+        filas = generar_filas(df, objetivo.isoformat(), semana, reingreso=reingreso,
+                              ajustes=ajustes, dolor=dolor)
     except Exception as exc:
         return html.Div([
             html.P(f"No se pudo calcular el plan: {exc}",
@@ -1117,6 +1194,21 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
                     ], {"flex": "1", "minWidth": "240px"}),
                 ], style={"display": "flex", "gap": "16px", "flexWrap": "wrap",
                           "marginTop": "16px"}),
+            ], style={"padding": "16px 0"}),
+        ),
+
+        # ── Tab: Volumen por músculo (landmarks + encuesta) ─────────────────
+        dcc.Tab(label="Volumen", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
+            children=html.Div([
+                *([_pe] if (_pe := _panel_encuesta()) else []),
+                _card(dcc.Graph(figure=_fig_volumen_musculo(df), config={"displayModeBar": False})),
+                _card([
+                    html.Div("Cómo leerlo", style={"color": ACCENT, "fontWeight": "600", "marginBottom": "6px"}),
+                    html.P("Barras = series efectivas (las indirectas cuentan la mitad). Franja verde = "
+                           "rango productivo (MAV); línea gris = mínimo efectivo (MEV); línea roja = máximo "
+                           "recuperable (MRV). Son rangos orientativos de población: la encuesta de la app "
+                           "ajusta dónde estás tú.", style={"color": MUTED, "fontSize": "13px", "margin": "0"}),
+                ], {"marginTop": "16px"}),
             ], style={"padding": "16px 0"}),
         ),
 

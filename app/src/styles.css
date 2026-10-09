@@ -1391,3 +1391,358 @@ button:disabled {
     transition: none !important;
   }
 }
+
+/* ── Calculadora de discos ──────────────────────────────────────────────────── */
+/* Un "disco" por chip; la altura crece con el peso para leerlo de un vistazo
+   como en la barra real. Violeta = estructura (discos grandes), lima = ajuste fino. */
+.discos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin: -2px 0 10px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.discos-lbl {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-right: 2px;
+}
+
+.disco {
+  display: inline-grid;
+  place-items: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-weight: 800;
+  background: var(--violet);
+  color: #ffffff;
+}
+
+.disco[data-kg='15'],
+.disco[data-kg='10'] {
+  height: 26px;
+  background: var(--violet-2);
+}
+
+.disco[data-kg='5'],
+.disco[data-kg='2.5'],
+.disco[data-kg='1.25'] {
+  height: 22px;
+  min-width: 26px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.discos-barra {
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.discos-aviso {
+  flex-basis: 100%;
+  font-weight: 700;
+  color: var(--danger);
+}
+
+.rs-discos {
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--violet-ink);
+}
+
+.sub-lock {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+/* ── Encuesta de la sesion ──────────────────────────────────────────────────── */
+.enc-bloque {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.enc-q {
+  margin-bottom: 8px;
+}
+
+.enc-fila {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.enc-musc {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.enc-opts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.enc-opts button,
+.enc-dolor button {
+  min-height: 38px;
+  padding: 4px 6px;
+  border-radius: 11px;
+  background: var(--card-2);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.15;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.enc-opts button.active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.enc-modal {
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.enc-musculo {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.enc-titulo {
+  margin: 12px 0 4px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.enc-musculo .enc-titulo {
+  margin-top: 0;
+}
+
+.enc-ayuda {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.enc-dolor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.enc-dolor button.active {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.enc-acciones {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.enc-omitir,
+.enc-enviar {
+  min-height: 48px;
+  border-radius: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.enc-omitir {
+  background: var(--card-2);
+}
+
+.enc-enviar {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ── Notas: las del motor ("coach") y la propia ─────────────────────────────── */
+.coach {
+  display: block;
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border-left: 3px solid var(--violet);
+  background: var(--violet-tint);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.coach-lbl {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--violet-ink);
+}
+
+/* plegado: 2 lineas; al tocar se ve entero */
+.coach-txt {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.coach.abierta .coach-txt {
+  display: block;
+  margin-top: 4px;
+}
+
+.coach:not(.abierta) .coach-txt + .coach-txt {
+  display: none;
+}
+
+.mi-nota {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 0 12px;
+  min-height: 44px;
+  border-radius: 12px;
+  background: var(--card-2);
+}
+
+.mi-nota input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 16px; /* 16px: iOS no hace zoom al enfocar */
+  outline: none;
+}
+
+.mi-nota input::placeholder {
+  color: var(--muted);
+}
+
+/* ── Campana de avisos push (cabecera) ──────────────────────────────────────── */
+.bell {
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.bell svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bell.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ── Mapa de recuperacion (dentro de la tarjeta de descanso / deporte) ───────── */
+.recup {
+  margin-top: 20px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(20, 20, 20, 0.55);
+  text-align: left;
+}
+
+.recup .section-label {
+  margin: 0 0 8px;
+  color: #aaff00;
+}
+
+.recup-cuerpo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.recup-mapa {
+  --map-base: rgba(255, 255, 255, 0.12);
+  --map-cap: rgba(255, 255, 255, 0.7);
+}
+
+.rest-day .recup-lista p {
+  margin: 0 0 6px;
+  max-width: none;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #ffffff;
+}
+
+.pt {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: 1px;
+}
+
+.pt.rojo { background: #ff6b6b; }
+.pt.ambar { background: #ffc043; }
+.pt.lima { background: #aaff00; }
+
+.rest-day .recup-nota {
+  margin: 10px 0 0;
+  max-width: none;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* ── Autorregulacion dentro de la sesion ────────────────────────────────────── */
+.auto-aviso {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--accent-tint);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.auto-aviso.baja {
+  background: rgba(255, 192, 67, 0.16);
+}

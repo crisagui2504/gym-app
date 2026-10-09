@@ -899,6 +899,138 @@ _rpe_max = max(int(x) for x in _re.findall(r"RPE (\d+)(?:-(\d+))?", _default)[0]
 check("el objetivo por defecto del movil no supera el RPE con el que el motor sube carga (8)",
       _rpe_max <= 8, f"movil dice: {_default}")
 
+print("")
+print("== 41. En barra solo se sugieren pesos cargables ==")
+check("press militar 41.25 -> 40 (1.25 por lado no existe con discos de 1.25)",
+      pl.cargable("Press Militar con Barra", 41.25) == 40.0)
+check("back-off 80% de 102.5 (=82) queda en 80", pl.cargable("Sentadilla Libre con Barra", 82.0) == 80.0)
+check("la barra EZ nunca baja de su propio peso (10)", pl.cargable("Curl con Barra EZ", 8.0) == 10.0)
+check("mancuernas y maquinas no se tocan", pl.cargable("Press Inclinado con Mancuernas", 31.25) == 31.25
+      and pl.cargable("Prensa de Piernas 45 grados", 101.25) == 101.25)
+check("el T-Bar (discos en un solo lado) conserva el paso de 1.25",
+      pl.cargable("Remo en Punta (T-Bar)", 41.25) == 41.25)
+check("en barra la progresion es de +2.5 (si fuera +1.25 el redondeo la congelaria)",
+      pl.microcarga("Curl con Barra EZ") == 2.5 and pl.microcarga("Press Militar con Barra") == 2.5)
+# historial con pesos NO cargables (como los que sugeria antes el motor): todo
+# lo que salga para barras debe quedar en multiplos de 2.5
+_plan41 = generar_plan({"enfoque": "hipertrofia", "split": "ppl", "prioridades": [],
+                        "duracion_min": 90}, ciclo=0)
+_h41 = pd.DataFrame([{"fecha_entreno": pd.Timestamp("2026-10-05"), "ejercicio": f.ejercicio,
+                      "tecnica": f.tecnica, "numero_serie": 1, "peso_kg": 41.25, "reps_hechas": f.reps_max or 8,
+                      "rpe": 7, "tonelaje_serie": 0} for f in _plan41 if pl.barra_de(f.ejercicio) and f.tecnica])
+_pf = pl.generar_filas(_h41, "2026-10-12", 2, plan=_plan41, duracion_min=90)
+_malas = [(f["ejercicio"], f["peso_sugerido"]) for f in _pf
+          if pl.barra_de(f["ejercicio"]) and f["peso_sugerido"] and (f["peso_sugerido"] * 100) % 250]
+check("ningun peso de barra del plan generado deja de ser multiplo de 2.5", not _malas, str(_malas))
+
+print("")
+print("== 42. Encuesta de la sesion -> volumen autorregulado ==")
+import feedback as fbk
+_plan42 = generar_plan({"enfoque": "hipertrofia", "split": "upper_lower", "prioridades": [],
+                        "duracion_min": 120}, ciclo=0)
+def _fb42(filas):
+    return fbk.normalizar(pd.DataFrame([dict(zip(("fecha", "tipo", "clave", "bombeo", "carga", "agujetas", "dolor"), f))
+                                        for f in filas]))
+def _series(filas, musculo):
+    cat = {e.nombre: e.musculo for e in db.EJERCICIOS}
+    return sum(int(f["series_objetivo"]) for f in filas if cat.get(f["ejercicio"]) == musculo
+               and any(k in (f["tecnica"] or "").lower() for k in fbk._VOLUMEN))
+_ini, _obj = date(2026, 9, 28), date(2026, 10, 12)          # semana 3 del mesociclo
+_base = pl.generar_filas(pd.DataFrame(), _obj.isoformat(), 3, plan=_plan42, duracion_min=120)
+_bien = _fb42([("2026-09-30", "musculo", "pecho", 2, 2, 1, None),
+               ("2026-10-07", "musculo", "pecho", 2, 2, 1, None)])
+_aj = fbk.ajustes_por_musculo(_bien, _ini, _obj)
+check("recuperado de sobra 2 semanas seguidas -> +2 series de pecho (se acumula)", _aj == {"pecho": 2}, str(_aj))
+_con = pl.generar_filas(pd.DataFrame(), _obj.isoformat(), 3, plan=_plan42, duracion_min=120, ajustes=_aj)
+check("el plan lleva exactamente +2 series de pecho y el resto igual",
+      _series(_con, "pecho") == _series(_base, "pecho") + 2
+      and _series(_con, "dorsales") == _series(_base, "dorsales"),
+      f"{_series(_base, 'pecho')} -> {_series(_con, 'pecho')}")
+check("sin encuesta el plan es identico al de siempre",
+      pl.generar_filas(pd.DataFrame(), _obj.isoformat(), 3, plan=_plan42, duracion_min=120,
+                       ajustes={}, dolor={}) == _base)
+_mal = _fb42([("2026-10-07", "musculo", "cuadriceps", 3, 2, 3, None)])
+check("agujetas que aun duelen -> -1", fbk.ajustes_por_musculo(_mal, _ini, _obj) == {"cuadriceps": -1})
+check("carga 'demasiado' -> -1 aunque se recupere",
+      fbk.ajustes_por_musculo(_fb42([("2026-10-07", "musculo", "biceps", 2, 3, 1, None)]), _ini, _obj) == {"biceps": -1})
+check("bombeo brutal no suma series (el estimulo ya sobra)",
+      fbk.ajustes_por_musculo(_fb42([("2026-10-07", "musculo", "pecho", 3, 2, 1, None)]), _ini, _obj) == {})
+# 4 semanas buenas (+4) dentro del mesociclo + 1 del mesociclo anterior
+_muchas = _fb42([(f"2026-{d}", "musculo", "pecho", 1, 1, 1, None) for d in ("09-29", "10-06", "10-13", "10-20")]
+                + [("2026-09-15", "musculo", "pecho", 1, 1, 1, None)])
+check("tope de +3 y lo del mesociclo ANTERIOR no cuenta",
+      fbk.ajustes_por_musculo(_muchas, date(2026, 9, 28), date(2026, 10, 26)) == {"pecho": 3}
+      and fbk.ajustes_por_musculo(_muchas, date(2026, 9, 28), date(2026, 10, 5)) == {"pecho": 1})
+_menos = pl.generar_filas(pd.DataFrame(), _obj.isoformat(), 3, plan=_plan42, duracion_min=120,
+                          ajustes={"cuadriceps": -2})
+check("quitar series nunca deja un ejercicio por debajo de 2",
+      all(int(f["series_objetivo"]) >= 2 for f in _menos if f["tecnica"] and int(f["series_objetivo"]) != 1)
+      and _series(_menos, "cuadriceps") < _series(_base, "cuadriceps"))
+_dl = pl.generar_filas(pd.DataFrame(), _obj.isoformat(), 5, plan=_plan42, duracion_min=120, ajustes={"pecho": 3})
+_dl0 = pl.generar_filas(pd.DataFrame(), _obj.isoformat(), 5, plan=_plan42, duracion_min=120)
+check("en deload la encuesta no suma series", _dl == _dl0)
+_extra = {}
+for f, b in zip(pl.generar_filas(pd.DataFrame(), _obj.isoformat(), 3, plan=_plan42, duracion_min=120,
+                                 ajustes={m: 3 for m in ("pecho", "dorsales", "hombros", "biceps", "triceps")}), _base):
+    _extra[f["dia_semana"]] = _extra.get(f["dia_semana"], 0) + int(f["series_objetivo"]) - int(b["series_objetivo"])
+check("ninguna sesion crece mas de 3 series (tiene que entrar en el tiempo)",
+      max(_extra.values()) <= fbk.EXTRA_MAX_DIA, str(_extra))
+_ej = next(f for f in _plan42 if f.bloque.startswith("B -") and f.tecnica)
+_d1 = pl.generar_filas(pd.DataFrame(), _obj.isoformat(), 3, plan=_plan42, duracion_min=120,
+                       ajustes={db.EJERCICIOS[[e.nombre for e in db.EJERCICIOS].index(_ej.ejercicio)].musculo: 3},
+                       dolor={_ej.ejercicio.lower(): 1})
+_fd1 = [f for f in _d1 if f["ejercicio"] == _ej.ejercicio and f["dia_semana"] == _ej.dia]
+check("dolor articular 1 vez: aviso en la nota y SIN series extra",
+      _fd1 and all("ARTICULAR" in (f["notas"] or "") for f in _fd1)
+      and all(int(f["series_objetivo"]) == int(_ej.series) for f in _fd1))
+_av = []
+_d2 = pl.generar_filas(pd.DataFrame(), _obj.isoformat(), 3, plan=_plan42, duracion_min=120,
+                       dolor={_ej.ejercicio.lower(): 2}, avisos=_av)
+_dia = [f["ejercicio"] for f in _d2 if f["dia_semana"] == _ej.dia]
+_nuevo = [f for f in _d2 if f["dia_semana"] == _ej.dia and "Cambiado por" in (f["notas"] or "")]
+_movs = list(dict.fromkeys((f["ejercicio"], f["bloque"]) for f in _d2 if f["dia_semana"] == _ej.dia))
+check("dolor en 2 sesiones: se cambia por otro del mismo patron, sin repetir en el dia",
+      _ej.ejercicio not in _dia and bool(_nuevo)
+      and NOMBRE_A_PATRON[_nuevo[0]["ejercicio"]] == NOMBRE_A_PATRON[_ej.ejercicio]
+      and len({m for m, _ in _movs}) == len(_movs),
+      str((_ej.ejercicio, [f["ejercicio"] for f in _nuevo])))
+check("el cambio por dolor queda en los avisos del motor", any(_ej.ejercicio in a for a in _av), str(_av))
+
+print("")
+print("== 43. Series efectivas por musculo (dashboard) ==")
+import volumen as vol
+def _s43(ej, n, rpe=8, fecha="2026-10-06"):
+    return [{"fecha_entreno": pd.Timestamp(fecha), "ejercicio": ej, "rpe": rpe} for _ in range(n)]
+_d43 = pd.DataFrame(_s43("Press de Banca con Barra", 3) + _s43("Press de Banca con Barra", 2, rpe=5)
+                    + _s43("Remo con Barra Agarre Prono", 4) + _s43("Ejercicio Inventado", 3)
+                    + _s43("Press de Banca con Barra", 5, fecha="2026-09-29"))
+_v = vol.series_por_grupo(_d43, date(2026, 10, 5), date(2026, 10, 12))
+check("press de banca x3: 3 de pecho y 1.5 de triceps (indirectas = la mitad)",
+      _v["Pecho"] == 3 and _v["Tríceps"] == 1.5, str(_v))
+check("pecho cuenta UNA vez por serie (no clavicular + esternal = 1.25)", _v["Pecho"] == 3)
+check("calentamientos (RPE < 6), ejercicios desconocidos y otras semanas no cuentan",
+      _v["Espalda alta"] == 4 and _v["Dorsal"] == 3, str(_v))
+check("zonas: 4 series de pecho = bajo, 14 = productivo, 30 = sobre MRV",
+      vol.zona("Pecho", 4) == "bajo" and vol.zona("Pecho", 14) == "productivo" and vol.zona("Pecho", 30) == "sobre MRV")
+check("cada grupo tiene landmarks ordenados MEV <= MAV <= MRV",
+      all(a <= b <= c <= d for a, b, c, d in vol.LANDMARKS.values()) and set(vol.LANDMARKS) == set(vol.GRUPOS))
+_subs = {s for subs in db.SUBMUSCULOS.values() for s in subs}
+check("los grupos solo usan submusculos que existen en el catalogo",
+      all(s in _subs for subs in vol.GRUPOS.values() for s in subs))
+
+print("")
+print("== 44. Avisos push: recordatorio y contacto VAPID ==")
+import recordatorio as rec, avisos as av
+_gym = [{"nombre_dia": "Torso A - Fuerza", "bloque": "A - Fuerza maxima", "ejercicio": "Press"}]
+check("dia de gym sin series registradas -> avisa", rec.debe_avisar(_gym, 0))
+check("si ya registraste algo hoy, no avisa", not rec.debe_avisar(_gym, 3))
+check("descanso y deporte no avisan",
+      not rec.debe_avisar([{"nombre_dia": "Descanso", "bloque": "Descanso", "ejercicio": "x"}], 0)
+      and not rec.debe_avisar([{"nombre_dia": "Basquetbol", "bloque": "Deporte", "ejercicio": "Basquetbol"}], 0))
+check("sin plan para hoy no avisa", not rec.debe_avisar([], 0))
+check("el contacto VAPID es la URL del sitio, no un correo personal",
+      av._claims("https://aguilarmunoz.infinityfree.me/api") == {"sub": "https://aguilarmunoz.infinityfree.me"})
+
 print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")

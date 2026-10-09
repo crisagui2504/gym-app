@@ -1,0 +1,13 @@
+# Recordatorio push "hoy toca X" si a la hora configurada (recordatorio_hora en
+# config_usuario.json, por defecto 18) aun no hay entreno registrado hoy.
+[Unit]
+Description=GymTracker - recordatorio de entreno (push)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=azureuser
+WorkingDirectory=/home/azureuser/gym/python-engine
+Environment=TZ=America/Mexico_City
+ExecStart=/home/azureuser/gym/python-engine/.venv/bin/python recordatorio.py

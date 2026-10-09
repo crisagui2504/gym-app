@@ -54,6 +54,16 @@ export interface SeriePayload {
   notas?: string | null;
 }
 
+/** Respuesta de la encuesta de la sesion (ver infinityfree/api/feedback_tabla.php). */
+export interface FeedbackItem {
+  tipo: 'musculo' | 'ejercicio';
+  clave: string;               // id del musculo o nombre del ejercicio
+  bombeo?: number | null;      // 1 poco | 2 bueno | 3 brutal
+  carga?: number | null;       // 1 facil | 2 justa | 3 demasiado
+  agujetas?: number | null;    // 1 nada | 2 sanaron justo | 3 aun duelen
+  dolor?: number | null;       // 1 = molestia articular
+}
+
 @Injectable({ providedIn: 'root' })
 export class RutinaApiService {
   private readonly http = inject(HttpClient);
@@ -70,6 +80,31 @@ export class RutinaApiService {
   getHistorial(dias = 30): Observable<HistorialResponse> {
     return this.http.get<HistorialResponse>(
       `${environment.apiBaseUrl}/get_historial.php?dias=${dias}`,
+      { headers: this.headers }
+    );
+  }
+
+  /** Ultima nota del usuario por ejercicio (get_notas.php). */
+  getNotas(): Observable<{ ok: boolean; notas: Array<{ ejercicio: string; notas: string; fecha_entreno: string }> }> {
+    return this.http.get<{ ok: boolean; notas: Array<{ ejercicio: string; notas: string; fecha_entreno: string }> }>(
+      `${environment.apiBaseUrl}/get_notas.php`,
+      { headers: this.headers }
+    );
+  }
+
+  /** Alta o baja ({endpoint, baja: true}) de la suscripcion a avisos push. */
+  guardarSuscripcion(sub: unknown): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(
+      `${environment.apiBaseUrl}/guardar_suscripcion.php`,
+      sub,
+      { headers: this.headers }
+    );
+  }
+
+  guardarFeedback(fecha: string, items: FeedbackItem[]): Observable<{ ok: boolean; guardadas: number }> {
+    return this.http.post<{ ok: boolean; guardadas: number }>(
+      `${environment.apiBaseUrl}/guardar_feedback.php`,
+      { fecha, items },
       { headers: this.headers }
     );
   }

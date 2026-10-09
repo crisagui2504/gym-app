@@ -54,7 +54,7 @@ echo "==> pruebas antes de activar nada"
 echo "==> servicios systemd"
 sudo cp "$DIR"/servidor/gymtracker-*.service "$DIR"/servidor/gymtracker-*.timer /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now gymtracker-motor.timer gymtracker-datos.timer
+sudo systemctl enable --now gymtracker-motor.timer gymtracker-datos.timer gymtracker-recordatorio.timer
 sudo systemctl enable gymtracker-dashboard.service
 sudo systemctl restart gymtracker-dashboard.service
 sudo systemctl start gymtracker-datos.service || true   # historial al dia ya

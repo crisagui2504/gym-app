@@ -21,9 +21,18 @@
         <h1 class="dia">{{ nombreDia() }}</h1>
         <p class="sub" *ngIf="!cargando() && progreso().total > 0 && !esDiaDescanso() && !esDiaDeporte()">
           {{ progreso().hechas }}/{{ progreso().total }} series<span *ngIf="progreso().pct === 100"> · completo</span>
+          <span *ngIf="minutosSesion() !== null"> · ⏱ {{ minutosSesion() }} min</span>
+          <span class="sub-lock" *ngIf="pantallaFija()" title="La pantalla no se apaga mientras entrenas"> · 🔆 pantalla fija</span>
         </p>
       </div>
       <span class="streak" *ngIf="racha() > 0" title="Racha de dias">🔥 {{ racha() }}</span>
+      <button type="button" class="bell" (click)="toggleAvisos()" [class.on]="avisos() === 'on'"
+              [disabled]="cambiandoAvisos()"
+              [attr.aria-label]="avisos() === 'on' ? 'Desactivar avisos' : 'Activar avisos'"
+              [title]="avisos() === 'on' ? 'Avisos activados' : 'Activar avisos'">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5V11a6 6 0 1 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>
+          <path *ngIf="avisos() !== 'on'" d="M4 4l16 16"/></svg>
+      </button>
     </header>
 
     <p class="status" *ngIf="mensaje()">{{ mensaje() }}</p>
@@ -47,6 +56,17 @@
         Día suave activado: mismo entreno, pero <b>sin series al fallo</b> y dejando 3-4 reps en reserva.
         Entrenar suave &gt; no entrenar. Mañana se recupera la intensidad.
       </p>
+      <!-- Agujetas de la vez anterior: con esto el motor decide si sube o baja series -->
+      <div class="enc-bloque" *ngIf="musculosHoy().length">
+        <p class="readiness-q enc-q">¿Agujetas de la última vez?</p>
+        <div class="enc-fila" *ngFor="let m of musculosHoy()">
+          <span class="enc-musc">{{ etiquetas[m] }}</span>
+          <div class="enc-opts">
+            <button type="button" *ngFor="let o of opcionesAgujetas" [class.active]="agujetas()[m] === o.v"
+                    (click)="setAgujetas(m, o.v)">{{ o.t }}</button>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- ===== HISTORIAL (ultimas sesiones) ===== -->
@@ -95,6 +115,7 @@
               <p class="rs-label">Serie {{ i + 1 }} · {{ s.label }}</p>
               <p class="rs-peso">{{ s.peso }} kg</p>
               <p class="rs-reps">x {{ s.reps }}</p>
+              <p class="rs-discos" *ngIf="ap.barra && discosRampa(s.peso, ap.barra) as c">{{ textoCarga(c) }} /lado</p>
             </div>
           </div>
         </div>
@@ -127,6 +148,18 @@
       <h2>Día de descanso</h2>
       <p>Recuperación activa: caminá 10-12k pasos, 2.5-3 L de agua, proteína y dormí 7-9 h. El músculo crece cuando descansás.</p>
       <p class="rest-sub">¿Cambiaste de planes? Tocá 📅 arriba para mover el descanso a otro día.</p>
+      <div class="recup" *ngIf="recuperacion() as r">
+        <p class="section-label">Recuperación estimada</p>
+        <div class="recup-cuerpo">
+          <div class="recup-mapa"><app-muscle-map [muscles]="[]" [niveles]="r.niveles"></app-muscle-map></div>
+          <div class="recup-lista">
+            <p *ngIf="r.cargados.length"><span class="pt rojo"></span><b>Aún cargados:</b> {{ r.cargados.join(', ') }}</p>
+            <p *ngIf="r.medios.length"><span class="pt ambar"></span><b>A medias:</b> {{ r.medios.join(', ') }}</p>
+            <p><span class="pt lima"></span><b>Listos:</b> {{ r.listos.join(', ') }}</p>
+          </div>
+        </div>
+        <p class="recup-nota">Estimación con tus series de los últimos 3 días (y el partido): orienta, no mide.</p>
+      </div>
     </section>
 
     <!-- ===== DIA DE DEPORTE (basquet, futbol...) ===== -->
@@ -135,6 +168,18 @@
       <h2>{{ nombreDia() }}</h2>
       <p>Hoy no toca gimnasio: tu deporte ya es el acondicionamiento, no hace falta cardio extra.</p>
       <p class="rest-sub">Calentá tobillo y cadera antes de jugar, e hidratá bien. Esto te carga gemelo, cuádriceps y aductor, más los aterrizajes.</p>
+      <div class="recup" *ngIf="recuperacion() as r">
+        <p class="section-label">Recuperación estimada</p>
+        <div class="recup-cuerpo">
+          <div class="recup-mapa"><app-muscle-map [muscles]="[]" [niveles]="r.niveles"></app-muscle-map></div>
+          <div class="recup-lista">
+            <p *ngIf="r.cargados.length"><span class="pt rojo"></span><b>Aún cargados:</b> {{ r.cargados.join(', ') }}</p>
+            <p *ngIf="r.medios.length"><span class="pt ambar"></span><b>A medias:</b> {{ r.medios.join(', ') }}</p>
+            <p><span class="pt lima"></span><b>Listos:</b> {{ r.listos.join(', ') }}</p>
+          </div>
+        </div>
+        <p class="recup-nota">Estimación con tus series de los últimos 3 días (y el partido): orienta, no mide.</p>
+      </div>
     </section>
 
     <!-- ===== EJERCICIOS ===== -->
@@ -167,6 +212,26 @@
           </span>
           <span class="hero-tag fallo" *ngIf="sa.alFallo">{{ sa.etiqueta }}</span>
         </div>
+        <!-- Calculadora de discos (barra) / peso por mancuerna -->
+        <ng-container *ngIf="serieActiva(ej) as sa">
+          <p class="discos" *ngIf="cargaDe(ej, sa.peso) as c">
+            <span class="discos-lbl">Por lado</span>
+            <span class="disco" *ngFor="let d of c.porLado" [attr.data-kg]="d">{{ d }}</span>
+            <span class="discos-barra">+ barra {{ ej.barra }}</span>
+            <span class="discos-aviso" *ngIf="!c.exacto">{{ sa.peso }} no se puede cargar: quedan {{ c.total }} kg</span>
+          </p>
+          <p class="discos" *ngIf="porMancuerna(ej, sa.peso) as pm">
+            <span class="discos-lbl">Agarra</span><span class="discos-barra">{{ pm }}</span>
+          </p>
+        </ng-container>
+        <!-- Autorregulacion: el peso de las series siguientes se corrigio solo -->
+        <p class="auto-aviso" *ngIf="ej.aviso as av" [class.baja]="!av.sube">{{ av.texto }}</p>
+        <!-- Lo que explica el motor: de donde sale el peso, por que no subio, avisos de la encuesta -->
+        <button type="button" class="coach" *ngIf="ej.notasMotor.length" [class.abierta]="ej.verNotas"
+                (click)="ej.verNotas = !ej.verNotas" [attr.aria-expanded]="ej.verNotas">
+          <span class="coach-lbl">Coach</span>
+          <span class="coach-txt" *ngFor="let n of ej.notasMotor">{{ n }}</span>
+        </button>
         <ng-template #heroHecho>
           <div class="hero hero-hecho"><span class="hero-ok">✓</span> Ejercicio completado</div>
         </ng-template>
@@ -215,9 +280,10 @@
               <div class="campo" *ngIf="ej.medida.peso">
                 <label>Peso ({{ unidadPeso(ej) }})</label>
                 <div class="stepper">
-                  <button type="button" (click)="ajustar(s, 'peso', -1)">−</button>
-                  <input type="number" inputmode="decimal" step="1.25" min="0" [(ngModel)]="s.peso" />
-                  <button type="button" (click)="ajustar(s, 'peso', 1)">+</button>
+                  <button type="button" (click)="ajustar(s, 'peso', -1, ej)">−</button>
+                  <input type="number" inputmode="decimal" [attr.step]="ej.barra ? 2.5 : 1.25" min="0" [(ngModel)]="s.peso"
+                         (ngModelChange)="s.manual = true" />
+                  <button type="button" (click)="ajustar(s, 'peso', 1, ej)">+</button>
                 </div>
               </div>
               <div class="campo" *ngIf="ej.medida.cuenta as c">
@@ -245,6 +311,12 @@
             </ng-container>
           </div>
         </div>
+
+        <label class="mi-nota" *ngIf="ej.medida.rpe">
+          <span aria-hidden="true">📝</span>
+          <input type="text" maxlength="200" [(ngModel)]="ej.miNota"
+                 placeholder="Tu nota: asiento, agarre, molestias…" aria-label="Tu nota para este ejercicio" />
+        </label>
       </article>
     </section>
   </div>
@@ -282,6 +354,44 @@
       <div class="timer-actions">
         <button type="button" (click)="sumarTiempo(15)" *ngIf="tmrActivo()">+15s</button>
         <button type="button" class="timer-skip" (click)="cancelarTimer()">{{ tmrSeg() === 0 ? 'OK' : 'Saltar' }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== ENCUESTA AL TERMINAR (volumen autorregulado) ===== -->
+  <div class="modal-overlay enc-overlay" *ngIf="mostrarEncuesta()">
+    <div class="modal panel-strong enc-modal" role="dialog" aria-label="Encuesta de la sesión">
+      <div class="modal-head">
+        <h3>¿Cómo fue?</h3>
+        <button type="button" class="modal-x" (click)="cerrarEncuesta()" aria-label="Cerrar">✕</button>
+      </div>
+      <p class="modal-text">30 segundos: con esto el motor sube o baja las series de cada músculo la próxima semana.</p>
+      <div class="enc-musculo" *ngFor="let m of musculosHoy()">
+        <p class="enc-titulo">{{ etiquetas[m] }}</p>
+        <div class="enc-fila">
+          <span class="enc-musc">Bombeo</span>
+          <div class="enc-opts">
+            <button type="button" *ngFor="let o of opcionesBombeo" [class.active]="encBombeo()[m] === o.v"
+                    (click)="setEnc('bombeo', m, o.v)">{{ o.t }}</button>
+          </div>
+        </div>
+        <div class="enc-fila">
+          <span class="enc-musc">Carga</span>
+          <div class="enc-opts">
+            <button type="button" *ngFor="let o of opcionesCarga" [class.active]="encCarga()[m] === o.v"
+                    (click)="setEnc('carga', m, o.v)">{{ o.t }}</button>
+          </div>
+        </div>
+      </div>
+      <p class="enc-titulo">¿Algo molestó en una ARTICULACIÓN?</p>
+      <p class="enc-ayuda">Dolor de codo, hombro, rodilla… no el ardor del músculo. Si se repite, el motor cambia el ejercicio.</p>
+      <div class="enc-dolor">
+        <button type="button" *ngFor="let e of ejerciciosPesas()" [class.active]="encDolor().includes(e)"
+                (click)="toggleDolor(e)">{{ e }}</button>
+      </div>
+      <div class="enc-acciones">
+        <button type="button" class="enc-omitir" (click)="cerrarEncuesta()">Ahora no</button>
+        <button type="button" class="enc-enviar" (click)="enviarEncuesta()">Enviar</button>
       </div>
     </div>
   </div>

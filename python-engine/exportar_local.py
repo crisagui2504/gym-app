@@ -46,6 +46,13 @@ def main() -> None:
     filas = max(0, texto.strip().count("\n"))
     print(f"historial.csv actualizado: {destino} ({filas} filas de datos) + backup fechado")
 
+    # encuesta de la sesion: el dashboard la lee de aqui para mostrar el MISMO
+    # plan que el motor sube (sin pedirla a InfinityFree en cada visita)
+    import feedback
+    fb = feedback.descargar_feedback(sesion, base_url, token, dias=120)
+    fb.to_csv(destino.parent / feedback.CSV_FEEDBACK, index=False)
+    print(f"{feedback.CSV_FEEDBACK} actualizado ({len(fb)} respuestas)")
+
 
 if __name__ == "__main__":
     main()

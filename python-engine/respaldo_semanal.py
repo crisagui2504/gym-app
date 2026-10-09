@@ -111,6 +111,10 @@ def main() -> int:
         return int(e.code or 0)
     ok = plan_de_la_semana_subido(lunes)
     registrar("OK: rutina subida" if ok else "FALLO: la rutina sigue sin estar")
+    if ok:
+        # aviso al telefono; si falla, la rutina ya esta subida igual
+        import avisos
+        registrar(f"aviso push: {avisos.rutina_lista(lunes)} enviado(s)")
     return 0 if ok else 1
 
 

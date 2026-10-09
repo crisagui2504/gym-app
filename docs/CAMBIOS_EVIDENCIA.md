@@ -1875,6 +1875,65 @@ ejecuta `servidor/instalar_vm.sh`. Ese script es idempotente y corre
   2026-10-05 (S2/4) con 45 filas.
 - La memoria usada es de 557 de 841 MB.
 
+## BS. Funciones nuevas tras la comparativa con apps reales (2026-10-08)
+
+Se compararon Hevy, Strong, Fitbod, RP Hypertrophy, Alpha Progression,
+Boostcamp, Juggernaut AI y repos abiertos (wger, Liftosaur, Workout.cool).
+Se implementó lo que encaja con los límites de InfinityFree (sin tareas
+programadas y con sistema anti-bots) y de la VM (841 MB):
+
+| # | Función | Inspirada en | Dónde vive |
+|---|---|---|---|
+| 1 | Encuesta de la sesión → volumen autorregulado por músculo | RP Hypertrophy | app + 2 PHP + `feedback.py` |
+| 2 | Pestaña «Volumen»: series efectivas/semana vs MEV-MAV-MRV | Boostcamp Pro, RP | `volumen.py` + dashboard |
+| 3 | Calculadora de discos y peso por mancuerna | Hevy, Alpha Pro, Liftosaur | app |
+| 4 | Pantalla siempre encendida durante el entreno | Hevy | app (Screen Wake Lock) |
+| 5 | Notas del motor visibles («Coach») + nota propia por ejercicio | Hevy, Strong | app + `get_notas.php` |
+| 6 | Avisos push: rutina lista + recordatorio diario | — | app/SW + 3 PHP + `avisos.py` / `recordatorio.py` en la VM |
+| 7 | Mapa de recuperación en descanso y deporte | Fitbod | app |
+| 8 | Ajuste de las series siguientes según el RPE real | Juggernaut AI | app |
+| 9 | Reloj de la sesión | Hevy, Strong | app |
+
+**Encuesta (1).** Al empezar se preguntan las agujetas de la vez anterior por
+músculo. Al terminar, el bombeo, la carga y si molestó alguna articulación. El
+motor suma +1 serie por semana cuando te recuperas de sobra sin carga ni bombeo
+extremos, y resta 1 si no te recuperas o la carga fue demasiada. El ajuste se
+acumula dentro del mesociclo con tope [-2, +3] y se reinicia con cada mesociclo
+nuevo. Nunca se aplica en deload ni en reingreso. Solo cambia ejercicios de
+volumen (el Top Set y su Back-off no) y ninguna sesión crece más de 3 series.
+El dolor articular reportado 1 vez deja un aviso y bloquea series extra; 2
+sesiones con dolor en 3 semanas cambian el ejercicio por otro del mismo patrón.
+El dashboard aplica los mismos ajustes, leyendo `feedback.csv` del export cada
+3 h, así que muestra el mismo plan que recibe el teléfono.
+
+**Pesos cargables (3).** La calculadora reveló que el motor sugería 41.25 kg en
+barra, un peso que no se puede cargar. Ahora, en barra, se progresa de 2.5 en
+2.5 y todo peso sugerido se redondea hacia abajo a un múltiplo de 2.5 (sin bajar
+de la barra vacía). El back-off sale del Top Set ya redondeado.
+
+**Notas (5).** Las notas del motor («Anterior: 25 kg x 6 @RPE 9», «Cerraste el
+rango a RPE 9…») llegaban a la app pero nunca se mostraban. Ahora aparecen
+como «Coach» en cada ejercicio.
+
+**Avisos (6).** InfinityFree solo guarda las suscripciones; envía la VM con
+VAPID. La clave privada vive en el `.env`, nunca en git. El contacto VAPID es
+la URL del sitio, no un correo. En iPhone solo funcionan con la app instalada
+(iOS 16.4+).
+
+**Autorregulación en la sesión (8).** Se aplica con desvíos claros: RPE 2+
+puntos por debajo del objetivo con el rango completo sube un salto; RPE 10 sin
+llegar al mínimo baja ~10%. Los saltos son reales para cada equipo: barra 2.5,
+mancuernas 5 en total (2.5 por mano), y 2.5 a una mano o en máquina. No toca
+series editadas a mano, ni series al fallo, drop o rest-pause.
+
+**Verificado:** 44 secciones de `test_motor`, incluidas las nuevas 41 a 44
+(pesos cargables, encuesta, series efectivas, recordatorio), 35 de
+`test_plan_qa` y el barrido de 13.440 semanas. En el navegador a 375 px se
+comprobaron la calculadora, la encuesta (con su cola sin conexión), las notas,
+el mapa de recuperación y el ajuste en la sesión. Del push se comprobaron las
+claves, la firma VAPID y el cifrado aes128gcm. El envío real queda pendiente
+de que los PHP estén subidos.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

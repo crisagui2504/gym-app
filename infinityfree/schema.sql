@@ -76,3 +76,31 @@ VALUES
 ('2026-06-22', 6, 'Pierna Bombeo', 'Bombeo', 4, 'Curl de Isquios Tumbado (Maquina)', 'Drop Set', 2, 12, 15, 60, NULL, NULL),
 ('2026-06-22', 7, 'Cardio LISS + Core', 'Cardio', 1, 'Eliptica', 'Zona 2', 1, 35, 45, NULL, NULL, 'Minutos en lugar de repeticiones'),
 ('2026-06-22', 7, 'Cardio LISS + Core', 'Core', 2, 'Plancha Frontal', 'Tradicional', 3, NULL, NULL, 60, NULL, 'Al fallo');
+
+-- ── Tablas que los endpoints CREAN SOLOS la primera vez (no hace falta ejecutar
+-- esto a mano; se deja aqui como referencia del esquema) ─────────────────────
+-- Encuesta de la sesion (feedback_tabla.php)
+CREATE TABLE IF NOT EXISTS feedback_sesion (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  fecha DATE NOT NULL,
+  tipo VARCHAR(16) NOT NULL,            -- 'musculo' | 'ejercicio'
+  clave VARCHAR(160) NOT NULL,          -- id del musculo o nombre del ejercicio
+  bombeo TINYINT UNSIGNED NULL,         -- 1 poco | 2 bueno | 3 brutal
+  carga TINYINT UNSIGNED NULL,          -- 1 facil | 2 justa | 3 demasiado
+  agujetas TINYINT UNSIGNED NULL,       -- 1 nada | 2 sanaron justo | 3 aun duelen
+  dolor TINYINT UNSIGNED NULL,          -- 1 = molestia articular
+  actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_feedback (fecha, tipo, clave),
+  INDEX idx_feedback_fecha (fecha)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Suscripciones a avisos push (push_tabla.php)
+CREATE TABLE IF NOT EXISTS push_suscripciones (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  endpoint VARCHAR(500) NOT NULL,
+  endpoint_hash CHAR(64) NOT NULL,
+  p256dh VARCHAR(200) NOT NULL,
+  auth VARCHAR(100) NOT NULL,
+  creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_push_endpoint (endpoint_hash)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

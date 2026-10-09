@@ -278,13 +278,38 @@ def marca_anterior(lp) -> str:
     return f"Anterior: {reps} reps @RPE {rpe:.0f}."
 
 
+def barra_de(ejercicio: str) -> float | None:
+    """Peso de la barra (kg) si el ejercicio se carga con discos en una barra.
+
+    Con discos de 1.25 como los mas chicos, una barra solo sube de 2.5 en 2.5
+    (1.25 por lado): 41.25 kg en un press militar NO se puede cargar. El landmine
+    (T-Bar) lleva discos en un solo extremo, asi que ahi 1.25 si es real."""
+    import ejercicios_db as _db
+    ej = {_norm(e.nombre): e for e in _db.EJERCICIOS}.get(_norm(_db.nombre_canonico(ejercicio)))
+    if ej is None or ej.equipo != "barra" or "t-bar" in ej.nombre.lower():
+        return None
+    return 10.0 if "EZ" in ej.nombre else 20.0
+
+
 def microcarga(ejercicio: str) -> float:
+    if barra_de(ejercicio):
+        return 2.5          # minimo cargable en barra (ver barra_de)
     n = ejercicio.lower()
     return 2.5 if any(p in n for p in MICROCARGAS_MULTI) else 1.25
 
 
 def redondear(v: float, paso: float = 1.25) -> float:
     return round(round(v / paso) * paso, 2)
+
+
+def cargable(ejercicio: str, peso: float | None) -> float | None:
+    """Ajusta el peso sugerido a lo que de verdad se puede cargar en la barra:
+    multiplo de 2.5 HACIA ABAJO (un porcentaje -back-off 80%, reingreso -10%-
+    caia en x.25/x.75) y nunca por debajo de la barra vacia."""
+    barra = barra_de(ejercicio)
+    if not barra or not peso or peso <= 0:
+        return peso
+    return max(barra, round(int(peso / 2.5 + 1e-9) * 2.5, 2))
 
 
 # ---- Reglas de progresion por bloque ----
@@ -401,9 +426,16 @@ def estimar_peso(nombre: str, familia: str, ultima: dict) -> tuple[float, str] |
 def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                   plan: list[Fila] | None = None,
                   reingreso: bool | int = False,
-                  duracion_min: int | None = None) -> list[dict]:
+                  duracion_min: int | None = None,
+                  ajustes: dict[str, int] | None = None,
+                  dolor: dict[str, int] | None = None,
+                  avisos: list[str] | None = None) -> list[dict]:
     """reingreso: 0/False normal, 1 = primera semana de vuelta (~1/3 del
-    volumen, -10% carga), 2 = segunda (~2/3, -5%). Ver fase_reingreso()."""
+    volumen, -10% carga), 2 = segunda (~2/3, -5%). Ver fase_reingreso().
+    ajustes/dolor: la encuesta de la sesion (feedback.py): series por musculo y
+    sesiones con dolor articular por ejercicio. Los avisos se anaden a `avisos`."""
+    import feedback as _fb
+    _avisos = avisos if avisos is not None else []
     ultima, record, estancados = ultimas_y_records(df)
     filas: list[dict] = []
     top_del_dia: dict[tuple[int, str], float | None] = {}
@@ -412,6 +444,9 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
     # plan base segun la config del usuario (enfoque/split/prioridades)
     if plan is None:
         plan = obtener_plan()
+    # dolor articular repetido: el ejercicio se cambia SIEMPRE (tambien en deload)
+    plan, _cambios = _fb.sustituir_por_dolor(plan, dolor or {})
+    _avisos.extend(_cambios)
 
     # semana efectiva para la logica de progresion: deload (S5) usa S4 como referencia
     semana_prog = min(semana, 4)
@@ -455,7 +490,7 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                 if _est:
                     peso, origen = _est
                     nota = f"Peso ESTIMADO desde {origen}: primera vez con este ejercicio. Empieza dejando 3-4 reps en reserva y ajusta. {nota or ''}".strip()
-            top_del_dia[(f.dia, _norm(f.ejercicio))] = peso
+            top_del_dia[(f.dia, _norm(f.ejercicio))] = cargable(f.ejercicio, peso)  # el back-off sale del peso que de verdad se carga
 
         elif _es(f.tecnica, "back-off", "back off"):
             ts = top_del_dia.get((f.dia, _norm(f.ejercicio)))
@@ -523,6 +558,8 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
         else:
             series_real = f.series
 
+        peso = cargable(f.ejercicio, peso)
+
         filas.append(
             {
                 "semana_inicio": semana_inicio,
@@ -540,6 +577,11 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                 "notas": nota[:255] if nota else nota,  # plan_rutina.notas VARCHAR(255)
             }
         )
+
+    # Volumen autorregulado por la encuesta. En deload y reingreso no se suman
+    # ni quitan series (ahi manda la seguridad), pero el aviso de dolor si va.
+    _ajustes = ajustes if (semana != 5 and not _fase) else {}
+    _avisos.extend(_fb.aplicar_ajustes(filas, _ajustes or {}, dolor or {}))
 
     # Recortar volumen para que la sesion entre en la duracion objetivo
     # La duracion viaja con el plan. Si no se pasa, se lee de la config (el caso
@@ -664,9 +706,18 @@ def main() -> None:
     for a in avisos:
         print(a)
 
+    # encuesta de la sesion -> ajuste de volumen por musculo (feedback.py)
+    import feedback as fbk
+    encuesta = fbk.descargar_feedback(sesion, base_url, token)
+    ajustes, dolor = fbk.ajustes_para(encuesta, objetivo, inicio)
+
     # el mesociclo de la semana OBJETIVO define la rotacion de ejercicios
+    avisos_fb: list[str] = []
     filas = generar_filas(historial, semana_inicio, semana,
-                          plan=obtener_plan(objetivo), reingreso=reingreso)
+                          plan=obtener_plan(objetivo), reingreso=reingreso,
+                          ajustes=ajustes, dolor=dolor, avisos=avisos_fb)
+    for a in avisos_fb:
+        print(f"ENCUESTA: {a}")
 
     tipo = "DELOAD" if semana == 5 else f"S{semana}/4"
     print(f"Semana objetivo {semana_inicio} | Mesociclo: {tipo} | {len(filas)} filas")

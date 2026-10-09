@@ -39,7 +39,11 @@ try {
             ':peso_kg' => (float) ($item['peso_kg'] ?? 0),
             ':repeticiones' => (int) ($item['repeticiones'] ?? 0),
             ':rpe' => $rpe,
-            ':notas' => $item['notas'] ?? null,
+            // notas VARCHAR(255): una nota larga no debe tumbar el entreno entero.
+            // Recorte por caracteres (regex /u), sin depender de mbstring.
+            ':notas' => (isset($item['notas']) && trim((string) $item['notas']) !== '')
+                ? preg_replace('/^(.{0,200}).*$/us', '$1', trim((string) $item['notas']))
+                : null,
         ]);
         $inserted++;
     }

@@ -579,3 +579,153 @@ export function seriesAproximacion(peso: number): Array<{ label: string; peso: n
   }
   return sets;
 }
+
+// ── Calculadora de discos ────────────────────────────────────────────────────
+// El peso de un ejercicio con barra es el TOTAL cargado (barra incluida), igual
+// que lo sugiere el motor (estimar_peso nunca baja de la barra vacia). Discos
+// estandar de gimnasio; con 1.25 como el mas chico, el salto minimo real de una
+// barra es 2.5 kg (1.25 por lado).
+export const DISCOS_KG = [25, 20, 15, 10, 5, 2.5, 1.25];
+
+/** Peso de la barra si el ejercicio se carga con discos en una barra; null si no.
+ *  "Extension Triceps Polea Barra" es una polea (agarre de barra), no se carga. */
+export function barraDe(nombre: string): number | null {
+  const n = norm(nombre);
+  if (contieneClave(n, 'polea') || contieneClave(n, 'maquina') || contieneClave(n, 'smith')) return null;
+  if (contieneClave(n, 't-bar') || contieneClave(n, 'en punta')) return null; // landmine: solo discos
+  if (contieneClave(n, 'ez')) return 10;
+  if (contieneClave(n, 'barra') || contieneClave(n, 'peso muerto convencional')) return 20;
+  return null;
+}
+
+export interface Carga {
+  porLado: number[];   // discos de UN lado, de mayor a menor
+  total: number;       // lo que realmente queda cargado
+  exacto: boolean;     // false: el objetivo no es cargable y se muestra el mas cercano por debajo
+}
+
+/** Discos por lado para llegar a `objetivo` (total con barra). Voraz: con este
+ *  juego de discos siempre llega al multiplo de 2.5 inferior mas cercano. */
+export function discosPorLado(objetivo: number, barra: number): Carga | null {
+  if (!objetivo || objetivo <= barra) return null;
+  let lado = Math.floor(((objetivo - barra) / 2) * 100 + 1e-6) / 100;
+  const porLado: number[] = [];
+  for (const d of DISCOS_KG) {
+    while (lado + 1e-6 >= d) {
+      porLado.push(d);
+      lado = Math.round((lado - d) * 100) / 100;
+    }
+  }
+  const total = Math.round((barra + 2 * porLado.reduce((a, b) => a + b, 0)) * 100) / 100;
+  return { porLado, total, exacto: Math.abs(total - objetivo) < 0.01 };
+}
+
+/** "20 + 5 + 1.25" (cada disco, un lado). */
+export function textoDiscos(c: Carga): string {
+  return c.porLado.map((d) => String(d)).join(' + ');
+}
+
+// ── Mapa de recuperacion muscular (estilo Fitbod) ────────────────────────────
+// Estimacion simple y explicable, no una medicion: cada serie reciente suma
+// fatiga al musculo (principal 1, secundarios 0.5; mas cerca del fallo, mas
+// fatiga) y esa fatiga se desvanece en linea recta en 48 h (musculos chicos) o
+// 72 h (grandes), que es el rango en que la sintesis proteica y el dano vuelven
+// a la base tras una sesion dura. ~6 series duras = musculo "agotado".
+const GRANDES: MuscleId[] = ['pecho', 'dorsales', 'cuadriceps', 'isquios', 'gluteos', 'lumbar'];
+const SERIES_AGOTADO = 6;
+
+export interface SerieReciente {
+  fecha: string;      // YYYY-MM-DD
+  ejercicio: string;
+  rpe: number;
+}
+
+function horasDesde(fecha: string, ahora: Date): number {
+  // sin hora en el registro: se asume que entrenaste a las 18:00 de ese dia
+  const [y, m, d] = fecha.slice(0, 10).split('-').map(Number);
+  return (ahora.getTime() - new Date(y, m - 1, d, 18).getTime()) / 3600000;
+}
+
+function factorEsfuerzo(rpe: number): number {
+  return rpe >= 9 ? 1.2 : rpe >= 8 ? 1 : rpe >= 7 ? 0.8 : 0.5;
+}
+
+/** Fatiga 0..1 por musculo. `deporte`: fechas de partidos (basquet, futbol):
+ *  cargan gemelos, cuadriceps y gluteos como ~4/3/2 series duras. */
+export function fatigaMuscular(series: SerieReciente[], ahora: Date, deporte: string[] = []): Partial<Record<MuscleId, number>> {
+  const total: Partial<Record<MuscleId, number>> = {};
+  const sumar = (m: MuscleId, carga: number, horas: number) => {
+    const T = GRANDES.includes(m) ? 72 : 48;
+    if (horas < 0 || horas >= T) return;
+    total[m] = (total[m] ?? 0) + carga * (1 - horas / T);
+  };
+  for (const s of series) {
+    const h = horasDesde(s.fecha, ahora);
+    const f = factorEsfuerzo(Number(s.rpe) || 0);
+    musculosDe(s.ejercicio).forEach((m, i) => sumar(m, (i === 0 ? 1 : 0.5) * f, h));
+  }
+  for (const fecha of deporte) {
+    const h = horasDesde(fecha, ahora);
+    sumar('gemelos', 4, h);
+    sumar('cuadriceps', 3, h);
+    sumar('gluteos', 2, h);
+  }
+  const out: Partial<Record<MuscleId, number>> = {};
+  for (const [m, v] of Object.entries(total) as [MuscleId, number][]) {
+    out[m] = Math.min(1, v / SERIES_AGOTADO);
+  }
+  return out;
+}
+
+// ── Autorregulacion dentro de la sesion (estilo Juggernaut AI) ───────────────
+// Tras completar una serie, si el RPE real se aleja del objetivo, se corrige el
+// peso de las SIGUIENTES series del ejercicio en lugar de esperar a la semana
+// que viene. Conservador: solo con desvios claros (2+ puntos de RPE, o fallo
+// antes del minimo del rango) y nunca en series al fallo / drop / rest-pause.
+export interface AjusteIntra {
+  peso: number;
+  motivo: string;
+  sube: boolean;
+}
+
+/** Numero maximo del objetivo de RPE ("RPE 7-8 · deja 2-3 reps" -> 8). */
+export function rpeMaxDe(objetivo: string): number | null {
+  const m = objetivo.match(/RPE (\d+)(?:-(\d+))?/);
+  return m ? Number(m[2] ?? m[1]) : null;
+}
+
+/** Salto de carga REAL que se puede hacer con ese equipo (kg del valor registrado):
+ *  barra 2.5 (1.25 por lado); mancuernas (peso TOTAL de las dos) 5 = 2.5 por mano,
+ *  y 2.5 si es a una mano (se registra una sola); maquina / polea 2.5. */
+export function pasoCarga(nombre: string): number {
+  const n = norm(nombre);
+  if (barraDe(nombre)) return 2.5;
+  if (contieneClave(n, 'mancuerna')) return /1 mano|una mano|unilateral/.test(n) ? 2.5 : 5;
+  return 2.5;
+}
+
+export function ajusteIntraSesion(o: {
+  peso: number; reps: number; rpe: number; repsMin: number | null; repsMax: number | null;
+  rpeObjetivoMax: number | null; tecnica: string | null; alFallo: boolean; barra: number | null; paso: number;
+}): AjusteIntra | null {
+  const t = norm(o.tecnica ?? '');
+  if (o.alFallo || !o.peso || o.peso <= 0 || !o.rpe || o.rpeObjetivoMax == null) return null;
+  if (t.includes('amrap') || t.includes('drop') || t.includes('rest')) return null;
+  const paso = o.paso;
+  // se mueve en saltos ENTEROS desde el peso real (no se redondea a una rejilla:
+  // 22.5 + un salto de 5 es 27.5, no 30); ~5% o ~10%, minimo un salto
+  const saltos = (frac: number) => Math.max(1, Math.round((o.peso * frac) / paso));
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  const facil = o.rpe <= o.rpeObjetivoMax - 2 && o.repsMax != null && o.reps >= o.repsMax;
+  const muyDuro = (o.rpe >= 10 && o.repsMin != null && o.reps < o.repsMin) || o.rpe >= o.rpeObjetivoMax + 2;
+  if (facil) {
+    const nuevo = r2(o.peso + saltos(0.05) * paso);
+    return nuevo > o.peso ? { peso: nuevo, sube: true, motivo: `RPE ${o.rpe} con el rango completo: sobraba` } : null;
+  }
+  if (muyDuro) {
+    const frac = o.rpe >= 10 && o.repsMin != null && o.reps < o.repsMin ? 0.1 : 0.05;
+    const nuevo = r2(Math.max(o.barra ?? paso, o.peso - saltos(frac) * paso));
+    return nuevo < o.peso ? { peso: nuevo, sube: false, motivo: `RPE ${o.rpe}${o.repsMin != null && o.reps < o.repsMin ? ' sin llegar al minimo' : ''}: demasiado` } : null;
+  }
+  return null;
+}

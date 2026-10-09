@@ -1,0 +1,10 @@
+# Cada hora en punto: recordatorio.py decide si es SU hora (asi la hora se
+# cambia en la config sin redesplegar). Sin Persistent: un aviso tarde no sirve.
+[Unit]
+Description=GymTracker - recordatorio de entreno, cada hora
+
+[Timer]
+OnCalendar=*-*-* *:00:00 America/Mexico_City
+
+[Install]
+WantedBy=timers.target
