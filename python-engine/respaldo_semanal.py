@@ -1,15 +1,17 @@
-"""Respaldo del motor semanal: corre en el PC local DESPUES de la VM.
+"""Genera la rutina de la semana SOLO si todavia no esta subida.
 
-Arquitectura de dos servidores:
-  - VM de Azure (principal): genera y sube la rutina cada lunes a las 06:00.
-  - Este PC (respaldo): cada lunes a las 09:00 comprueba si la rutina de la
-    semana ya esta en InfinityFree. Si esta, no hace nada. Si no, la VM fallo
-    y la genera aqui.
+Lo usan los tres caminos, en este orden:
+  - VM de Azure (principal): domingo 22:00 (gymtracker-motor.timer).
+  - Este PC (respaldo): domingo 23:30, o al encenderse si estaba apagado.
+  - A mano: generar_rutina_manual.bat, si ninguno de los dos estaba encendido.
+En domingo se genera la semana que empieza el lunes; cualquier otro dia, la
+semana en curso (planificar.lunes_objetivo). Si la rutina ya esta, no hace nada.
 
 InfinityFree es la unica fuente de la verdad Y el punto de coordinacion: el
 respaldo no necesita hablar con la VM para decidir, que es justo lo que hace
-falta cuando la VM esta caida. El motor es determinista y actualizar_plan.php
-es transaccional, asi que aunque corrieran los dos el resultado es el mismo.
+falta cuando la VM esta caida. Comprobar antes de generar tambien evita que un
+arranque tardio (p.ej. la VM encendida el miercoles) rehaga a media semana una
+rutina ya subida con el historial de esos dias.
 
 Registro en respaldo.log. Uso:  python respaldo_semanal.py [--forzar]
 """
@@ -64,7 +66,7 @@ def traer_config_de_la_vm() -> None:
     """Copia la config_usuario.json de la VM (si responde). Si la VM esta caida
     —el caso en que este respaldo importa— se usa la ultima copia local."""
     if not VM_CLAVE.exists():
-        registrar("sin clave SSH de la VM: se usa la config local")
+        registrar("sin clave SSH de la VM (o esto ES la VM): se usa la config local")
         return
     destino = AQUI / "config_usuario.json"
     tmp = AQUI / "config_usuario.vm.json"
@@ -91,14 +93,15 @@ def main() -> int:
     forzar = "--forzar" in sys.argv
     try:
         if not forzar and plan_de_la_semana_subido(lunes):
-            registrar(f"semana {lunes}: la VM ya subio la rutina, no hago nada")
+            registrar(f"semana {lunes}: la rutina ya esta subida, no hago nada")
             return 0
     except Exception as e:  # noqa: BLE001
         # si ni siquiera se puede consultar InfinityFree, generar tampoco servira
         registrar(f"no se pudo consultar InfinityFree: {e!r}")
         return 1
 
-    registrar(f"semana {lunes}: la rutina NO esta subida -> la genera el respaldo local")
+    registrar(f"semana {lunes}: " + ("regenerando a peticion (--forzar)" if forzar
+                                     else "la rutina NO esta subida -> la genero aqui"))
     traer_config_de_la_vm()
     import motor_semanal
     try:
@@ -107,7 +110,7 @@ def main() -> int:
         registrar(f"motor_semanal termino con codigo {e.code}")
         return int(e.code or 0)
     ok = plan_de_la_semana_subido(lunes)
-    registrar("respaldo OK: rutina subida" if ok else "respaldo FALLO: la rutina sigue sin estar")
+    registrar("OK: rutina subida" if ok else "FALLO: la rutina sigue sin estar")
     return 0 if ok else 1
 
 

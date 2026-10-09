@@ -1,3 +1,4 @@
 # scripts y unidades que se ejecutan en Linux: siempre con saltos de linea LF
 *.sh text eol=lf
 servidor/* text eol=lf
+*.bat text eol=crlf

@@ -1,10 +1,12 @@
-# Lunes 06:00 hora de Mexico. Persistent=true: si la VM estaba apagada a esa
-# hora, se ejecuta al arrancar. El PC local es el respaldo a las 09:00.
+# Domingo 22:00 hora de Mexico (genera la rutina de la semana que empieza el
+# lunes). Persistent=true: si la VM estaba apagada a esa hora, se ejecuta al
+# arrancar; como el servicio comprueba antes de generar, no pisa una rutina ya
+# subida. El PC local es el respaldo a las 23:30.
 [Unit]
-Description=GymTracker - motor semanal, lunes 06:00 (Mexico)
+Description=GymTracker - motor semanal, domingo 22:00 (Mexico)
 
 [Timer]
-OnCalendar=Mon *-*-* 06:00:00 America/Mexico_City
+OnCalendar=Sun *-*-* 22:00:00 America/Mexico_City
 Persistent=true
 
 [Install]

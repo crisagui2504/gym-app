@@ -362,7 +362,7 @@ El archivo resultante está ignorado por git (`.gitignore`).
 
 ## Automatización semanal (opcional)
 
-- **`motor_semanal.bat`** + **tarea programada de Windows** «GymTracker Semanal» (creada para correr **domingos 20:00**): descarga historial → recalcula → sube el plan, sin que toques nada. Se cambia/quita con `schtasks /Change` / `schtasks /Delete`.
+- **Servidor dual** (ver `servidor/` y la tanda BR de `docs/CAMBIOS_EVIDENCIA.md`): la VM de Azure genera la rutina el **domingo 22:00**; el PC hace de respaldo a las **23:30** (tarea «GymTracker respaldo semanal», también al encenderse). Si ninguno estaba encendido: doble clic en **`python-engine/generar_rutina_manual.bat`**. Todos comprueban antes de generar, así que no se pisan.
 - **`exportar_local.py`** guarda un **backup fechado** del historial en `python-engine/backups/` cada vez que descarga (las últimas 30 copias) — tu respaldo real ante un hosting gratuito.
 
 ## Flujo completo de un ciclo semanal

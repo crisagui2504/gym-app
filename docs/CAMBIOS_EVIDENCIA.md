@@ -1833,10 +1833,19 @@ falla, la genera el PC.
 InfinityFree, y ninguno guarda datos que el otro no vea. El historial de la VM
 se refresca cada 3 h (`gymtracker-datos.timer`).
 
-| Lunes (hora de México) | Dónde | Qué hace |
+| Domingo (hora de México) | Dónde | Qué hace |
 |---|---|---|
-| 06:00 | VM (`gymtracker-motor.timer`, `Persistent=true`) | genera y sube la rutina |
-| 09:00 | PC (tarea "GymTracker respaldo semanal") | lo comprueba y solo genera si falta |
+| 22:00 | VM (`gymtracker-motor.timer`, `Persistent=true`) | genera y sube la rutina de la semana siguiente |
+| 23:30 | PC (tarea "GymTracker respaldo semanal", también al encenderse si estaba apagado) | lo comprueba y solo genera si falta |
+| cuando quieras | PC, `python-engine/generar_rutina_manual.bat` | lo mismo a mano; opción 2 = regenerar aunque ya esté |
+
+Los tres caminos ejecutan `respaldo_semanal.py`, que comprueba antes de
+generar. Así, un arranque tardío (por ejemplo, la VM encendida el miércoles)
+no rehace a media semana una rutina ya subida. En domingo se genera la semana
+que empieza el lunes; cualquier otro día, la semana en curso. Las tareas
+antiguas del PC «GymTracker Semanal» (domingo 20:00) y «GymTracker-Motor»
+(domingo 21:00) generaban sin comprobar y antes que la VM. Quedan
+deshabilitadas, no borradas.
 
 **Detección del fallo.** `get_rutina_hoy.php` devuelve el plan más reciente
 con `semana_inicio` ≤ la fecha pedida. Si la VM fallara, devolvería el plan de
