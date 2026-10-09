@@ -97,6 +97,36 @@ faltan = [e for e in esperados if not any(e in c for c in claves)]
 check("los 6 callbacks del servidor estan registrados", not faltan, f"faltan: {faltan}")
 
 print()
+print("== Modo demo del dashboard: aislado y de solo lectura ==")
+import exportar_demo as _dem
+_cfg_ruta = pathlib.Path(dsh.__file__).resolve().parent / "config_usuario.json"
+_cfg_antes = _cfg_ruta.read_text(encoding="utf-8") if _cfg_ruta.exists() else None
+with dsh.server.test_request_context("/", headers={"Cookie": "gym_demo=1"}):
+    _df, _estado = dsh._cargar_df()
+    check("con la cookie de demo se ven los datos del atleta virtual", _estado == "demo" and len(_df) > 100)
+    check("la demo termina la semana pasada (fechas relativas a hoy)",
+          _df["fecha_entreno"].max().date() < __import__("datetime").date.today())
+    check("en demo no se muestran tu peso, tu config ni tu encuesta",
+          "oculto" in str(dsh._panel_peso()) and "desactivada" in str(dsh._tab_config_children())
+          and dsh._panel_encuesta() is None)
+    check("en demo NINGUN callback escribe",
+          "Modo demo" in str(dsh._guardar_enfoque(1, "fuerza", "ppl", [], 99, 60, []))
+          and "no se sube" in str(dsh._subir_plan(1)) and "oculto" in str(dsh._guardar_peso_cb(1, 80, None))
+          and "NoUpdate" in type(dsh._cambiar_tema(1)).__name__
+          and "Modo demo" in str(dsh._refrescar_datos(1)[0]))
+check("tu config sigue intacta despues de usar la demo",
+      _cfg_antes == (_cfg_ruta.read_text(encoding="utf-8") if _cfg_ruta.exists() else None))
+with dsh.server.test_request_context("/"):
+    check("sin la cookie, el dashboard no esta en demo", dsh._cargar_df()[1] != "demo")
+_cli = dsh.server.test_client()
+check("/demo pone la cookie y /demo/salir la quita",
+      "gym_demo=1" in _cli.get("/demo").headers.get("Set-Cookie", "")
+      and "gym_demo=;" in _cli.get("/demo/salir").headers.get("Set-Cookie", ""))
+_ts = (pathlib.Path(_dem.DESTINO_TS)).read_text(encoding="utf-8")
+check("los datos de demo de la app existen y traen los 7 dias",
+      all(f'"{d}": [' in _ts for d in range(1, 8)) and "DEMO_HISTORIAL" in _ts)
+
+print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")
     sys.exit(1)

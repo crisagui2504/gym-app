@@ -6,6 +6,7 @@ import { EjercicioPlan, FeedbackItem, RutinaApiService, SerieHistorial, SeriePay
 import { MuscleMapComponent } from './muscle-map.component';
 import { AcentosPipe } from './acentos';
 import * as almacen from './almacen';
+import { ES_DEMO, entrarDemo, salirDemo } from './demo';
 import { environment } from '../environments/environment';
 import {
   ajusteIntraSesion,
@@ -168,6 +169,32 @@ export class AppComponent implements OnInit, OnDestroy {
     listos: string[];
   } | null>(null);
 
+  // ----- Modo demo (oculto: 5 toques al logo) -----
+  readonly esDemo = ES_DEMO;
+  readonly diaDemo = signal(((new Date().getDay() + 6) % 7) + 1);
+  private toquesLogo: number[] = [];
+
+  /** 5 toques al logo en menos de 3 s abren la demo (o la cierran si ya estas dentro). */
+  tocarLogo(): void {
+    const ahora = Date.now();
+    this.toquesLogo = [...this.toquesLogo.filter((t) => ahora - t < 3000), ahora];
+    if (this.toquesLogo.length >= 5) {
+      this.toquesLogo = [];
+      if (this.esDemo) salirDemo();
+      else entrarDemo();
+    }
+  }
+
+  verDiaDemo(dia: number): void {
+    this.diaDemo.set(dia);
+    this.mostrarSemana.set(false);
+    this.cargarSesion(dia);
+  }
+
+  salirDemo(): void {
+    salirDemo();
+  }
+
   // "Usar siempre": reemplazo (normalizado) -> ejercicio original del plan
   readonly preferencias = signal<Record<string, string>>({});
 
@@ -181,7 +208,7 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly historial = signal<Array<{ fecha: string; items: Array<{ ejercicio: string; mejor: string }> }>>([]);
 
   // ----- Reprogramar la semana (mover el dia de descanso) -----
-  readonly diasLabel = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
+  readonly diasLabel = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
   readonly mostrarSemana = signal(false);
   readonly cargandoSemana = signal(false);
   readonly semana = signal<{ cal: number; sesion: number; nombre: string; descanso: boolean; deporte: boolean; hoy: boolean }[]>([]);
@@ -394,6 +421,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   private async estadoAvisos(): Promise<void> {
+    if (this.esDemo) return this.avisos.set('no');   // la demo no toca la suscripcion real
     if (this.esIosSinInstalar()) return this.avisos.set('instalar');
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
       return this.avisos.set('no');
@@ -408,6 +436,10 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   async toggleAvisos(): Promise<void> {
+    if (this.esDemo) {
+      this.mensaje.set('Los avisos no están disponibles en la demo.');
+      return;
+    }
     const estado = this.avisos();
     if (estado === 'instalar') {
       this.mensaje.set('🔔 En iPhone los avisos solo llegan con la app instalada: Compartir → «Agregar a inicio», y actívalos desde ahí.');

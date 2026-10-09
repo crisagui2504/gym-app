@@ -2069,6 +2069,50 @@ compila.
 al día). Las pruebas pasan en un checkout limpio, sin `.env` ni config, como en
 GitHub.
 
+## BV. Modo demo oculto (app y dashboard) y barra flotante en iOS 26 (2026-10-09)
+
+**Barra flotante en iPhone.** En iOS 26, al cerrar el teclado (al escribir un
+peso), el viewport queda encogido o desplazado y los `position: fixed` de abajo
+(la barra de acciones y el cronómetro) se quedan a media pantalla. Es una
+regresión de WebKit (foros de Apple, hilos 800125 y 800154). Mientras se
+escribe, se ocultan. Al cerrar el teclado, si el viewport quedó mal, se fuerza
+a WebKit a volver a medirlo ocultando y mostrando la raíz de la app,
+conservando el scroll.
+
+**Demo de la app.** Se entra con 5 toques al logo en menos de 3 s (o abriendo
+`?demo=1`) y se sale con "Salir". Funciona así:
+
+- `DemoApiService` sustituye a la API real: no hay red, y lo que se "guarda" se
+  olvida.
+- `localStorage` se reemplaza por memoria, e IndexedDB también, antes de
+  arrancar la app.
+- Los avisos push quedan bloqueados, para no tocar la suscripción real.
+- Una barra permite elegir el día y ver cada tipo: torso, pierna, básquet,
+  cardio y descanso.
+
+Verificado:
+
+- Tras usar la demo y guardar un entreno en ella, la racha, los récords, el
+  "último guardado", la cola de envío pendiente y el entreno en curso reales
+  quedaron idénticos.
+
+**Demo del dashboard.** El título es un enlace invisible a `/demo`, que pone
+una cookie; `/demo/salir` la quita. Con la cookie:
+
+- Los datos son los del atleta virtual.
+- El peso corporal, la configuración y la encuesta personales no se muestran.
+- Los 5 callbacks que escriben (config, tema, peso, subir plan y actualizar
+  datos) solo avisan.
+- El plan y el mesociclo usan la config de la demo.
+
+Lo protege `test_funcional` (8 pruebas de aislamiento).
+
+**Datos.** `exportar_demo.py` hace entrenar 9 semanas al atleta virtual con
+una config que tiene todos los tipos de día, y el motor planifica la semana
+siguiente. Las fechas se guardan relativas al lunes, así que la demo nunca
+envejece. Archivos: `demo.generado.ts` (app) y `demo_historial.csv`
+(dashboard).
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

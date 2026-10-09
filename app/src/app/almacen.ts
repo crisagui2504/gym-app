@@ -11,6 +11,9 @@
 const DB = 'gymtracker';
 const STORE = 'kv';
 let conexion: Promise<IDBDatabase> | null = null;
+// Modo demo: todo en memoria; la base real ni se abre (ver demo.ts)
+const memoriaDemo = new Map<string, unknown>();
+const enDemo = () => (globalThis as unknown as { __GYM_DEMO__?: boolean }).__GYM_DEMO__ === true;
 
 function abrir(): Promise<IDBDatabase> {
   if (!conexion) {
@@ -45,6 +48,7 @@ async function operar<T>(modo: IDBTransactionMode, fn: (s: IDBObjectStore) => ID
 }
 
 export async function leer<T>(clave: string): Promise<T | undefined> {
+  if (enDemo()) return memoriaDemo.get(clave) as T | undefined;
   if (hayIdb()) {
     try {
       return await operar<T | undefined>('readonly', (s) => s.get(clave));
@@ -61,6 +65,10 @@ export async function leer<T>(clave: string): Promise<T | undefined> {
 }
 
 export async function guardar(clave: string, valor: unknown): Promise<void> {
+  if (enDemo()) {
+    memoriaDemo.set(clave, valor);
+    return;
+  }
   if (hayIdb()) {
     try {
       await operar('readwrite', (s) => s.put(valor, clave));
@@ -77,6 +85,10 @@ export async function guardar(clave: string, valor: unknown): Promise<void> {
 }
 
 export async function borrar(clave: string): Promise<void> {
+  if (enDemo()) {
+    memoriaDemo.delete(clave);
+    return;
+  }
   if (hayIdb()) {
     try {
       await operar('readwrite', (s) => s.delete(clave));
@@ -94,6 +106,7 @@ export async function borrar(clave: string): Promise<void> {
 /** Pide almacenamiento PERSISTENTE (el navegador no lo borra por falta de
  *  espacio). Chrome lo concede a PWAs instaladas; Safari, a apps de inicio. */
 export async function pedirPersistencia(): Promise<boolean> {
+  if (enDemo()) return false;
   try {
     if (navigator.storage?.persisted && (await navigator.storage.persisted())) return true;
     return (await navigator.storage?.persist?.()) ?? false;

@@ -17,7 +17,7 @@
         <span class="ring-pct">{{ progreso().pct }}<small>%</small></span>
       </div>
       <div class="brand">
-        <span class="logo">Gym<strong>Tracker</strong></span>
+        <span class="logo" (click)="tocarLogo()">Gym<strong>Tracker</strong></span>
         <h1 class="dia">{{ nombreDia() | acentos }}</h1>
         <p class="sub" *ngIf="!cargando() && progreso().total > 0 && !esDiaDescanso() && !esDiaDeporte()">
           {{ progreso().hechas }}/{{ progreso().total }} series<span *ngIf="progreso().pct === 100"> · completo</span>
@@ -34,6 +34,19 @@
           <path *ngIf="avisos() !== 'on'" d="M4 4l16 16"/></svg>
       </button>
     </header>
+
+    <!-- MODO DEMO: datos simulados, nada se guarda; se elige el dia a mostrar -->
+    <section class="demo-banda" *ngIf="esDemo">
+      <div class="demo-cab">
+        <span class="demo-tag">Demo</span>
+        <span class="demo-txt">Datos simulados · nada se guarda</span>
+        <button type="button" class="demo-salir" (click)="salirDemo()">Salir</button>
+      </div>
+      <div class="demo-dias">
+        <button type="button" *ngFor="let d of diasLabel; let i = index" [class.on]="diaDemo() === i + 1"
+                (click)="verDiaDemo(i + 1)">{{ d }}</button>
+      </div>
+    </section>
 
     <p class="status" *ngIf="mensaje()">{{ mensaje() | acentos }}</p>
     <p class="status pendientes" *ngIf="pendientes() > 0">

@@ -1878,3 +1878,76 @@ body.teclado .actionbar,
 body.teclado .timer {
   display: none;
 }
+
+/* ── Modo demo ──────────────────────────────────────────────────────────────── */
+.logo {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.demo-banda {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px dashed var(--violet);
+  background: var(--violet-tint);
+}
+
+.demo-cab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.demo-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--violet);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.demo-txt {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.demo-salir {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.demo-dias {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.demo-dias button {
+  min-height: 34px;
+  border-radius: 10px;
+  background: var(--card);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.demo-dias button.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}

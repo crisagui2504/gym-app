@@ -243,7 +243,8 @@ class Atleta:
 
 
 def simular(perfil: Perfil, semanas: int = 20, semilla: int = 1, config: dict | None = None,
-            inicio: date = date(2026, 1, 5), diario: bool = False) -> dict:
+            inicio: date = date(2026, 1, 5), diario: bool = False,
+            devolver_historial: bool = False) -> dict:
     """Corre el motor contra el atleta. Devuelve metricas de entrenador."""
     import planificar as pl
     from generador import generar_plan
@@ -294,7 +295,10 @@ def simular(perfil: Perfil, semanas: int = 20, semilla: int = 1, config: dict | 
                              "avisos": avisos, "fatiga": atleta.fatiga, "sesiones": len({r["fecha_entreno"] for r in nuevas})})
         if nuevas:
             hist = pd.DataFrame(nuevas) if hist.empty else pd.concat([hist, pd.DataFrame(nuevas)], ignore_index=True)
-    return evaluar(atleta, semanas_info, saltos_reales)
+    res = evaluar(atleta, semanas_info, saltos_reales)
+    if devolver_historial:
+        res["historial"] = hist      # para la demo (exportar_demo.py)
+    return res
 
 
 def evaluar(atleta: Atleta, semanas_info: list[dict], saltos: list[float]) -> dict:

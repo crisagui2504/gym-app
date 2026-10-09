@@ -182,6 +182,38 @@ def _generar_demo() -> pd.DataFrame:
 # ─────────────────────────────────────────────────────────────────────────────
 # Carga de datos
 # ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# MODO DEMO (oculto): enlace invisible en el titulo -> /demo pone una cookie y
+# todo el dashboard usa los datos del atleta virtual (exportar_demo.py). Nada se
+# escribe: los callbacks que guardan devuelven un aviso. /demo/salir lo apaga.
+# ─────────────────────────────────────────────────────────────────────────────
+COOKIE_DEMO = "gym_demo"
+_DEMO_CACHE: dict = {}
+
+
+def _es_demo() -> bool:
+    try:
+        from flask import request
+        return request.cookies.get(COOKIE_DEMO) == "1"
+    except RuntimeError:          # sin peticion (arranque, pruebas)
+        return False
+
+
+def _df_demo() -> pd.DataFrame:
+    hoy = date.today()
+    if _DEMO_CACHE.get("dia") != hoy:
+        import exportar_demo
+        from planificar import sanear_historial
+        _DEMO_CACHE.update(dia=hoy, df=sanear_historial(exportar_demo.cargar_historial_demo(hoy)))
+    return _DEMO_CACHE["df"].copy()
+
+
+def _aviso_demo(texto: str = "Modo demo: los datos son simulados y no se guarda nada.") -> html.Div:
+    return html.Div(texto, style={"background": "rgba(125,81,254,0.14)", "color": TEXT, "padding": "10px 16px",
+                                  "borderRadius": "10px", "fontSize": "13px", "marginBottom": "16px",
+                                  "border": "1px dashed #7d51fe"})
+
+
 def _cargar_df() -> tuple[pd.DataFrame, str]:
     """Devuelve (df, estado) con estado in {"real", "vacio", "demo"}.
 
@@ -189,6 +221,8 @@ def _cargar_df() -> tuple[pd.DataFrame, str]:
     - "vacio": no hay datos todavía (se muestra un estado vacío, no demo).
     - "demo":  solo si se arranca con la variable de entorno GYM_DEMO=1.
     """
+    if _es_demo():
+        return _df_demo(), "demo"
     if CSV_PATH.exists():
         df = pd.read_csv(CSV_PATH)
         for col in ("peso_kg", "reps_hechas", "rpe", "tonelaje_serie"):
@@ -423,6 +457,8 @@ def _fig_volumen_musculo(df: pd.DataFrame, hoy: date | None = None) -> go.Figure
 
 def _panel_encuesta() -> html.Div | None:
     """Que cambio el motor por la encuesta de la sesion (si hay respuestas)."""
+    if _es_demo():
+        return None
     try:
         import feedback as fbk
         from planificar import lunes_objetivo
@@ -539,6 +575,12 @@ def _tendencia_semanal(dfp: pd.DataFrame) -> float | None:
 
 
 def _panel_peso() -> list:
+    if _es_demo():
+        return [_aviso_demo("Modo demo: el registro de peso corporal está oculto (es un dato personal).")]
+    return _panel_peso_real()
+
+
+def _panel_peso_real() -> list:
     cfg = cargar_config()
     enf = ENFOQUES.get(cfg.get("enfoque"), ENFOQUES["recomposicion"])
     dfp = _cargar_peso()
@@ -782,6 +824,19 @@ def _tabla_logbook(df: pd.DataFrame):
 # ─────────────────────────────────────────────────────────────────────────────
 # Tabla del plan próxima semana
 # ─────────────────────────────────────────────────────────────────────────────
+def _tabla_plan_demo(df: pd.DataFrame, objetivo: date) -> dash_table.DataTable | html.Div:
+    """Plan de la demo: config del atleta virtual, sin tu encuesta ni preferencias."""
+    import exportar_demo as dem
+    from generador import generar_plan
+    from planificar import decidir_semana, generar_filas
+    inicio = objetivo - timedelta(weeks=dem.SEMANAS)
+    semana, reingreso, _ = decidir_semana(df, objetivo, inicio)
+    filas = generar_filas(df, objetivo.isoformat(), semana, reingreso=reingreso,
+                          plan=generar_plan(dem.CONFIG_DEMO, ciclo=dem.SEMANAS // 5),
+                          duracion_min=dem.CONFIG_DEMO["duracion_min"])
+    return _tabla_de_filas(filas)
+
+
 def _tabla_plan(df: pd.DataFrame) -> dash_table.DataTable | html.Div:
     try:
         from planificar import generar_filas, ultimas_y_records, lunes_objetivo, decidir_semana
@@ -795,6 +850,8 @@ def _tabla_plan(df: pd.DataFrame) -> dash_table.DataTable | html.Div:
             else lunes_objetivo()
         )
         inicio = date.fromisoformat(inicio_env) if inicio_env else objetivo
+        if _es_demo():
+            return _tabla_plan_demo(df, objetivo)
         # misma decision que planificar.py (rampa de reingreso + deload reactivo):
         # antes el dashboard calculaba solo la semana del calendario y mostraba un
         # plan distinto del que se subia al telefono
@@ -815,6 +872,10 @@ def _tabla_plan(df: pd.DataFrame) -> dash_table.DataTable | html.Div:
                    style={"color": MUTED, "fontSize": "13px"}),
         ])
 
+    return _tabla_de_filas(filas)
+
+
+def _tabla_de_filas(filas: list[dict]) -> dash_table.DataTable:
     cols = ["dia_semana", "nombre_dia", "bloque", "ejercicio", "tecnica",
             "series_objetivo", "reps_min", "reps_max", "descanso_seg", "peso_sugerido", "notas"]
     df_plan = pd.DataFrame(filas)[cols]
@@ -867,12 +928,21 @@ def _tabla_mesociclo(df: pd.DataFrame):
         )
         inicio = date.fromisoformat(inicio_env) if inicio_env else objetivo
         ciclo = ciclo_mesociclo(objetivo)
+        extra: dict = {}
+        if _es_demo():
+            # demo: el mesociclo y la config del atleta virtual, no los tuyos
+            import exportar_demo as dem
+            from generador import generar_plan
+            inicio = objetivo - timedelta(weeks=dem.SEMANAS)
+            ciclo = (objetivo - inicio).days // 35
+            extra = {"plan": generar_plan(dem.CONFIG_DEMO, ciclo=ciclo),
+                     "duracion_min": dem.CONFIG_DEMO["duracion_min"]}
         cycle_start = inicio + timedelta(days=ciclo * 35)
 
         filas_all: list[dict] = []
         for sem in (1, 2, 3, 4, 5):
             fecha = cycle_start + timedelta(days=(sem - 1) * 7)
-            for f in generar_filas(df, fecha.isoformat(), sem):
+            for f in generar_filas(df, fecha.isoformat(), sem, **extra):
                 if not f.get("tecnica"):
                     continue
                 filas_all.append({
@@ -954,6 +1024,8 @@ _DD_STYLE = {"marginTop": "6px"}
 
 
 def _tab_config_children(estado: str = "real") -> html.Div:
+    if _es_demo():
+        return _aviso_demo("Modo demo: la configuración está desactivada (no se puede cambiar ni ver la tuya).")
     cfg = cargar_config()
     return html.Div([
         _card([
@@ -1092,10 +1164,13 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
     default_ej = ejercicios_opts[0]["value"] if ejercicios_opts else ""
 
     if estado == "demo":
-        banner = html.Div("⚠ Modo demostración (GYM_DEMO) — datos de ejemplo",
-                          style={"background": "rgba(255,192,67,0.14)", "color": WARN,
-                                 "padding": "10px 16px", "fontSize": "13px", "borderRadius": "10px",
-                                 "marginBottom": "16px", "border": "1px solid rgba(255,192,67,0.3)"})
+        banner = html.Div([
+            html.Span("DEMO ", style={"fontWeight": "800", "color": "#ad94ff"}),
+            html.Span("Datos de un atleta virtual (simulador del motor). Nada de esto es real y no se guarda nada. "),
+            html.A("Salir de la demo", href="/demo/salir", style={"color": ACCENT, "fontWeight": "700"}),
+        ], style={"background": "rgba(125,81,254,0.14)", "color": TEXT, "padding": "10px 16px",
+                  "fontSize": "13px", "borderRadius": "10px", "marginBottom": "16px",
+                  "border": "1px dashed #7d51fe"})
     elif vacio:
         banner = html.Div([
             html.Span("Sin datos todavía. ", style={"fontWeight": "700", "color": TEXT}),
@@ -1358,9 +1433,11 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
                                        "background": f"linear-gradient(135deg,{ACCENT},{ACCENT2})",
                                        "WebkitBackgroundClip": "text", "WebkitTextFillColor": "transparent"}),
                 html.Div([
-                    html.Div("Gym Tracker", style={"color": TEXT, "margin": "0",
-                                                   "fontSize": "21px", "fontWeight": "800",
-                                                   "letterSpacing": "-0.5px", "lineHeight": "1"}),
+                    # el titulo es un enlace INVISIBLE a la demo (y de vuelta si ya estas en ella)
+                    html.A("Gym Tracker", href="/demo/salir" if _es_demo() else "/demo",
+                           style={"color": TEXT, "margin": "0", "fontSize": "21px", "fontWeight": "800",
+                                  "letterSpacing": "-0.5px", "lineHeight": "1", "display": "block",
+                                  "textDecoration": "none", "cursor": "default"}),
                     html.Span("Panel de Inteligencia Deportiva",
                               style={"color": MUTED, "fontSize": "12px"}),
                 ]),
@@ -1409,6 +1486,22 @@ app = Dash(
 server = app.server
 
 
+@server.route("/demo")
+def _entrar_demo():
+    from flask import make_response, redirect
+    r = make_response(redirect("/"))
+    r.set_cookie(COOKIE_DEMO, "1", max_age=3 * 3600, samesite="Lax")
+    return r
+
+
+@server.route("/demo/salir")
+def _salir_demo():
+    from flask import make_response, redirect
+    r = make_response(redirect("/"))
+    r.delete_cookie(COOKIE_DEMO)
+    return r
+
+
 def _serve_layout() -> html.Div:
     _aplicar_tema(cargar_config().get("tema", "oscuro"))
     df, estado = _cargar_df()
@@ -1436,6 +1529,9 @@ def _update_progresion(ejercicio: str) -> go.Figure:
 def _refrescar_datos(n_clicks):
     """Descarga el historial real del servidor (mismo pipeline que exportar_local.py)."""
     import time
+    if _es_demo():
+        from dash import no_update
+        return _aviso_demo(), no_update
     try:
         import exportar_local
         exportar_local.main()
@@ -1471,6 +1567,9 @@ app.clientside_callback(
 def _cambiar_tema(n_clicks):
     """Alterna entre tema oscuro y claro, lo guarda y dispara la recarga."""
     import time
+    if _es_demo():
+        from dash import no_update
+        return no_update          # el tema vive en TU config: la demo no la toca
     actual = cargar_config().get("tema", "oscuro")
     guardar_config({"tema": "claro" if actual == "oscuro" else "oscuro"})
     return time.time()
@@ -1497,6 +1596,8 @@ app.clientside_callback(
     prevent_initial_call=True,
 )
 def _guardar_enfoque(n_clicks, enfoque, split, prioridades, peso, duracion, equipo):
+    if _es_demo():
+        return _aviso_demo()
     cfg = {
         "enfoque": enfoque,
         "split": split,
@@ -1529,6 +1630,8 @@ def _guardar_enfoque(n_clicks, enfoque, split, prioridades, peso, duracion, equi
 )
 def _subir_plan(n_clicks):
     """Corre el motor completo (planificar.main) sin salir del dashboard."""
+    if _es_demo():
+        return _aviso_demo("Modo demo: no se sube ningún plan a tu app.")
     import contextlib
     import io
     try:
@@ -1632,6 +1735,8 @@ app.clientside_callback(
     prevent_initial_call=True,
 )
 def _guardar_peso_cb(n_clicks, peso, cintura):
+    if _es_demo():
+        return _panel_peso()
     if peso and 30 <= float(peso) <= 250:
         cin = float(cintura) if cintura and 40 <= float(cintura) <= 200 else None
         _registrar_peso(float(peso), cin)
