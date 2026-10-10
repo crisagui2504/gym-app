@@ -72,6 +72,39 @@ export interface NutricionResponse {
   dias: Array<{ fecha: string; proteina_g: number; porciones: Record<string, number> }>;
 }
 
+/** Menu semanal barato (python-engine/menu.py), tal cual lo genera el motor. */
+export interface MenuComida {
+  tiempo: string;
+  receta: string;
+  nombre: string;
+  como: string;
+  ingredientes: Array<{ id: string; nombre: string; g: number; texto: string }>;
+  kcal: number;
+  prot: number;
+  costo: number;
+}
+export interface MenuDia {
+  dia: number;
+  nombre: string;
+  fecha: string;
+  comidas: MenuComida[];
+  kcal: number;
+  prot: number;
+  costo: number;
+}
+export interface MenuSemana {
+  semana_inicio: string;
+  meta: { kcal: number; proteina_min: number; proteina_max: number };
+  dias: MenuDia[];
+  lista: Array<{ id: string; nombre: string; compra: string; costo: number; fuente: string }>;
+  costo_semana: number;
+  costo_dia: number;
+  kcal_prom: number;
+  prot_prom: number;
+  avisos: string[];
+  nota: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RutinaApiService {
   private readonly http = inject(HttpClient);
@@ -132,6 +165,14 @@ export class RutinaApiService {
   /** Meta de proteina/kcal (la sube el motor) y la proteina registrada de los ultimos dias. */
   getNutricion(dias = 14): Observable<NutricionResponse> {
     return this.http.get<NutricionResponse>(`${environment.apiBaseUrl}/get_nutricion.php?dias=${dias}`, { headers: this.headers });
+  }
+
+  /** Menu de la semana de `fecha` (el que genero el motor); null si aun no hay. */
+  getMenu(fecha = new Date()): Observable<{ ok: boolean; menu: MenuSemana | null }> {
+    return this.http.get<{ ok: boolean; menu: MenuSemana | null }>(
+      `${environment.apiBaseUrl}/get_menu.php?fecha=${fechaLocal(fecha)}`,
+      { headers: this.headers }
+    );
   }
 
   /** Total de proteina del dia y sus porciones; reenviarlo no duplica (upsert por fecha). */

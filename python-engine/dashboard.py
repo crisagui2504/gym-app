@@ -1241,6 +1241,163 @@ def _resumen_enfoque(cfg: dict) -> html.Div:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Menú semanal barato (menu.py): rico, sano y barato con comida mexicana
+# ─────────────────────────────────────────────────────────────────────────────
+_ETIQ_TIEMPO = {"desayuno": "Desayuno", "comida": "Comida", "colacion": "Colación", "cena": "Cena"}
+_EXCLUIR_OPC = [("carnes", "Carnes (pollo, res, cerdo)"), ("pescado", "Pescado (atún, sardina)"),
+                ("lacteos", "Lácteos"), ("huevo", "Huevo")]
+
+
+def _menu_cfg() -> dict:
+    if _es_demo():
+        d = _demo_cfg()
+        return {"enfoque": d["enfoque"], "peso_corporal": 75}
+    return cargar_config()
+
+
+def _en_segundo_plano(fn, *args) -> None:
+    import threading
+    threading.Thread(target=fn, args=args, daemon=True).start()
+
+
+def _menu_actual(forzar: bool = False):
+    """El menu de la semana objetivo: el guardado si sigue vigente (misma semana y
+    misma meta); si no, uno nuevo. En demo nunca se guarda nada."""
+    import menu as mnu
+    from planificar import lunes_objetivo
+    cfg = _menu_cfg()
+    lunes = lunes_objetivo()
+    meta = nutricion.metas(cfg)
+    if not _es_demo() and not forzar:
+        m = mnu.leer_local()
+        if (m and m.get("semana_inicio") == lunes.isoformat()
+                and m.get("meta", {}).get("kcal") == meta["kcal"]
+                and m.get("meta", {}).get("proteina_min") == meta["proteina_min"]):
+            return m
+    try:
+        m = mnu.generar_menu(cfg, lunes)
+    except ValueError as e:
+        return str(e)
+    if not _es_demo():
+        mnu.guardar_local(m)
+    return m
+
+
+def _menu_vista(m) -> html.Div:
+    if isinstance(m, str) or not m:
+        return _card(html.P(m or "No se pudo generar el menú.", style={"color": WARN, "margin": "0"}))
+    meta = m["meta"]
+    resumen = _card([
+        html.Div(f"🍽️ Menú de la semana del {m['semana_inicio']}",
+                 style={"color": TEXT, "fontWeight": "700", "fontSize": "15px", "marginBottom": "6px"}),
+        html.Div([html.Span(f"${m['costo_semana']:,.0f} a la semana",
+                            style={"fontWeight": "800", "fontSize": "20px", "color": ACCENT}),
+                  html.Span(f"  ·  ~${m['costo_dia']:,.0f} al día", style={"color": MUTED, "fontSize": "13px"})]),
+        html.P(f"Promedio: {m['kcal_prom']:,} kcal y {m['prot_prom']} g de proteína al día "
+               f"(tu meta: {meta['kcal']:,} kcal y {meta['proteina_min']}-{meta['proteina_max']} g).",
+               style={"color": TEXT, "fontSize": "13px", "margin": "8px 0 0"}),
+        *[html.P(a, style={"color": WARN, "fontSize": "12px", "margin": "6px 0 0"}) for a in m.get("avisos", [])],
+        html.P(m.get("nota", ""), style={"color": MUTED, "fontSize": "11px", "margin": "8px 0 0"}),
+    ])
+    dias = []
+    for d in m["dias"]:
+        comidas = []
+        for c in d["comidas"]:
+            comidas.append(html.Div([
+                html.Div(_ETIQ_TIEMPO.get(c["tiempo"], c["tiempo"]).upper(),
+                         style={"color": ACCENT, "fontSize": "10px", "fontWeight": "800", "letterSpacing": "1px"}),
+                html.Div([html.Span(c["nombre"], style={"fontWeight": "700"}),
+                          html.Span(f"  {c['kcal']} kcal · {c['prot']:.0f} g", style={"color": MUTED, "fontSize": "12px"})],
+                         style={"color": TEXT, "fontSize": "13.5px"}),
+                html.Div(", ".join(i["texto"] for i in c["ingredientes"]),
+                         style={"color": MUTED, "fontSize": "12px", "marginTop": "2px"}),
+                *([html.Div(c["como"], style={"color": MUTED, "fontSize": "11px", "fontStyle": "italic",
+                                               "marginTop": "2px"})] if c.get("como") else []),
+            ], style={"padding": "8px 0", "borderTop": f"1px solid {LINE}"}))
+        dias.append(_card([
+            html.Div([html.Span(d["nombre"], style={"fontWeight": "800", "fontSize": "15px"}),
+                      html.Span(f"{d['kcal']:,} kcal · {d['prot']} g · ${d['costo']:.0f}",
+                                style={"color": MUTED, "fontSize": "12px"})],
+                     style={"display": "flex", "justifyContent": "space-between", "alignItems": "baseline",
+                            "color": TEXT, "marginBottom": "4px", "gap": "8px"}),
+            *comidas,
+        ], {"padding": "16px"}))
+    lista = dash_table.DataTable(
+        data=[{"alimento": f["nombre"], "cantidad": f["compra"], "costo": f"${f['costo']:.0f}",
+               "precio": f["fuente"]} for f in m["lista"]],
+        columns=[{"name": "Alimento", "id": "alimento"}, {"name": "Comprar", "id": "cantidad"},
+                 {"name": "≈ Costo", "id": "costo"}, {"name": "Precio", "id": "precio"}],
+        style_table={"overflowX": "auto"},
+        style_header={"backgroundColor": CARD2, "color": ACCENT, "fontWeight": "600", "border": f"1px solid {LINE}"},
+        style_cell={"backgroundColor": CARD, "color": TEXT, "border": f"1px solid {LINE}", "fontSize": "13px",
+                    "padding": "8px 12px", "textAlign": "left"},
+    )
+    return html.Div([
+        resumen,
+        html.Div(dias, className="menu-dias", style={"marginTop": "16px"}),
+        _card([html.Div(f"🛒 Lista del súper (≈ ${m['costo_semana']:,.0f})",
+                        style={"color": TEXT, "fontWeight": "700", "fontSize": "15px", "marginBottom": "10px"}),
+               lista], {"marginTop": "16px"}),
+    ])
+
+
+def _tab_menu_children() -> html.Div:
+    import alimentos_mx as alx
+    cfg = _menu_cfg()
+    precios = alx.precios()
+    tabla_precios = dash_table.DataTable(
+        id="precios-tabla",
+        data=[{"id": a.id, "alimento": a.nombre, "precio": precios[a.id],
+               "fuente": "tu precio" if precios[a.id] != a.precio_kg else a.fuente}
+              for a in alx.ALIMENTOS.values()],
+        columns=[{"name": "Alimento", "id": "alimento", "editable": False},
+                 {"name": "$ por kg o L", "id": "precio", "type": "numeric", "editable": True},
+                 {"name": "Fuente", "id": "fuente", "editable": False}],
+        editable=True, page_size=12, style_table={"overflowX": "auto"},
+        style_header={"backgroundColor": CARD2, "color": ACCENT, "fontWeight": "600", "border": f"1px solid {LINE}"},
+        style_cell={"backgroundColor": CARD, "color": TEXT, "border": f"1px solid {LINE}", "fontSize": "13px",
+                    "padding": "8px 12px", "textAlign": "left"},
+        style_data_conditional=[{"if": {"column_id": "precio"}, "fontWeight": "700", "color": ACCENT}],
+    )
+    controles = _card([
+        html.Div("Comida mexicana de diario que llega a tus calorías y a tu proteína al menor costo. "
+                 "Si algo no te gusta o no lo comes, quítalo y genera otro.",
+                 style={"color": MUTED, "fontSize": "13px", "marginBottom": "12px"}),
+        html.Label("No como", style=_LABEL_STYLE),
+        dcc.Checklist(id="menu-excluir", options=[{"label": f" {t}", "value": v} for v, t in _EXCLUIR_OPC],
+                      value=[x for x in (cfg.get("alimentos_excluidos") or []) if x in dict(_EXCLUIR_OPC)],
+                      inline=True, style={"fontSize": "14px", "marginTop": "8px", "display": "flex",
+                                          "flexWrap": "wrap", "gap": "8px 4px"},
+                      labelStyle={"color": TEXT, "marginRight": "16px", "display": "inline-flex",
+                                  "alignItems": "center", "gap": "5px"}),
+        dcc.Checklist(id="menu-supl", options=[{"label": " Permitir proteína en polvo (solo si con comida no llego)",
+                                                "value": "si"}],
+                      value=["si"] if cfg.get("menu_suplementos") else [],
+                      style={"fontSize": "14px", "marginTop": "10px"},
+                      labelStyle={"color": TEXT, "display": "inline-flex", "alignItems": "center", "gap": "5px"}),
+        html.Button("🔄 Generar otro menú", id="menu-generar", n_clicks=0, className="gym-btn",
+                    style={"marginTop": "16px"}),
+    ])
+    precios_card = _card([
+        html.Div("💲 Tus precios", style={"color": TEXT, "fontWeight": "700", "fontSize": "15px", "marginBottom": "4px"}),
+        html.P("Profeco 2026 donde hay dato; el resto es estimado. Cambia el precio de lo que compras "
+               "(doble clic en la celda) y guarda: el menú se recalcula con lo que de verdad pagas.",
+               style={"color": MUTED, "fontSize": "12px", "marginBottom": "10px"}),
+        tabla_precios,
+        html.Button("Guardar precios", id="precios-guardar", n_clicks=0, className="gym-btn-ghost",
+                    style={"marginTop": "12px"}),
+        html.Div(id="precios-estado", style={"marginTop": "8px", "fontSize": "13px", "color": ACCENT}),
+    ], {"marginTop": "16px"})
+    return html.Div([
+        *([_aviso_demo("Modo demo: menú del atleta virtual (75 kg). Puedes generar otros; nada se guarda.")]
+          if _es_demo() else []),
+        controles,
+        html.Div(id="menu-contenido", children=_menu_vista(_menu_actual()), style={"marginTop": "16px"}),
+        precios_card,
+    ], style={"padding": "16px 0"})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Construcción de la app
 # ─────────────────────────────────────────────────────────────────────────────
 def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
@@ -1411,6 +1568,10 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
                 html.Div(id="peso-panel", children=_panel_peso(),
                          style={"marginTop": "16px"}),
             ], style={"padding": "16px 0"}),
+        ),
+
+        dcc.Tab(label="🍽️ Menú", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
+            children=_tab_menu_children(),
         ),
 
         dcc.Tab(label="Logbook", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
@@ -1897,6 +2058,57 @@ def _aplicar_kcal(n_clicks, delta):
                     "kcal_ajuste_fecha": date.today().isoformat()})
     nutricion.subir_meta_en_segundo_plano()
     return _panel_peso()
+
+
+@callback(
+    Output("menu-contenido", "children"),
+    Input("menu-generar", "n_clicks"),
+    State("menu-excluir", "value"),
+    State("menu-supl", "value"),
+    prevent_initial_call=True,
+)
+def _generar_menu_cb(n_clicks, excluir, supl):
+    """Otro menu (otra semilla) con lo que no comes. En demo no se guarda nada."""
+    import random
+    import menu as mnu
+    from planificar import lunes_objetivo
+    extra = {"alimentos_excluidos": excluir or [], "menu_suplementos": bool(supl)}
+    if not _es_demo():
+        guardar_config(extra)
+    try:
+        m = mnu.generar_menu({**_menu_cfg(), **extra}, lunes_objetivo(), random.randrange(10 ** 6))
+    except ValueError as e:
+        return _menu_vista(str(e))
+    if not _es_demo():
+        mnu.guardar_local(m)
+        _en_segundo_plano(mnu.subir_menu, m)        # la app ve el menu nuevo
+    return _menu_vista(m)
+
+
+@callback(
+    Output("menu-contenido", "children", allow_duplicate=True),
+    Output("precios-estado", "children"),
+    Input("precios-guardar", "n_clicks"),
+    State("precios-tabla", "data"),
+    prevent_initial_call=True,
+)
+def _guardar_precios_cb(n_clicks, filas):
+    from dash import no_update
+    if _es_demo():
+        return no_update, _aviso_demo("Modo demo: los precios no se guardan.")
+    import alimentos_mx as alx
+    import menu as mnu
+    nuevos = {}
+    for f in filas or []:
+        try:
+            nuevos[f["id"]] = float(f["precio"])
+        except (TypeError, ValueError, KeyError):
+            continue
+    alx.guardar_precios(nuevos)
+    m = _menu_actual(forzar=True)
+    if isinstance(m, dict):
+        _en_segundo_plano(mnu.subir_menu, m)
+    return _menu_vista(m), "✓ Precios guardados: el menú se recalculó con ellos."
 
 
 def _abrir_navegador(url: str = "http://127.0.0.1:8050", retraso: float = 1.5) -> None:

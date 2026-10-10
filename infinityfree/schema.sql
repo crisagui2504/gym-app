@@ -133,3 +133,10 @@ CREATE TABLE IF NOT EXISTS nutricion_meta (
   enfoque VARCHAR(40) NULL,
   actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Menu semanal barato (menu_tabla.php): todo el menu de la semana en JSON
+CREATE TABLE IF NOT EXISTS menu_semana (
+  semana_inicio DATE NOT NULL PRIMARY KEY,
+  datos MEDIUMTEXT NOT NULL,
+  actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

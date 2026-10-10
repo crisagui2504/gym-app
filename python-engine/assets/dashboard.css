@@ -229,6 +229,13 @@ input[type="checkbox"] {
   font-family: 'Encode Sans', 'Segoe UI', sans-serif !important;
 }
 
+/* ---- Menú semanal: tarjetas de los 7 días ---- */
+.menu-dias {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
 /* ---- Animación de entrada ---- */
 @keyframes gymFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .gym-fade { animation: gymFadeIn .35s ease both; }
@@ -335,6 +342,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   .dash-dropdown-option { padding: 12px 14px !important; white-space: normal; }
   .gym-peso-campos > div { flex: 1 1 0; min-width: 0; }
   .gym-peso-campos > button { flex: 1 1 100%; }
+  .menu-dias { grid-template-columns: 1fr; }
 
   /* Tablas: letra mas chica, deslizables en horizontal dentro de su tarjeta */
   .dash-table-container .dash-spreadsheet-container td,

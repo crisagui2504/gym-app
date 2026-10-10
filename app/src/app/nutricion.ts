@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import * as almacen from './almacen';
 import { fechaLocal } from './entreno-data';
-import { RutinaApiService } from './rutina-api.service';
+import { MenuSemana, RutinaApiService } from './rutina-api.service';
 
 /**
  * Proteina del dia por PORCIONES (sin pesar comida ni contar calorias): lo que
@@ -76,6 +76,9 @@ export class NutricionService {
   readonly meta = signal<MetaNutricion | null>(this.metaGuardada());
   readonly promedio7 = signal<number | null>(null);
   readonly sinConexion = signal(false);
+  readonly menu = signal<MenuSemana | null>(this.menuGuardado());
+  readonly cargandoMenu = signal(false);
+  private menuPedido = false;
 
   readonly total = computed(() => gramosDe(this.porciones()));
   readonly metaEfectiva = computed(() => this.meta() ?? META_POR_DEFECTO);
@@ -117,6 +120,30 @@ export class NutricionService {
         this.promedio7.set(recientes.length ? recientes.reduce((s, d) => s + Number(d.proteina_g), 0) / recientes.length : null);
       },
       error: () => this.sinConexion.set(true)
+    });
+  }
+
+  /** Menu de la semana (lo genera el motor); se guarda en el telefono para verlo sin red. */
+  cargarMenu(): void {
+    if (this.menuPedido) return;
+    this.menuPedido = true;
+    this.cargandoMenu.set(true);
+    this.api.getMenu(new Date()).subscribe({
+      next: (res) => {
+        this.cargandoMenu.set(false);
+        if (res.menu) {
+          this.menu.set(res.menu);
+          try {
+            localStorage.setItem('menu-semana', JSON.stringify(res.menu));
+          } catch {
+            /* sin espacio: queda en memoria */
+          }
+        }
+      },
+      error: () => {
+        this.cargandoMenu.set(false);
+        this.menuPedido = false;     // se reintenta la proxima vez que se abra
+      }
     });
   }
 
@@ -163,6 +190,15 @@ export class NutricionService {
       },
       error: () => this.sinConexion.set(true)
     });
+  }
+
+  private menuGuardado(): MenuSemana | null {
+    try {
+      const v = localStorage.getItem('menu-semana');
+      return v ? (JSON.parse(v) as MenuSemana) : null;
+    } catch {
+      return null;
+    }
   }
 
   private metaGuardada(): MetaNutricion | null {

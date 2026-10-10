@@ -28,7 +28,18 @@ def generar() -> str:
     return ("// GENERADO por python-engine/exportar_demo.py (demo_motor.py, atleta virtual).\n"
             "// Datos de DEMOSTRACION: nada de esto es tuyo. NO editar a mano.\n"
             f"export const DEMO_OPCIONES: any = {json.dumps(demo_motor.opciones(), ensure_ascii=False)};\n\n"
-            f"export const DEMO_ESCENARIO: any = {json.dumps(esc, ensure_ascii=False)};\n")
+            f"export const DEMO_ESCENARIO: any = {json.dumps(esc, ensure_ascii=False)};\n\n"
+            f"export const DEMO_MENU: any = {json.dumps(menu_demo(), ensure_ascii=False)};\n")
+
+
+def menu_demo() -> dict:
+    """Menu del atleta virtual (75 kg, recomposicion) con precios de REFERENCIA:
+    tus precios propios nunca entran a la demo."""
+    import alimentos_mx as alx
+    import menu
+    from datetime import date
+    return menu.generar_menu({"enfoque": "recomposicion", "peso_corporal": 75}, date(2026, 1, 5), semilla=1,
+                             precios={a.id: a.precio_kg for a in alx.ALIMENTOS.values()})
 
 
 if __name__ == "__main__":

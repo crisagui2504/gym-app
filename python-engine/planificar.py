@@ -1084,6 +1084,13 @@ def main() -> None:
     import nutricion
     if nutricion.subir_meta():
         print("Meta de nutricion actualizada.")
+    # menu barato de la semana (menu.py); un error aqui nunca tumba la rutina
+    try:
+        import menu
+        m = menu.generar_y_publicar(semana_inicio=objetivo)
+        print(f"Menu de la semana: ${m['costo_semana']:.0f} (${m['costo_dia']:.0f}/dia).")
+    except Exception as e:  # noqa: BLE001
+        print(f"Menu no generado ({e.__class__.__name__}: {e}).")
 
 
 if __name__ == "__main__":

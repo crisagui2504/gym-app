@@ -2216,6 +2216,82 @@ Registrar la comida ayuda, pero casi todos dejan de hacerlo con el tiempo. Por e
 - En el navegador (vista móvil): las porciones suman y restan, la meta y el promedio se muestran, y la barra inferior con 4 botones deja caber "Guardar entreno". El dashboard se probó con datos sintéticos temporales.
 - "Aplicar" acumula el ajuste y la fecha. En demo no escribe nada.
 
+## BY. Nutrición fase 2: menú semanal barato con comida mexicana (2026-10-10)
+
+**Objetivo.** Probar que se puede comer rico, sano y barato. Las apps que generan menús con presupuesto (Eat This Much, Fitia, MyFitnessPal Premium+) cobran y usan alimentos y precios de EE. UU. Aquí el menú sale de comida mexicana de diario con precios de México.
+
+**Datos** (`alimentos_mx.py`, 35 alimentos).
+
+- **Nutrimentos:** por 100 g, aproximados de USDA FoodData Central y tablas mexicanas. Las leguminosas, el arroz, la avena y la pasta van en seco.
+- **Precios de Profeco 2026:**
+  - huevo, frijol y pollo entero (promedios de mayo);
+  - res, cerdo, leche, aceite, papa y frutas y verduras (canasta PACIC de septiembre).
+- **Pollo entero:** se convierte a carne aprovechable con un rendimiento de ~65 %.
+- **Lo demás es estimado** y lo dice en cada lugar. Se corrige en el dashboard y se guarda en `precios_alimentos.json`, que git ignora: solo guarda lo que cambiaste.
+
+**Recetas** (`recetas_mx.py`, 47).
+
+- Por tiempo de comida: 9 desayunos, 16 comidas, 13 cenas y 9 colaciones.
+- Platillos de casa: huevos a la mexicana, tinga, lentejas guisadas, picadillo, enfrijoladas, soya a la mexicana, tostadas de atún, caldo de pollo…
+- Cada receta trae porciones base y una o dos frases de preparación.
+
+**Generador** (`menu.py`).
+
+- **Búsqueda:** cada día prueba todas las combinaciones de desayuno × comida × cena × tamaño de porción (0.75×–2×) × colación, unas 70 mil, con numpy.
+- **Criterio:** elige la más barata que queda a ±5 % de las kcal objetivo y llega a la proteína mínima. Ambas metas salen de `nutricion.metas`, así que el menú sigue a las calorías adaptativas de la fase 1.
+- **Revisión real:** como huevos y tortillas se redondean a piezas enteras, se revisan los 600 mejores candidatos con sus totales **reales** ya redondeados y se toma el primero que cumple.
+- **Variedad:**
+  - cada repetición de una receta en la semana "cuesta" $9 de más;
+  - cada receta tiene un tope de veces por semana (desayuno 3, comida y cena 2);
+  - la comida y la cena del mismo día nunca repiten la proteína principal;
+  - como máximo 4 huevos al día.
+- **"Generar otro":** usa otra semilla, así que da otro menú.
+- **Exclusiones:** "No como" carnes, pescado, lácteos o huevo, o alimentos sueltos.
+- **Proteína en polvo:** solo si la activas, porque es lo más caro por gramo.
+- **Si no se llega a la proteína con comida,** lo avisa en vez de inventar.
+
+**Resultados** (precios de referencia):
+
+| Enfoque y peso | Costo por semana | Al día | Kcal | Proteína |
+|---|---|---|---|---|
+| Recomposición, 73 kg | ~$380 | ~$54 | ~2,440 | ≥131 g |
+| Definición, 80 kg | ~$700 | ~$100 | — | ≥184 g, con proteína magra y sin suplementos |
+| Vegetariano, 70 kg | ~$370 | — | — | Algunos días quedan unos gramos cortos y se avisa |
+
+**Dónde se ve:**
+
+- **Dashboard, pestaña 🍽️ Menú:**
+  - resumen con costo y promedios contra la meta;
+  - los 7 días con comidas, ingredientes y preparación;
+  - lista del súper con costo;
+  - "No como" y suplementos;
+  - "Generar otro menú";
+  - tabla editable de precios.
+- **App, botón 🍗 Comida:** vista Proteína / Menú, selector de día (abre en hoy), comidas y lista del súper. Sin red usa la última copia guardada.
+- **Motor semanal:** genera y sube el menú junto con la rutina; si falla, la rutina sigue.
+
+**API:** tabla autocreada `menu_semana` (una fila por semana, todo el menú en JSON, ~22 KB), con `guardar_menu.php` y `get_menu.php`.
+
+**Demo.** La app trae un menú del atleta virtual generado con precios de **referencia**, así que tus precios nunca entran a la demo. En el dashboard demo se generan menús sin guardar nada.
+
+**Verificación.**
+
+- `test_motor` §50 (17 pruebas):
+  - recetas válidas;
+  - kcal y proteína en 4 configuraciones;
+  - topes de receta y de huevo;
+  - comida y cena sin repetir proteína;
+  - la lista del súper suma exactamente lo de los 7 días;
+  - el costo es coherente;
+  - vegetariano y sin suplementos;
+  - semilla determinista;
+  - precios propios que solo guardan cambios;
+  - cantidades legibles;
+  - error claro si se excluye todo.
+- `test_funcional`: el menú en demo no guarda nada y tus precios quedan intactos.
+- Las 5 suites pasan.
+- En el navegador (vista móvil), app y dashboard.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

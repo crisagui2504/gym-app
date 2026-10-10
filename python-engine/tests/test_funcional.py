@@ -120,6 +120,16 @@ with dsh.server.test_request_context("/", headers={"Cookie": "gym_demo=1"}):
     _meso = str(dsh._tabla_mesociclo(_df))
     check("en demo el mesociclo muestra las 5 semanas", all(s in _meso for s in ("S1", "S2", "S3", "S4", "S5")))
 
+import alimentos_mx as _alx
+_precios_antes = _alx.PRECIOS_USUARIO.read_text(encoding="utf-8") if _alx.PRECIOS_USUARIO.exists() else None
+with dsh.server.test_request_context("/", headers={"Cookie": "gym_demo=1"}):
+    _mv = str(dsh._generar_menu_cb(1, ["carnes", "pescado"], []))
+    check("en demo se puede generar el menu (vegetariano) y se ve la lista del super",
+          "Lista del s" in _mv and "Pollo" not in _mv and "Atún" not in _mv)
+    check("en demo los precios no se guardan", "no se guardan" in str(dsh._guardar_precios_cb(1, [])[1]))
+check("tus precios siguen intactos despues de usar la demo",
+      _precios_antes == (_alx.PRECIOS_USUARIO.read_text(encoding="utf-8") if _alx.PRECIOS_USUARIO.exists() else None))
+
 # guardar la config en demo: va a una COOKIE, nunca al archivo
 _cli = dsh.server.test_client()
 _cli.set_cookie("gym_demo", "1")

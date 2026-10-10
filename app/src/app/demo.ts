@@ -3,7 +3,7 @@ import { Observable, from, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { environment } from '../environments/environment';
 import { fechaLocal } from './entreno-data';
-import type { EjercicioPlan, FeedbackItem, HistorialResponse, NutricionResponse, RutinaHoyResponse, SeriePayload } from './rutina-api.service';
+import type { EjercicioPlan, FeedbackItem, HistorialResponse, MenuSemana, NutricionResponse, RutinaHoyResponse, SeriePayload } from './rutina-api.service';
 
 /**
  * MODO DEMO (oculto): para ensenar la app sin tocar NADA real.
@@ -62,6 +62,7 @@ interface DemoEscenario {
 interface DemoRespaldo {
   DEMO_OPCIONES: DemoOpciones;
   DEMO_ESCENARIO: DemoEscenario;
+  DEMO_MENU: MenuSemana;
 }
 
 const POR_DEFECTO: DemoConfig = { enfoque: 'recomposicion', split: 'upper_lower', duracion: 75 };
@@ -208,6 +209,11 @@ export class DemoApiService {
     }).reverse();
     return of({ ok: true, meta: { proteina_min: 135, proteina_max: 165, kcal: 2480, peso: 75, enfoque: 'recomposicion' },
                 dias: historial }).pipe(delay(this.espera));
+  }
+
+  /** Menu del atleta virtual (generado con precios de referencia, viene dentro de la app). */
+  getMenu(_fecha = new Date()): Observable<{ ok: boolean; menu: MenuSemana | null }> {
+    return from(this.cargarRespaldo()).pipe(map((r) => ({ ok: true, menu: r.DEMO_MENU })), delay(this.espera));
   }
 
   guardarProteina(_fecha: string, _g: number, _porciones: Record<string, number>): Observable<{ ok: boolean }> {

@@ -82,7 +82,9 @@ Angular 20 (standalone + signals) como PWA: se agrega a la pantalla de inicio y 
 - **"¿Cómo te sientes hoy?"** (energía y sueño) y la **encuesta por músculo**. Alimentan al motor.
 - **Máquina ocupada**: alternativas del mismo patrón, sacadas del catálogo del motor. Con **"Usar siempre"** el cambio se queda para las siguientes semanas.
 - **Mover el día de descanso** de la semana, historial de sesiones, mapa muscular, tema claro y oscuro.
-- **Proteína de hoy** (botón 🍗): se anota por porciones mexicanas (huevo, frijol, atún, pollo, tortilla…), sin pesar nada, contra tu meta. Marca lo más barato por gramo de proteína.
+- **Comida** (botón 🍗):
+  - **Proteína de hoy:** se anota por porciones mexicanas, sin pesar nada, contra tu meta.
+  - **Menú de la semana:** comida mexicana barata que llega a tus calorías y proteína, con la lista del súper y su costo (~$55/día en recomposición).
 - **Avisos push** a las 6 pm si hoy toca gym y no has registrado nada. En iPhone la app tiene que estar instalada (iOS 16.4+).
 
 ---
@@ -99,6 +101,7 @@ Dash + Plotly, público en la VM y también se puede abrir local con `GymTracker
 | Fatiga (RPE) | RPE semanal con zona óptima y zona de descarga, y calibración de tu RPE |
 | Volumen | Series efectivas por músculo contra MEV, MAV y MRV, y lo que cambió la encuesta |
 | Peso corporal | Peso y cintura, **calorías adaptativas** (ajuste según la tendencia real de tu peso, con botón Aplicar) y tu proteína de los últimos 7 días |
+| 🍽️ Menú | Menú semanal barato (los 7 días, lista del súper y costo), "No como", "Generar otro" y tus precios |
 | Logbook | Todas las series, con filtros |
 | ⚙ Configuración | Enfoque, split, prioridades, duración, equipo y macros en gramos |
 | Plan semana / Mesociclo | La semana siguiente y las 5 semanas. Se pueden recalcular, subir y copiar |

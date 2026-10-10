@@ -1235,6 +1235,86 @@ check("adherencia: solo los ultimos 7 dias y solo dias con registro",
       _ad["dias_registrados"] == 6 and _ad["dias_en_meta"] == 4 and abs(_ad["promedio"] - 135.83) < 0.1, str(_ad))
 
 print()
+print("== 50. Menu semanal barato ==")
+import menu as mnu
+import alimentos_mx as alx
+import recetas_mx as rcx
+_lun = date(2026, 10, 12)
+_tmp_precios = pathlib.Path(__import__("tempfile").mkdtemp()) / "precios.json"
+alx.PRECIOS_USUARIO = _tmp_precios          # la prueba nunca toca tus precios reales
+
+check("todas las recetas usan alimentos del catalogo",
+      all(aid in alx.ALIMENTOS for r in rcx.RECETAS for aid, _ in r.ingredientes))
+check("hay recetas de desayuno, comida, cena y colacion",
+      all(any(r.tiempo == x for r in rcx.RECETAS) for x in ("desayuno", "comida", "cena", "colacion")))
+
+
+def _menu_ok(cfg, nombre):
+    m = mnu.generar_menu(cfg, _lun)
+    meta = nutricion_metas = __import__("nutricion").metas(cfg)
+    K, P = meta["kcal"], meta["proteina_min"]
+    dias_ok = all(abs(d["kcal"] - K) <= K * 0.10 and (d["prot"] >= P - 1 or m["avisos"]) for d in m["dias"])
+    check(f"{nombre}: 7 dias, kcal a +/-10 % y proteina >= meta (o aviso)", len(m["dias"]) == 7 and dias_ok,
+          str([(d["kcal"], d["prot"]) for d in m["dias"]]) + f" meta {K}/{P}")
+    return m
+
+
+_m = _menu_ok({"enfoque": "recomposicion", "peso_corporal": 73}, "recomposicion 73 kg")
+for _cfg in ({"enfoque": "volumen", "peso_corporal": 65}, {"enfoque": "fuerza", "peso_corporal": 95},
+             {"enfoque": "definicion", "peso_corporal": 80, "menu_suplementos": True}):
+    _menu_ok(_cfg, f"{_cfg['enfoque']} {_cfg['peso_corporal']} kg")
+_usos = {}
+for _d in _m["dias"]:
+    for _c in _d["comidas"]:
+        _usos[_c["receta"]] = _usos.get(_c["receta"], 0) + 1
+check("ninguna receta pasa su tope de veces por semana",
+      all(n <= mnu.TOPE_USOS[rcx.POR_ID[r].tiempo] for r, n in _usos.items()), str(_usos))
+check("como mucho 4 huevos al dia",
+      all(sum(i["g"] for c in d["comidas"] for i in c["ingredientes"] if i["id"] == "huevo") <= 200
+          for d in _m["dias"]))
+check("la comida y la cena del mismo dia no repiten la proteina principal",
+      all(mnu._fuente(rcx.POR_ID[next(c for c in d["comidas"] if c["tiempo"] == "comida")["receta"]])
+          != mnu._fuente(rcx.POR_ID[next(c for c in d["comidas"] if c["tiempo"] == "cena")["receta"]])
+          for d in _m["dias"]))
+_tot = {}
+for _d in _m["dias"]:
+    for _c in _d["comidas"]:
+        for _i in _c["ingredientes"]:
+            _tot[_i["id"]] = _tot.get(_i["id"], 0) + _i["g"]
+check("la lista del super suma exactamente lo de los 7 dias",
+      {f["id"]: f["g"] for f in _m["lista"]} == {k: round(v) for k, v in _tot.items()})
+check("el costo de la semana es la suma de los dias y es razonable ($200-$900)",
+      abs(_m["costo_semana"] - sum(d["costo"] for d in _m["dias"])) < 0.05 and 200 <= _m["costo_semana"] <= 900,
+      str(_m["costo_semana"]))
+_veg = mnu.generar_menu({"enfoque": "recomposicion", "peso_corporal": 70,
+                         "alimentos_excluidos": ["carnes", "pescado"]}, _lun)
+check("vegetariano (sin carnes ni pescado): ningun ingrediente de esos",
+      not any(i["id"] in ("pollo", "res", "cerdo", "atun", "sardina")
+              for d in _veg["dias"] for c in d["comidas"] for i in c["ingredientes"]))
+check("sin activar suplementos, nunca se usa proteina en polvo",
+      not any(i["id"] == "proteina_polvo" for d in _m["dias"] for c in d["comidas"] for i in c["ingredientes"]))
+check("misma semana y semilla = mismo menu; otra semilla = otro menu",
+      mnu.generar_menu({"enfoque": "volumen", "peso_corporal": 70}, _lun, 5)
+      == mnu.generar_menu({"enfoque": "volumen", "peso_corporal": 70}, _lun, 5)
+      and mnu.generar_menu({"enfoque": "volumen", "peso_corporal": 70}, _lun, 5)["dias"]
+      != mnu.generar_menu({"enfoque": "volumen", "peso_corporal": 70}, _lun, 6)["dias"])
+alx.guardar_precios({"frijol": 50.0, "huevo": alx.ALIMENTOS["huevo"].precio_kg})
+check("tus precios: solo se guarda lo que cambiaste y se usa en el menu",
+      alx.precios()["frijol"] == 50.0 and __import__("json").loads(_tmp_precios.read_text()) == {"frijol": 50.0})
+_tmp_precios.unlink()
+check("cantidades legibles", alx.cantidad_legible(alx.ALIMENTOS["huevo"], 150) == "3 huevos"
+      and alx.cantidad_legible(alx.ALIMENTOS["jitomate"], 60) == "½ jitomate"
+      and alx.cantidad_legible(alx.ALIMENTOS["atun"], 100) == "1 lata de atún en agua"
+      and alx.cantidad_legible(alx.ALIMENTOS["frijol"], 66).startswith("66 g de frijol en seco (≈ 1 taza"))
+try:
+    mnu.generar_menu({"enfoque": "volumen", "peso_corporal": 70,
+                      "alimentos_excluidos": ["carnes", "pescado", "huevo", "lacteos", "frijol", "lentejas", "soya"]}, _lun)
+    _err = False
+except ValueError:
+    _err = True
+check("si excluyes todo, avisa en vez de inventar", _err)
+
+print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")
     sys.exit(1)

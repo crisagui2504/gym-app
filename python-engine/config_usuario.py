@@ -35,6 +35,10 @@ DEFAULT_CONFIG: dict = {
     # sobre el punto de partida del enfoque, y cuando (se reevalua a las 2 semanas).
     "kcal_ajuste": 0,
     "kcal_ajuste_fecha": None,
+    # Menu semanal (menu.py): lo que no comes (ids de alimentos_mx o grupos:
+    # "carnes", "pescado", "lacteos", "huevo") y si se permite proteina en polvo.
+    "alimentos_excluidos": [],
+    "menu_suplementos": False,
 }
 
 
