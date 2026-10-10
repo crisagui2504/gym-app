@@ -25,6 +25,7 @@ python-engine/historial.csv
 python-engine/peso_corporal.csv
 python-engine/feedback.csv
 python-engine/preferencias.csv
+python-engine/nutricion.csv
 python-engine/.recordatorio_enviado
 python-engine/backups/
 python-engine/motor.log

@@ -64,6 +64,14 @@ export interface FeedbackItem {
   dolor?: number | null;       // 1 = molestia articular
 }
 
+/** Nutricion (ver infinityfree/api/nutricion_tabla.php y python-engine/nutricion.py). */
+export interface NutricionResponse {
+  ok: boolean;
+  meta: { proteina_min: number | string; proteina_max: number | string; kcal: number | string | null;
+          peso: number | string | null; enfoque: string | null } | null;
+  dias: Array<{ fecha: string; proteina_g: number; porciones: Record<string, number> }>;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RutinaApiService {
   private readonly http = inject(HttpClient);
@@ -117,6 +125,20 @@ export class RutinaApiService {
     return this.http.post<{ ok: boolean; guardadas: number }>(
       `${environment.apiBaseUrl}/guardar_feedback.php`,
       { fecha, items },
+      { headers: this.headers }
+    );
+  }
+
+  /** Meta de proteina/kcal (la sube el motor) y la proteina registrada de los ultimos dias. */
+  getNutricion(dias = 14): Observable<NutricionResponse> {
+    return this.http.get<NutricionResponse>(`${environment.apiBaseUrl}/get_nutricion.php?dias=${dias}`, { headers: this.headers });
+  }
+
+  /** Total de proteina del dia y sus porciones; reenviarlo no duplica (upsert por fecha). */
+  guardarProteina(fecha: string, proteina_g: number, porciones: Record<string, number>): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(
+      `${environment.apiBaseUrl}/guardar_proteina.php`,
+      { fecha, proteina_g, porciones },
       { headers: this.headers }
     );
   }

@@ -3,7 +3,7 @@ import { Observable, from, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { environment } from '../environments/environment';
 import { fechaLocal } from './entreno-data';
-import type { EjercicioPlan, FeedbackItem, HistorialResponse, RutinaHoyResponse, SeriePayload } from './rutina-api.service';
+import type { EjercicioPlan, FeedbackItem, HistorialResponse, NutricionResponse, RutinaHoyResponse, SeriePayload } from './rutina-api.service';
 
 /**
  * MODO DEMO (oculto): para ensenar la app sin tocar NADA real.
@@ -195,6 +195,22 @@ export class DemoApiService {
   }
 
   guardarSuscripcion(_sub: unknown): Observable<{ ok: boolean }> {
+    return of({ ok: true });
+  }
+
+  /** Nutricion del atleta virtual (75 kg, recomposicion: 1.8-2.2 g/kg). Nada se guarda. */
+  getNutricion(dias = 14): Observable<NutricionResponse> {
+    const lunes = this.lunes();
+    const historial = Array.from({ length: Math.min(dias, 6) }, (_, i) => {
+      const f = new Date(lunes);
+      f.setDate(f.getDate() - (i + 1));
+      return { fecha: fechaLocal(f), proteina_g: [128, 141, 150, 119, 137, 146][i], porciones: {} };
+    }).reverse();
+    return of({ ok: true, meta: { proteina_min: 135, proteina_max: 165, kcal: 2480, peso: 75, enfoque: 'recomposicion' },
+                dias: historial }).pipe(delay(this.espera));
+  }
+
+  guardarProteina(_fecha: string, _g: number, _porciones: Record<string, number>): Observable<{ ok: boolean }> {
     return of({ ok: true });
   }
 }

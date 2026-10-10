@@ -56,6 +56,11 @@ def main() -> None:
     prefs = feedback.descargar_preferencias(sesion, base_url, token)
     pd.DataFrame({"original": list(prefs), "reemplazo": list(prefs.values())}).to_csv(
         destino.parent / feedback.CSV_PREFERENCIAS, index=False)
+    # proteina registrada en la app (para la pestana Peso corporal del dashboard)
+    import nutricion
+    nut = nutricion.descargar_nutricion(sesion, base_url, token)
+    nut.to_csv(destino.parent / nutricion.CSV_NUTRICION, index=False)
+    print(f"{nutricion.CSV_NUTRICION} actualizado ({len(nut)} dias)")
 
 
 if __name__ == "__main__":

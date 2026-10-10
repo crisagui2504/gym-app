@@ -31,6 +31,10 @@ DEFAULT_CONFIG: dict = {
     # ayuda) y te devuelve la ayuda. p.ej. ["Dominadas", "Fondos en Paralelas"]
     "asistidas": [],
     "paso_asistencia_kg": 5,   # salto de la placa de la maquina asistida
+    # Calorias adaptativas (nutricion.py): ajustes que ACEPTASTE en el dashboard
+    # sobre el punto de partida del enfoque, y cuando (se reevalua a las 2 semanas).
+    "kcal_ajuste": 0,
+    "kcal_ajuste_fecha": None,
 }
 
 

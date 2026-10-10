@@ -1168,7 +1168,7 @@ button:disabled {
   align-items: center;
   justify-content: center;
   gap: 3px;
-  width: 58px;
+  width: 52px;      /* 4 iconos + Guardar caben en 375 px */
   min-height: 52px;
   border-radius: 14px;
   color: var(--muted);
@@ -2014,4 +2014,150 @@ body.teclado .timer {
 .demo-dias button.on {
   background: var(--accent);
   color: var(--on-accent);
+}
+
+/* ── Proteina del dia ───────────────────────────────────────────────────────── */
+.prot {
+  margin-bottom: 12px;
+}
+
+.prot-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prot-head strong {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 16px;
+  text-transform: uppercase;
+}
+
+.prot-total {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.prot-total b {
+  font-size: 22px;
+  color: var(--text);
+}
+
+.prot-barra {
+  height: 10px;
+  margin: 10px 0 8px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.prot-barra div {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--violet);
+  transition: width 0.25s ease;
+}
+
+.prot-barra.ok div {
+  background: var(--accent);
+}
+
+.prot-hint {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.prot-hint b {
+  color: var(--text);
+}
+
+.prot-hint.aviso {
+  color: var(--accent-ink);
+}
+
+.prot-hoy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.prot-hoy button {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--accent-tint);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  touch-action: manipulation;
+}
+
+.prot-hoy button span {
+  margin-left: 4px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.prot-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.prot-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "nom g" "por g";
+  align-items: center;
+  column-gap: 6px;
+  min-height: 58px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  text-align: left;
+  touch-action: manipulation;
+}
+
+.prot-item.on {
+  border-color: var(--accent);
+}
+
+.prot-item:active {
+  transform: scale(0.97);
+}
+
+.prot-nom {
+  grid-area: nom;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.prot-nom i {
+  margin-left: 4px;
+  font-style: normal;
+  color: var(--accent-ink);
+}
+
+.prot-por {
+  grid-area: por;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.prot-g {
+  grid-area: g;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--accent-ink);
+}
+
+.prot-nota {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--muted);
 }

@@ -25,6 +25,7 @@ from dash import Dash, Input, Output, State, dash_table, dcc, html, callback
 from config_usuario import cargar_config, guardar_config
 from enfoques import ENFOQUES, SPLITS, MUSCULOS_PRIORIZABLES, EQUIPOS_FILTRABLES
 from generador import generar_plan
+import nutricion
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Constantes de diseño (paleta oscura que combina con la app Angular)
@@ -625,52 +626,93 @@ def _panel_peso() -> list:
 
 def _panel_peso_real() -> list:
     cfg = cargar_config()
-    enf = ENFOQUES.get(cfg.get("enfoque"), ENFOQUES["recomposicion"])
     dfp = _cargar_peso()
-    lo, hi = enf.tendencia_sem
-    objetivo_txt = (f"Objetivo para {enf.nombre}: entre {lo:+.2f}% y {hi:+.2f}% "
-                    f"de tu peso por semana.")
-    t = _tendencia_semanal(dfp)
     tc = _tendencia_cintura(dfp)
-    if t is None:
-        estado = _card([html.P(
-            "Pésate (idealmente a diario, en ayunas) durante ~10 días para que la "
-            "tendencia semanal sea confiable. " + objetivo_txt +
-            " La cintura (opcional, 1-2 veces por semana) detecta la recomposición "
-            "cuando la báscula se queda quieta.",
-            style={"color": MUTED, "fontSize": "13px", "margin": "0"})])
-    else:
-        if t < lo:
-            color = WARN
-            msg = (f"Tendencia {t:+.2f}%/semana — por DEBAJO del objetivo ({lo:+.2f}% a {hi:+.2f}%). "
-                   "Sube ~100–200 kcal/día (mejor carbohidratos) y reevalúa en 2 semanas.")
-        elif t > hi:
-            color = WARN
-            msg = (f"Tendencia {t:+.2f}%/semana — por ENCIMA del objetivo ({lo:+.2f}% a {hi:+.2f}%). "
-                   "Baja ~100–200 kcal/día (o suma 1 día de cardio) y reevalúa en 2 semanas.")
-        else:
-            color = ACCENT
-            msg = (f"Tendencia {t:+.2f}%/semana — dentro del objetivo ({lo:+.2f}% a {hi:+.2f}%). "
-                   "No cambies nada: las kcal actuales están funcionando.")
-        # Detector de recomposición: báscula plana + cintura bajando = ganando
-        # músculo y perdiendo grasa a la vez (el mejor escenario posible).
-        if (tc is not None and tc <= -0.2 and abs(t) <= 0.3
-                and enf.clave in ("recomposicion", "powerbuilding", "fuerza")):
-            color = ACCENT
-            msg = (f"RECOMPOSICIÓN EN MARCHA 🎯: peso casi plano ({t:+.2f}%/sem) pero la "
-                   f"cintura baja {tc:+.1f} cm/sem — estás perdiendo grasa y ganando músculo "
-                   "a la vez. No cambies nada.")
-        elif tc is not None:
-            msg += f" Cintura: {tc:+.1f} cm/semana."
-        estado = _card([
-            html.Div("Semáforo calórico", style={"color": color, "fontWeight": "700",
-                                                 "fontSize": "14px", "marginBottom": "6px"}),
-            html.P(msg, style={"color": TEXT, "fontSize": "13px", "margin": "0"}),
-        ])
     return [
         _card(dcc.Graph(figure=_fig_peso(dfp), config={"displayModeBar": False})),
-        html.Div(estado, style={"marginTop": "16px"}),
+        html.Div(_card_calorias(cfg, dfp, tc), style={"marginTop": "16px"}),
+        html.Div(_card_proteina(cfg), style={"marginTop": "16px"}),
     ]
+
+
+def _card_calorias(cfg: dict, dfp: pd.DataFrame, tc: float | None) -> html.Div:
+    """Calorias ADAPTATIVAS: punto de partida del enfoque y ajuste segun la
+    tendencia real del peso (nutricion.evaluar)."""
+    enf = ENFOQUES.get(cfg.get("enfoque"), ENFOQUES["recomposicion"])
+    m = nutricion.metas(cfg)
+    ev = nutricion.evaluar(cfg, dfp, tc)
+    lo, hi = ev["objetivo"]
+    t = ev["tendencia"]
+    rango = f"{lo:+.2f}% a {hi:+.2f}%"
+    estado = ev["estado"]
+    boton = []
+    if estado == "pocos_datos":
+        color = MUTED
+        msg = ("Pésate (idealmente a diario, en ayunas) durante ~10 días para que la tendencia "
+               f"sea confiable. Objetivo para {enf.nombre}: entre {rango} de tu peso por semana. "
+               "La cintura (opcional, 1-2 veces por semana) detecta la recomposición cuando la "
+               "báscula se queda quieta.")
+    elif estado == "esperando":
+        color = ACCENT2
+        msg = (f"Tendencia {t:+.2f}%/semana. Aplicaste un ajuste hace poco: espera "
+               f"{ev['dias_restantes']} día(s) más para que se vea en la báscula antes de cambiar otra vez.")
+    elif estado == "recomposicion":
+        color = ACCENT
+        msg = (f"RECOMPOSICIÓN EN MARCHA 🎯: peso casi plano ({t:+.2f}%/sem) pero la cintura baja "
+               f"{tc:+.1f} cm/sem: estás perdiendo grasa y ganando músculo a la vez. No cambies nada.")
+    elif estado == "en_rango":
+        color = ACCENT
+        msg = f"Tendencia {t:+.2f}%/semana, dentro del objetivo ({rango}). No cambies nada: así va bien."
+    else:
+        color = WARN
+        d = ev["kcal_delta"]
+        lado = "por DEBAJO" if d > 0 else "por ENCIMA"
+        msg = (f"Tendencia {t:+.2f}%/semana, {lado} del objetivo ({rango}). Sugerencia: "
+               f"{d:+d} kcal/día (≈ {d / 4:+.0f} g de carbohidratos; 100 kcal ≈ 1½ tortillas "
+               "o ½ taza de arroz).")
+        boton = [dcc.Store(id="kcal-delta", data=d),
+                 html.Button(f"Aplicar {d:+d} kcal", id="kcal-aplicar", n_clicks=0,
+                             className="gym-btn", style={"marginTop": "12px"})]
+    if tc is not None and estado not in ("recomposicion", "pocos_datos"):
+        msg += f" Cintura: {tc:+.1f} cm/semana."
+    ajuste = (f" (punto de partida {m['kcal_base']:,} {m['kcal_ajuste']:+d} de ajustes)"
+              if m["kcal_ajuste"] else " (punto de partida de tu enfoque)")
+    return _card([
+        html.Div("🔥 Calorías adaptativas", style={"color": color, "fontWeight": "700",
+                                                  "fontSize": "14px", "marginBottom": "6px"}),
+        html.Div([html.Span(f"~{m['kcal']:,} kcal/día", style={"fontWeight": "800", "fontSize": "18px"}),
+                  html.Span(ajuste, style={"color": MUTED, "fontSize": "12px"})],
+                 style={"color": TEXT, "marginBottom": "8px"}),
+        html.P(msg, style={"color": TEXT, "fontSize": "13px", "margin": "0"}),
+        *boton,
+        html.P("Se ajusta de a poco (100-300 kcal) y se reevalúa cada 2 semanas: el peso de un día "
+               "varía 1-2 kg por agua y comida; lo que cuenta es la tendencia.",
+               style={"color": MUTED, "fontSize": "11px", "margin": "10px 0 0"}),
+    ])
+
+
+def _card_proteina(cfg: dict) -> html.Div:
+    """Proteina registrada en la app (ultimos 7 dias) contra la meta del enfoque."""
+    m = nutricion.metas(cfg)
+    enf = ENFOQUES.get(cfg.get("enfoque"), ENFOQUES["recomposicion"])
+    a = nutricion.adherencia(nutricion.leer_nutricion_csv(), m["proteina_min"])
+    meta = f"{m['proteina_min']}-{m['proteina_max']} g/día ({enf.prot_g_kg[0]:g}-{enf.prot_g_kg[1]:g} g/kg)"
+    if not a["dias_registrados"]:
+        color, msg = MUTED, (f"Tu meta: {meta}. Regístrala en la app con el botón 🍗 Proteína: "
+                             "se anota por porciones (un huevo, una taza de frijol…), sin pesar nada.")
+    else:
+        prom = a["promedio"]
+        color = ACCENT if prom >= m["proteina_min"] else WARN
+        msg = (f"Últimos 7 días: promedio {prom:.0f} g/día en {a['dias_registrados']} día(s) registrados, "
+               f"{a['dias_en_meta']} en meta. Tu meta: {meta}.")
+        if prom < m["proteina_min"]:
+            msg += (f" Te faltan ~{m['proteina_min'] - prom:.0f} g/día: 1 lata de atún ≈ 24 g, "
+                    "4 huevos ≈ 25 g, 1½ tazas de frijol ≈ 23 g.")
+    return _card([
+        html.Div("🍗 Proteína", style={"color": color, "fontWeight": "700", "fontSize": "14px",
+                                      "marginBottom": "6px"}),
+        html.P(msg, style={"color": TEXT, "fontSize": "13px", "margin": "0"}),
+    ])
 
 
 def _panel_nutricion(cfg: dict) -> html.Div:
@@ -694,6 +736,11 @@ def _panel_nutricion(cfg: dict) -> html.Div:
             col("Proteína", enf.prot_g_kg, "🍗"),
             col("Carbohidratos", enf.carb_g_kg, "🍚"),
             col("Grasas", enf.grasa_g_kg, "🥑"),
+            html.Div([
+                html.Div("🔥 Calorías", style={"color": MUTED, "fontSize": "12px"}),
+                html.Div(f"~{nutricion.metas(cfg)['kcal']:,} kcal/día",
+                         style={"color": TEXT, "fontWeight": "700", "fontSize": "16px"}),
+            ], style={"minWidth": "140px"}),
         ], style={"display": "flex", "gap": "28px", "flexWrap": "wrap"}),
         html.P(f"Reparte la proteína en 3–5 comidas de ~{0.4 * peso:.0f}–{0.55 * peso:.0f} g, "
                "con una en las ±2 h del entrenamiento. Creatina 3–5 g/día, a cualquier hora, "
@@ -1694,6 +1741,7 @@ def _guardar_enfoque(n_clicks, enfoque, split, prioridades, peso, duracion, equi
         "equipo_excluido": equipo or [],
     }
     guardar_config(cfg)
+    nutricion.subir_meta_en_segundo_plano()      # la app ve la meta nueva de proteina
     # validar que el plan se genera sin errores con la nueva config
     try:
         plan = generar_plan(cfg)
@@ -1829,6 +1877,25 @@ def _guardar_peso_cb(n_clicks, peso, cintura):
         _registrar_peso(float(peso), cin)
         # mantiene los macros (g/día) y el motor alineados con el peso real
         guardar_config({"peso_corporal": float(peso)})
+        nutricion.subir_meta_en_segundo_plano()  # la meta de proteina sigue a tu peso
+    return _panel_peso()
+
+
+@callback(
+    Output("peso-panel", "children", allow_duplicate=True),
+    Input("kcal-aplicar", "n_clicks"),
+    State("kcal-delta", "data"),
+    prevent_initial_call=True,
+)
+def _aplicar_kcal(n_clicks, delta):
+    """Acepta el ajuste sugerido: queda en tu config y se reevalua en 2 semanas."""
+    from dash import no_update
+    if _es_demo() or not n_clicks or not delta:
+        return no_update
+    actual = int(cargar_config().get("kcal_ajuste") or 0)
+    guardar_config({"kcal_ajuste": max(-1000, min(1000, actual + int(delta))),
+                    "kcal_ajuste_fecha": date.today().isoformat()})
+    nutricion.subir_meta_en_segundo_plano()
     return _panel_peso()
 
 

@@ -114,3 +114,22 @@ CREATE TABLE IF NOT EXISTS preferencia_ejercicio (
   UNIQUE KEY uq_preferencia_original (original)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 -- feedback_sesion tambien guarda tipo='dia' (clave energia | sueno, valor en `carga`)
+
+-- Nutricion (nutricion_tabla.php): proteina del dia que registra la app y la
+-- meta (rango de proteina y kcal) que sube el motor.
+CREATE TABLE IF NOT EXISTS nutricion_dia (
+  fecha DATE NOT NULL PRIMARY KEY,
+  proteina_g DECIMAL(6,1) NOT NULL DEFAULT 0,
+  porciones VARCHAR(2000) NOT NULL DEFAULT '{}',
+  actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS nutricion_meta (
+  id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+  proteina_min SMALLINT UNSIGNED NOT NULL,
+  proteina_max SMALLINT UNSIGNED NOT NULL,
+  kcal SMALLINT UNSIGNED NULL,
+  peso DECIMAL(5,1) NULL,
+  enfoque VARCHAR(40) NULL,
+  actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

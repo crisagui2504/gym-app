@@ -1183,6 +1183,58 @@ check("app/src/app/catalogo.generado.ts esta al dia con ejercicios_db (corre exp
       _expc.DESTINO.exists() and _expc.DESTINO.read_text(encoding="utf-8") == _expc.contenido())
 
 print()
+print("== 49. Nutricion: metas de proteina y calorias adaptativas ==")
+import nutricion as nut
+from enfoques import ENFOQUES as _ENF
+_hoy49 = date(2026, 10, 20)
+
+
+def _pesos(kg_inicio, kg_sem, dias=21, ruido=0.0):
+    """Serie diaria de pesajes con una tendencia dada (kg/semana) y ruido alterno."""
+    return pd.DataFrame({
+        "fecha": [pd.Timestamp(_hoy49 - timedelta(days=dias - 1 - i)) for i in range(dias)],
+        "peso": [kg_inicio + kg_sem * i / 7 + (ruido if i % 2 else -ruido) for i in range(dias)],
+        "cintura": [None] * dias,
+    })
+
+
+_m = nut.metas({"enfoque": "definicion", "peso_corporal": 80})
+check("proteina = rango g/kg del enfoque x peso (definicion: 2.3-2.5 g/kg)",
+      (_m["proteina_min"], _m["proteina_max"]) == (round(2.3 * 80), round(2.5 * 80)), str(_m))
+_mv = nut.metas({"enfoque": "volumen", "peso_corporal": 70, "kcal_ajuste": 150})
+check("kcal = punto de partida de los macros + ajustes aceptados",
+      _mv["kcal"] == _mv["kcal_base"] + 150 and 1800 <= _mv["kcal_base"] <= 3500, str(_mv))
+check("tendencia: 21 dias subiendo 0.35 kg/sem en 70 kg = +0.5 %/sem (aunque haya ruido diario)",
+      abs(nut.tendencia_pct_sem(_pesos(70, 0.35, ruido=0.6), _hoy49) - 0.5) < 0.08)
+check("con pocos pesajes no se sugiere nada",
+      nut.evaluar({"enfoque": "volumen", "peso_corporal": 70}, _pesos(70, 0, dias=6), hoy=_hoy49)["estado"]
+      == "pocos_datos")
+_ev = nut.evaluar({"enfoque": "volumen", "peso_corporal": 70}, _pesos(70, 0.0, ruido=0.4), hoy=_hoy49)
+check("volumen con la bascula quieta -> subir kcal (100-300)",
+      _ev["estado"] == "subir" and 100 <= _ev["kcal_delta"] <= 300, str(_ev))
+_ev = nut.evaluar({"enfoque": "recomposicion", "peso_corporal": 80}, _pesos(80, -0.8), hoy=_hoy49)
+check("recomposicion bajando 1 %/sem (demasiado rapido) -> comer MAS, no menos",
+      _ev["estado"] == "subir" and _ev["kcal_delta"] > 0, str(_ev))
+_ev = nut.evaluar({"enfoque": "definicion", "peso_corporal": 80}, _pesos(80, 0.0), hoy=_hoy49)
+check("definicion sin bajar -> bajar kcal, como mucho 300",
+      _ev["estado"] == "bajar" and -300 <= _ev["kcal_delta"] <= -100, str(_ev))
+_ev = nut.evaluar({"enfoque": "volumen", "peso_corporal": 70}, _pesos(70, 0.26), hoy=_hoy49)
+check("dentro del objetivo -> no cambiar nada", _ev["estado"] == "en_rango" and _ev["kcal_delta"] == 0, str(_ev))
+_ev = nut.evaluar({"enfoque": "volumen", "peso_corporal": 70,
+                   "kcal_ajuste_fecha": (_hoy49 - timedelta(days=5)).isoformat()}, _pesos(70, 0.0), hoy=_hoy49)
+check("tras aplicar un ajuste se espera 2 semanas antes de sugerir otro",
+      _ev["estado"] == "esperando" and _ev["dias_restantes"] == 9, str(_ev))
+_ev = nut.evaluar({"enfoque": "recomposicion", "peso_corporal": 80}, _pesos(80, 0.1), cintura_sem=-0.4, hoy=_hoy49)
+check("bascula plana + cintura bajando = recomposicion: no tocar", _ev["estado"] == "recomposicion", str(_ev))
+check("todos los enfoques tienen un objetivo de tendencia coherente (lo <= hi)",
+      all(e.tendencia_sem[0] <= e.tendencia_sem[1] for e in _ENF.values()))
+_dfn = pd.DataFrame({"fecha": [pd.Timestamp(_hoy49 - timedelta(days=i)) for i in range(10)],
+                     "proteina_g": [150, 120, 0, 160, 140, 90, 155, 200, 200, 200]})
+_ad = nut.adherencia(_dfn, 140, _hoy49)
+check("adherencia: solo los ultimos 7 dias y solo dias con registro",
+      _ad["dias_registrados"] == 6 and _ad["dias_en_meta"] == 4 and abs(_ad["promedio"] - 135.83) < 0.1, str(_ad))
+
+print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")
     sys.exit(1)

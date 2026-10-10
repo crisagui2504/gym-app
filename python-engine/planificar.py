@@ -1079,6 +1079,11 @@ def main() -> None:
 
     sincronizar_plan(sesion, base_url, token, semana_inicio, filas)
     print(f"Plan de la semana {semana_inicio} ({tipo}) sincronizado.")
+    # meta de proteina/kcal para la app (con el peso y el enfoque de hoy); si
+    # falla, la rutina ya esta subida igual
+    import nutricion
+    if nutricion.subir_meta():
+        print("Meta de nutricion actualizada.")
 
 
 if __name__ == "__main__":

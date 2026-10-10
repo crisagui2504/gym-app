@@ -2166,6 +2166,56 @@ normal no crece. `demo_historial.csv` desaparece: el dashboard genera al vuelo.
 - En el navegador se probó el cambio de semana, de split y de día, el aviso de
   "Generando…" y el respaldo sin servidor.
 
+## BX. Nutrición fase 1: proteína del día y calorías adaptativas (2026-10-10)
+
+**Por qué estas dos cosas primero.** La investigación que sustenta esta tanda arrojó tres conclusiones:
+
+- **Proteína.** Lo que más pesa para el músculo es llegar a la proteína diaria. La ganancia de masa magra casi deja de crecer alrededor de 1.6 g/kg (Morton et al. 2018). En déficit conviene 2.3–3.1 g/kg (ISSN, Jäger et al. 2017).
+- **Déficit.** Un déficit de ~500 kcal/día o más frena la ganancia de masa magra (Murphy & Koehler 2022).
+- **Superávit.** Uno grande solo suma grasa: un superávit de 5 % dio el mismo músculo que uno de 15 % (Helms et al. 2023).
+
+Registrar la comida ayuda, pero casi todos dejan de hacerlo con el tiempo. Por eso la app no pide pesar comida ni contar calorías: se anota la proteína **por porciones** y las calorías se ajustan con **la báscula**, que el usuario ya registra.
+
+**App: "Proteína de hoy"** (botón 🍗 en la barra inferior; `nutricion.ts`, `proteina.component.ts`).
+
+- Se toca una porción y suma; tocar lo anotado lo resta. Hay 17 porciones mexicanas (huevo, frijol, lentejas, soya texturizada, atún, sardina, pollo, tortilla…), con valores aproximados de USDA y SMAE.
+- La marca **$** señala lo más barato por gramo de proteína según los precios de Profeco de 2026. Con 25 g de proteína como referencia: frijol ~$3, pollo entero ~$8, huevo ~$9.50, res ~$13.
+- La meta (rango en g/día) la calcula el motor con tu peso y tu enfoque. Sin meta todavía, la app usa 120–150 g.
+- El total del día se guarda en el teléfono (IndexedDB) y se manda al servidor 1.5 s después del último toque. Sin red queda pendiente y se reenvía al volver la conexión. Reenviarlo no duplica: es un upsert por fecha.
+- En demo todo vive en memoria.
+
+**API:**
+
+- Tablas autocreadas `nutricion_dia` (una fila por día, con total y porciones) y `nutricion_meta` (una sola fila).
+- Endpoints `guardar_proteina.php`, `get_nutricion.php` y `guardar_meta_nutricion.php`.
+
+**Motor y dashboard** (`nutricion.py`).
+
+- **Metas:** proteína = rango g/kg del enfoque × peso. Las kcal salen del punto medio de los macros del enfoque más los ajustes que aceptaste.
+- **Calorías adaptativas:**
+  - La tendencia se calcula como la pendiente de una recta sobre los pesajes de los últimos 21 días; necesita 8 o más pesajes y 10 o más días de rango. Es más estable que comparar dos medias semanales.
+  - Si queda fuera del objetivo del enfoque, se sugieren entre ±100 y ±300 kcal/día hacia el centro del rango, con un botón **Aplicar**.
+  - Después de aplicar un ajuste se esperan 14 días antes de sugerir otro.
+  - Si la báscula está plana y la cintura baja, es recomposición y no se toca nada.
+  - Si bajas demasiado rápido en recomposición, la sugerencia es comer **más**.
+- **Proteína en el dashboard:** promedio de los últimos 7 días contra la meta, con ejemplos baratos de cuánto falta.
+- **Cuándo se sube la meta:** al generar la semana, al guardar la configuración, al registrar tu peso y al aplicar un ajuste. Desde el dashboard se sube en segundo plano, para que la página no espere a InfinityFree.
+- **Datos:** `exportar_local.py` baja `nutricion.csv` cada 3 h en la VM.
+
+**Verificación.**
+
+- `test_motor` §49 (12 pruebas):
+  - las metas por enfoque;
+  - la pendiente con ruido diario;
+  - pocos datos;
+  - subir, bajar y en rango;
+  - bajar demasiado rápido en recomposición lleva a comer más;
+  - la espera de 14 días y la recomposición;
+  - la adherencia de 7 días.
+- `test_funcional`: el panel de peso trae las tres tarjetas.
+- En el navegador (vista móvil): las porciones suman y restan, la meta y el promedio se muestran, y la barra inferior con 4 botones deja caber "Guardar entreno". El dashboard se probó con datos sintéticos temporales.
+- "Aplicar" acumula el ajuste y la fecha. En demo no escribe nada.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

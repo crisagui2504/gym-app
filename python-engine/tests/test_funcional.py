@@ -63,7 +63,9 @@ dsh._registrar_peso(74.3)  # sin cintura: conserva la del dia
 check("re-registro conserva la cintura del dia",
       dsh._cargar_peso()["cintura"].iloc[-1] == 83.0)
 check("fig peso con cintura", dsh._fig_peso(dfp2) is not None)
-check("panel de peso (semaforo) se construye", len(dsh._panel_peso()) == 2)
+_pp = dsh._panel_peso()
+check("panel de peso: grafica + calorias adaptativas + proteina",
+      len(_pp) == 3 and "adaptativas" in str(_pp[1]) and "Prote" in str(_pp[2]))
 dsh.PESO_CSV = _real_csv
 
 # ── 3. Nutricion en gramos ───────────────────────────────────────────────────

@@ -7,6 +7,8 @@ import { MuscleMapComponent } from './muscle-map.component';
 import { AcentosPipe } from './acentos';
 import * as almacen from './almacen';
 import { DemoApiService, ES_DEMO, entrarDemo, salirDemo } from './demo';
+import { NutricionService } from './nutricion';
+import { ProteinaComponent } from './proteina.component';
 import { environment } from '../environments/environment';
 import {
   ajusteIntraSesion,
@@ -103,11 +105,12 @@ interface EjercicioVM {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule, MuscleMapComponent, AcentosPipe],
+  imports: [CommonModule, FormsModule, MuscleMapComponent, AcentosPipe, ProteinaComponent],
   templateUrl: './app.component.html'
 })
 export class AppComponent implements OnInit, OnDestroy {
   private readonly api = inject(RutinaApiService);
+  private readonly nutricion = inject(NutricionService);
 
   readonly cargando = signal(true);
   readonly guardando = signal(false);
@@ -118,6 +121,7 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly yaGuardadoHoy = signal(false);
   readonly modoOffline = signal(false);
   private readonly onOnline = () => {
+    void this.nutricion.reenviarPendiente();
     this.reenviarPendientes();
     this.reenviarFeedback();
   };
@@ -211,6 +215,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   // Historial (ultimas sesiones, desde el servidor)
   readonly mostrarHistorial = signal(false);
+  readonly mostrarProteina = signal(false);
   readonly cargandoHistorial = signal(false);
   readonly historial = signal<Array<{ fecha: string; items: Array<{ ejercicio: string; mejor: string }> }>>([]);
 
@@ -382,6 +387,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.cargarColas().then(() => {
       this.reenviarPendientes();
       this.reenviarFeedback();
+      void this.nutricion.reenviarPendiente();
     });
 
     this.cargarNotas();
@@ -1065,6 +1071,14 @@ export class AppComponent implements OnInit, OnDestroy {
     if (!cola.length) return;
     this.escribirColaFeedback([]);
     for (const e of cola) this.enviarFeedback(e.items, e.fecha);
+  }
+
+  // ----- Proteina del dia -----
+  toggleProteina(): void {
+    this.mostrarProteina.update((v) => !v);
+    if (this.mostrarProteina()) {
+      setTimeout(() => document.querySelector('app-proteina')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    }
   }
 
   // ----- Historial (ultimas sesiones) -----
