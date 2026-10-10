@@ -128,6 +128,10 @@ cd ~/gym && git pull && bash servidor/instalar_vm.sh
 
 `infinityfree/api/config.php` (credenciales de la base de datos) nunca se sube ni se sobrescribe desde el CI ni desde `deploy/`. Para la subida manual existe `Construir app para subir.bat`.
 
+### Otra persona con su propia copia
+
+Doble clic en **`Nuevo usuario.bat`** y sigue la guía [`docs/NUEVO_USUARIO.md`](docs/NUEVO_USUARIO.md). Esa persona recibe su propia app, base de datos, motor y dashboard (`nombre.20-150-209-104.sslip.io`), sin tocar nada de lo tuyo. Después, cada push actualiza su app y `instalar_vm.sh` actualiza su copia en la VM.
+
 ---
 
 ## Estructura
@@ -154,7 +158,8 @@ gym/
 │   ├── avisos.py / recordatorio.py   notificaciones push
 │   ├── respaldo_semanal.py   genera la semana solo si falta (VM, PC o a mano)
 │   └── tests/                5 suites de pruebas
-├── servidor/                 instalación de la VM (systemd, Caddy)
+├── servidor/                 instalación de la VM (systemd, Caddy) y copias de otras personas
+├── instancias/               lista de personas con su propia copia (docs/NUEVO_USUARIO.md)
 ├── docs/                     evidencia científica, informe, tesis
 └── .github/workflows/        pruebas + despliegue automático
 ```
@@ -217,6 +222,7 @@ python tests/test_motor.py    # y así con las demás
 ## Documentación
 
 - [`docs/CAMBIOS_EVIDENCIA.md`](docs/CAMBIOS_EVIDENCIA.md): cada cambio del motor y de la app, con su fundamento y referencias.
+- [`docs/NUEVO_USUARIO.md`](docs/NUEVO_USUARIO.md): darle GymTracker a otra persona, paso a paso.
 - [`DOCUMENTACION.md`](DOCUMENTACION.md): documentación técnica (módulos y API).
 - [`docs/Informe_Cientifico_GymTracker.pdf`](docs/Informe_Cientifico_GymTracker.pdf) y [`docs/Tesis_GymTracker.pdf`](docs/Tesis_GymTracker.pdf).
 

@@ -1575,7 +1575,10 @@ def _calentar_demo() -> None:
         pass
 
 
-__import__("threading").Thread(target=_calentar_demo, daemon=True).start()
+# en la copia de OTRA persona (GYM_INSTANCIA) no se precalcula: la VM tiene poca
+# memoria y la demo igual funciona, solo tarda unos segundos la primera vez
+if not os.getenv("GYM_INSTANCIA"):
+    __import__("threading").Thread(target=_calentar_demo, daemon=True).start()
 
 
 def _serve_layout() -> html.Div:

@@ -68,9 +68,23 @@ sudo systemctl restart gymtracker-dashboard.service
 sudo systemctl start gymtracker-datos.service || true   # historial al dia ya
 
 echo "==> Caddy ($DOMINIO)"
+sudo mkdir -p /etc/caddy/instancias
 sed "s/__DOMINIO__/$DOMINIO/" "$DIR/servidor/Caddyfile" | sudo tee /etc/caddy/Caddyfile >/dev/null
 sudo systemctl enable caddy >/dev/null 2>&1
 sudo systemctl restart caddy
+
+# copias de OTRAS personas (nueva_instancia.sh): mismo codigo nuevo para todas.
+# Si una falla, se avisa y se sigue: tu instalacion ya quedo lista arriba.
+for INST in "$HOME"/gym-*/; do
+    [ -d "$INST/.git" ] || continue
+    N="$(basename "$INST")"; N="${N#gym-}"
+    echo "==> copia de $N"
+    if git -C "$INST" pull --ff-only -q         && "$INST/python-engine/.venv/bin/pip" install -q -r "$INST/python-engine/requirements.txt" gunicorn; then
+        sudo systemctl restart "gymtracker-$N-dashboard.service" || echo "AVISO: no reinicio el dashboard de $N"
+    else
+        echo "AVISO: no se pudo actualizar la copia de $N"
+    fi
+done
 
 echo
 echo "LISTO. Dashboard: https://$DOMINIO"

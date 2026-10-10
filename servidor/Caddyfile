@@ -5,3 +5,7 @@ __DOMINIO__ {
 	encode gzip
 	reverse_proxy 127.0.0.1:8050
 }
+
+# Dashboards de OTRAS personas (servidor/nueva_instancia.sh): un archivo por
+# persona. Sin archivos, Caddy solo avisa y sigue.
+import /etc/caddy/instancias/*.caddy

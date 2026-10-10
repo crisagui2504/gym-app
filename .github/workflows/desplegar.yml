@@ -11,6 +11,11 @@
 #   FTP_PASSWORD  = la contrasena de la cuenta de hosting (la del vPanel)
 #   FTP_SERVIDOR  = (opcional) otro host si ftpupload.net falla, p. ej. ftp.epizy.com
 # Sin FTP_PASSWORD el workflow corre las pruebas y compila, pero no sube.
+#
+# OTRAS PERSONAS (docs/NUEVO_USUARIO.md): cada una de instancias/instancias.json
+# recibe su propia app, compilada con SU API y SU token, en SU InfinityFree.
+# Secretos por persona (CLAVE = la "clave" de su entrada, en mayusculas):
+#   TOKEN_CLAVE, FTP_USUARIO_CLAVE, FTP_PASSWORD_CLAVE
 name: Probar y desplegar
 
 on:
@@ -20,6 +25,8 @@ on:
       - "app/**"
       - "infinityfree/**"
       - "python-engine/**"
+      - "instancias/instancias.json"
+      - "servidor/armar_deploy.sh"
       - ".github/workflows/desplegar.yml"
   workflow_dispatch:
 
@@ -72,19 +79,8 @@ jobs:
         run: |
           npm ci
           npx ng build
-      - name: Armar deploy/ (igual que el .bat)
-        run: |
-          mkdir -p deploy/api
-          cp -r app/dist/gym-rutinas/browser/. deploy/
-          cp infinityfree/.htaccess deploy/
-          for f in infinityfree/api/*.php; do
-            case "$(basename "$f")" in
-              config.php|config.example.php) ;;   # nunca: las contrasenas viven solo en el servidor
-              *) cp "$f" deploy/api/ ;;
-            esac
-          done
-          test ! -e deploy/api/config.php
-          ls -la deploy deploy/api
+      - name: Armar deploy/ (igual que el .bat, sin config.php)
+        run: bash servidor/armar_deploy.sh
       - name: Subir a InfinityFree (FTPS)
         if: ${{ env.HAY_FTP == 'true' }}
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -100,3 +96,67 @@ jobs:
         if: ${{ env.HAY_FTP != 'true' }}
         run: |
           echo "::notice::Sin FTP_PASSWORD en los secretos del repo. Se probo y compilo, pero no se subio nada."
+
+  # ── Otras personas: una app por cada entrada de instancias/instancias.json ──
+  lista:
+    runs-on: ubuntu-latest
+    outputs:
+      instancias: ${{ steps.leer.outputs.instancias }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: leer
+        run: echo "instancias=$(jq -c '.instancias' instancias/instancias.json)" >> "$GITHUB_OUTPUT"
+
+  desplegar-instancias:
+    needs: [pruebas, lista]
+    if: ${{ needs.lista.outputs.instancias != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false        # si falla la de una persona, las demas siguen
+      max-parallel: 1
+      matrix:
+        instancia: ${{ fromJSON(needs.lista.outputs.instancias) }}
+    name: desplegar (${{ matrix.instancia.nombre }})
+    env:
+      API: ${{ matrix.instancia.api }}
+      TOKEN: ${{ secrets[format('TOKEN_{0}', matrix.instancia.clave)] }}
+      FTP_USUARIO: ${{ secrets[format('FTP_USUARIO_{0}', matrix.instancia.clave)] }}
+      FTP_PASSWORD: ${{ secrets[format('FTP_PASSWORD_{0}', matrix.instancia.clave)] }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Apuntar la app a SU servidor
+        run: |
+          CLAVE="${{ matrix.instancia.clave }}"
+          test -n "$TOKEN" || { echo "::error::Falta el secreto TOKEN_$CLAVE en GitHub"; exit 1; }
+          f=app/src/environments/environment.ts
+          sed -i "s#apiBaseUrl: '[^']*'#apiBaseUrl: '$API'#; s#apiToken: '[^']*'#apiToken: '$TOKEN'#" "$f"
+          grep -q "apiBaseUrl: '$API'" "$f"
+      - name: Compilar la app
+        working-directory: app
+        run: |
+          npm ci
+          npx ng build
+      - name: Armar deploy/ (sin config.php)
+        run: bash servidor/armar_deploy.sh
+      - name: Subir a SU InfinityFree (FTPS)
+        if: ${{ env.FTP_USUARIO != '' && env.FTP_PASSWORD != '' }}
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ matrix.instancia.ftp || 'ftpupload.net' }}
+          username: ${{ env.FTP_USUARIO }}
+          password: ${{ env.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          local-dir: ./deploy/
+          server-dir: ./htdocs/
+      - name: Sin credenciales FTP
+        if: ${{ env.FTP_USUARIO == '' || env.FTP_PASSWORD == '' }}
+        run: |
+          echo "::error::Faltan FTP_USUARIO_${{ matrix.instancia.clave }} / FTP_PASSWORD_${{ matrix.instancia.clave }} en los secretos de GitHub."
+          exit 1

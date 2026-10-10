@@ -40,3 +40,7 @@ Thumbs.db
 .env.local
 python-engine/respaldo.log
 python-engine/config_usuario.vm.json
+
+# Datos de cada persona extra que genera "Nuevo usuario.bat" (config.php con la
+# contrasena de SU base de datos y su token): se quedan en este PC, nunca en git.
+instancias/*/

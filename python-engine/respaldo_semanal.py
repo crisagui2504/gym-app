@@ -65,6 +65,10 @@ def plan_de_la_semana_subido(lunes: date) -> bool:
 def traer_config_de_la_vm() -> None:
     """Copia la config_usuario.json de la VM (si responde). Si la VM esta caida
     —el caso en que este respaldo importa— se usa la ultima copia local."""
+    if os.getenv("GYM_INSTANCIA"):
+        # copia de OTRA persona en la VM: su config es la suya, nunca la tuya
+        registrar("instancia de otra persona: se usa su config local")
+        return
     if not VM_CLAVE.exists():
         registrar("sin clave SSH de la VM (o esto ES la VM): se usa la config local")
         return
