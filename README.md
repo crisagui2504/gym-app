@@ -92,6 +92,11 @@ Angular 20 (standalone + signals) como PWA: se agrega a la pantalla de inicio y 
     - 20 platillos para "Comí fuera";
     - ✓ de creatina con racha;
     - revisión semanal de nutrición por aviso.
+  - **A tu medida:**
+    - presupuesto semanal (si no cabe, te dice lo mínimo posible);
+    - "cocino para N personas" (la lista y la cocina se multiplican);
+    - fibra, hierro y calcio de la semana.
+    - Funciona sin carne, sin lácteos, sin huevo o 100 % vegetal.
 - **Avisos push** a las 6 pm si hoy toca gym y no has registrado nada. En iPhone la app tiene que estar instalada (iOS 16.4+).
 
 ---

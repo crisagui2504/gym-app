@@ -343,6 +343,8 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   .gym-peso-campos > div { flex: 1 1 0; min-width: 0; }
   .gym-peso-campos > button { flex: 1 1 100%; }
   .menu-dias { grid-template-columns: 1fr; }
+  .menu-hogar { grid-template-columns: 1fr 1fr !important; }
+  .menu-hogar > div:first-child { grid-column: 1 / -1; }
 
   /* Tablas: letra mas chica, deslizables en horizontal dentro de su tarjeta */
   .dash-table-container .dash-spreadsheet-container td,

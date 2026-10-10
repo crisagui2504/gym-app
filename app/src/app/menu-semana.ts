@@ -62,9 +62,10 @@ export function listaSuper(m: MenuSemana, eleccion: Record<string, number>): Fil
     return m.lista.map((f) => ({ id: f.id, nombre: f.nombre, g: 0, compra: f.compra, costo: f.costo }));
   }
   const total: Record<string, number> = {};
+  const f = m.hogar?.factor ?? 1;          // para todos en casa (un nino ~60 %)
   for (const d of m.dias) {
     for (const c of comidasDelDia(d, eleccion)) {
-      for (const i of c.ingredientes) total[i.id] = (total[i.id] ?? 0) + i.g;
+      for (const i of c.ingredientes) total[i.id] = (total[i.id] ?? 0) + i.g * f;
     }
   }
   return Object.entries(total)
@@ -90,9 +91,10 @@ export function cocina(m: MenuSemana, eleccion: Record<string, number>): TandaCo
   const salida: TandaCocina[] = [];
   for (const [cuando, para, nums] of TANDAS) {
     const total: Record<string, number> = {};
+    const f = m.hogar?.factor ?? 1;
     for (const d of m.dias.filter((x) => nums.includes(x.dia))) {
       for (const c of comidasDelDia(d, eleccion)) {
-        for (const i of c.ingredientes) if (i.id in PARA_COCINAR) total[i.id] = (total[i.id] ?? 0) + i.g;
+        for (const i of c.ingredientes) if (i.id in PARA_COCINAR) total[i.id] = (total[i.id] ?? 0) + i.g * f;
       }
     }
     const tareas = Object.keys(PARA_COCINAR)
@@ -117,8 +119,11 @@ export function cocina(m: MenuSemana, eleccion: Record<string, number>): TandaCo
 export function textoLista(m: MenuSemana, filas: FilaLista[], tengo: string[]): string {
   const pendientes = filas.filter((f) => !tengo.includes(f.id));
   const costo = pendientes.reduce((s, f) => s + f.costo, 0);
+  const h = m.hogar && m.hogar.factor !== 1
+    ? ` · para ${m.hogar.adultos} adulto${m.hogar.adultos !== 1 ? 's' : ''}${m.hogar.ninos ? ` y ${m.hogar.ninos} niño${m.hogar.ninos !== 1 ? 's' : ''}` : ''}`
+    : '';
   return [
-    `🛒 Lista del súper (semana del ${m.semana_inicio}) · ≈ $${Math.round(costo)}`,
+    `🛒 Lista del súper (semana del ${m.semana_inicio})${h} · ≈ $${Math.round(costo)}`,
     ...pendientes.map((f) => `• ${f.nombre}: ${f.compra}`)
   ].join('\n');
 }

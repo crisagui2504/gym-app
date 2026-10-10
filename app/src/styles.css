@@ -2426,3 +2426,25 @@ button.menu-li.tengo span {
   font-size: 11px;
   color: var(--accent-ink);
 }
+
+/* ── Menu: hogar, presupuesto y nutrientes ──────────────────────────────────── */
+.menu-extra {
+  margin: -4px 0 10px;
+}
+
+.menu-extra p {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.menu-extra p.mal {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.menu-extra small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+}

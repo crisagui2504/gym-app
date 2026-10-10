@@ -2387,6 +2387,39 @@ Comparadas con MacroFactor, MyFitnessPal, Cronometer, Fitia, Eat This Much y Mea
 - En el navegador (demo, 375 px) se probaron creatina, "comí fuera", cambiar, cocina y "ya tengo".
 - Regresión: rutina, barra de progreso (`.seg`) y Guardar.
 
+## CB. Nutrición fase 5: presupuesto, familia y nutrientes clave (2026-10-10)
+
+**Presupuesto semanal** (`menu_presupuesto`, en $ para todo el hogar). El menú ya es el más barato posible con variedad. Si no cabe en tu tope, se cambia variedad por precio en tres pasos: castigo por repetir al 50 %, 20 % y 0 %, y topes de uso +1 y +2. Se queda con el primero que cabe. Si ninguno cabe, avisa cuál es lo mínimo posible con tus calorías y tu proteína (para ti, ~$334/semana) en vez de recortar comida.
+
+**Cocino para la familia** (`menu_adultos`, `menu_ninos`). La lista del súper y la cocina por adelantado se multiplican por adultos + 0.6 × niños (aproximado). Tu menú, tus calorías y tu proteína no cambian.
+
+**Fibra, hierro y calcio.**
+
+- Se agregaron a los 35 alimentos, aproximados de USDA. La tortilla nixtamalizada aporta calcio por la cal.
+- Cada comida y cada día los suma, y la semana los compara con estas referencias:
+  - fibra ≥ 25 g (OMS) e ~14 g por cada 1,000 kcal (Dietary Guidelines 2020-2025);
+  - hierro: 8 mg hombres y 18 mg mujeres de 19-50 años (NIH ODS);
+  - calcio: 1,000 mg (NIH ODS).
+- Los consejos solo sugieren lo que sí comes. Siempre recuerda que el hierro del frijol se absorbe mejor con vitamina C.
+- Tu menú: fibra 52 g, hierro 20 mg y calcio 1,317 mg al día.
+
+**Encontrado por las pruebas.** Excluir lácteos y pescado (alguien con intolerancia a la lactosa) dejaba **sin menú**: con pocas recetas, los topes de variedad bloqueaban todos los días.
+
+- El generador tiene dos etapas finales que relajan la variedad: repetir recetas o la misma proteína en comida y cena. El tope de huevo nunca se relaja. Si se usan, se avisa.
+- Se agregaron 3 desayunos sin huevo ni lácteos: avena con crema de cacahuate, tacos de frijol con nopales y tacos de soya.
+- Resultado: hasta un menú 100 % vegetal funciona: **$306/semana, cumpliendo la proteína con soya y frijol**.
+
+**Verificación.**
+
+- `test_motor` §53 (11 pruebas):
+  - presupuesto amplio, justo e imposible;
+  - kcal y proteína se mantienen aunque baje la variedad;
+  - factor de familia en la lista y en la cocina;
+  - promedios de nutrientes y sus referencias;
+  - aviso de calcio sin lácteos.
+- Las 5 suites pasan.
+- Navegador (375 px): app y dashboard.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

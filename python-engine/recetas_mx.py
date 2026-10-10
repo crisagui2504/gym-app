@@ -56,6 +56,17 @@ RECETAS: list[Receta] = [
        [("tortilla", 60), ("frijol", 35), ("huevo", 100), ("jitomate", 50), ("cebolla", 15)],
        "Tortillas tostadas en comal, frijoles machacados, huevo cocido y pico de gallo."),
 
+    # sin huevo ni lacteos (para quien no los come)
+    _r("avena_agua_cacahuate", "Avena con plátano y crema de cacahuate", "desayuno",
+       [("avena", 70), ("platano", 120), ("crema_cacahuate", 25), ("cacahuate", 10)],
+       "Avena cocida en agua con canela; plátano en rodajas y crema de cacahuate.", ("vegetariano",)),
+    _r("tacos_frijol_nopal", "Tacos de frijol con nopales", "desayuno",
+       [("tortilla", 90), ("frijol", 50), ("nopales", 100), ("jitomate", 40), ("aguacate", 30)],
+       "Frijoles refritos con nopales asados y pico de gallo.", ("vegetariano",)),
+    _r("soya_desayuno", "Tacos de soya a la mexicana", "desayuno",
+       [("soya", 40), ("jitomate", 60), ("cebolla", 20), ("chile", 5), ("tortilla", 90), ("aceite", 5)],
+       "Soya hidratada guisada con jitomate, cebolla y chile, en tacos.", ("vegetariano",)),
+
     # ── comidas ─────────────────────────────────────────────────────────────
     _r("tinga_pollo", "Tinga de pollo con frijoles", "comida",
        [("pollo", 130), ("jitomate", 120), ("cebolla", 40), ("chile", 10), ("aceite", 5),

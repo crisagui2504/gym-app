@@ -1277,7 +1277,10 @@ def _menu_actual(forzar: bool = False):
         m = mnu.leer_local()
         if (m and m.get("semana_inicio") == lunes.isoformat()
                 and m.get("meta", {}).get("kcal") == meta["kcal"]
-                and m.get("meta", {}).get("proteina_min") == meta["proteina_min"]):
+                and m.get("meta", {}).get("proteina_min") == meta["proteina_min"]
+                and (m.get("hogar") or {}).get("factor", 1) == mnu.factor_hogar(cfg)
+                and (m.get("presupuesto") or {}).get("tope") == (round(float(cfg["menu_presupuesto"]))
+                                                                  if cfg.get("menu_presupuesto") else None)):
             return m
     try:
         m = mnu.generar_menu(cfg, lunes)
@@ -1301,6 +1304,7 @@ def _menu_vista(m) -> html.Div:
         html.P(f"Promedio: {m['kcal_prom']:,} kcal y {m['prot_prom']} g de proteína al día "
                f"(tu meta: {meta['kcal']:,} kcal y {meta['proteina_min']}-{meta['proteina_max']} g).",
                style={"color": TEXT, "fontSize": "13px", "margin": "8px 0 0"}),
+        *_resumen_hogar_y_nutrientes(m),
         *([html.P("Las kcal cambian según el día: " + " · ".join(
             f"{tipo} ~{k:,}" for tipo, k in meta["kcal_por_tipo"].items()) + ".",
             style={"color": MUTED, "fontSize": "12px", "margin": "4px 0 0"})] if meta.get("kcal_por_tipo") else []),
@@ -1366,6 +1370,36 @@ def _menu_vista(m) -> html.Div:
     ])
 
 
+def _resumen_hogar_y_nutrientes(m: dict) -> list:
+    out = []
+    hogar = m.get("hogar") or {}
+    costo_lista = sum(f["costo"] for f in m["lista"])
+    if hogar.get("factor", 1) != 1:
+        quien = f"{hogar['adultos']} adulto{'s' if hogar['adultos'] != 1 else ''}"
+        if hogar.get("ninos"):
+            quien += f" y {hogar['ninos']} niño{'s' if hogar['ninos'] != 1 else ''}"
+        out.append(html.P(f"Para {quien}: ≈ ${costo_lista:,.0f} a la semana (la lista del súper ya viene "
+                          "para todos; tu parte es la de arriba).",
+                          style={"color": TEXT, "fontSize": "13px", "margin": "4px 0 0"}))
+    pr = m.get("presupuesto")
+    if pr:
+        txt = (f"✓ Cabe en tu presupuesto (${pr['costo']:,.0f} de ${pr['tope']:,.0f})" if pr["cabe"]
+               else f"✗ No cabe en tu presupuesto de ${pr['tope']:,.0f}: lo mínimo posible es ${pr['costo']:,.0f}")
+        if pr.get("menos_variedad"):
+            txt += " · con menos variedad para que cueste menos"
+        out.append(html.P(txt, style={"color": ACCENT if pr["cabe"] else WARN, "fontSize": "13px", "margin": "4px 0 0"}))
+    n = m.get("nutrientes")
+    if n:
+        ok = lambda v, ref: "✓" if v >= ref else "↓"  # noqa: E731
+        out.append(html.P(
+            f"Fibra {n['fibra']:.0f} g/día {ok(n['fibra'], n['fibra_min'])} (mín. {n['fibra_min']}, ideal ~{n['fibra_rec']}) · "
+            f"Hierro {n['hierro']:.0f} mg (ref. {n['hierro_h']} hombres, {n['hierro_m']} mujeres) · "
+            f"Calcio {n['calcio']:,.0f} mg {ok(n['calcio'], n['calcio_ref'] * 0.9)} (ref. {n['calcio_ref']:,})",
+            style={"color": MUTED, "fontSize": "12px", "margin": "6px 0 0"}))
+        out += [html.P(c, style={"color": MUTED, "fontSize": "11px", "margin": "2px 0 0"}) for c in n["consejos"]]
+    return out
+
+
 def _tab_menu_children() -> html.Div:
     import alimentos_mx as alx
     cfg = _menu_cfg()
@@ -1400,6 +1434,24 @@ def _tab_menu_children() -> html.Div:
                       value=["si"] if cfg.get("menu_suplementos") else [],
                       style={"fontSize": "14px", "marginTop": "10px"},
                       labelStyle={"color": TEXT, "display": "inline-flex", "alignItems": "center", "gap": "5px"}),
+        html.Div([
+            html.Div([html.Label("Presupuesto semanal ($, opcional)", style=_LABEL_STYLE),
+                      dcc.Input(id="menu-presupuesto", type="number", min=50, max=20000, step=10,
+                                value=cfg.get("menu_presupuesto"), placeholder="sin tope",
+                                style={"width": "100%", "marginTop": "6px", "height": "42px", "boxSizing": "border-box"})]),
+            html.Div([html.Label("Adultos (contándote)", style=_LABEL_STYLE),
+                      dcc.Input(id="menu-adultos", type="number", min=1, max=10, step=1,
+                                value=cfg.get("menu_adultos") or 1,
+                                style={"width": "100%", "marginTop": "6px", "height": "42px", "boxSizing": "border-box"})]),
+            html.Div([html.Label("Niños", style=_LABEL_STYLE),
+                      dcc.Input(id="menu-ninos", type="number", min=0, max=10, step=1,
+                                value=cfg.get("menu_ninos") or 0,
+                                style={"width": "100%", "marginTop": "6px", "height": "42px", "boxSizing": "border-box"})]),
+        ], className="menu-hogar", style={"display": "grid", "gridTemplateColumns": "2fr 1fr 1fr", "gap": "10px",
+                                          "marginTop": "14px"}),
+        html.P("La lista del súper y la cocina se multiplican para todos (un niño ≈ 60 % de una porción). "
+               "Las calorías y la proteína del menú son las tuyas.",
+               style={"color": MUTED, "fontSize": "11px", "margin": "6px 0 0"}),
         html.Button("🔄 Generar otro menú", id="menu-generar", n_clicks=0, className="gym-btn",
                     style={"marginTop": "16px"}),
     ])
@@ -2090,14 +2142,24 @@ def _aplicar_kcal(n_clicks, delta):
     Input("menu-generar", "n_clicks"),
     State("menu-excluir", "value"),
     State("menu-supl", "value"),
+    State("menu-presupuesto", "value"),
+    State("menu-adultos", "value"),
+    State("menu-ninos", "value"),
     prevent_initial_call=True,
 )
-def _generar_menu_cb(n_clicks, excluir, supl):
+def _generar_menu_cb(n_clicks, excluir, supl, presupuesto=None, adultos=1, ninos=0):
     """Otro menu (otra semilla) con lo que no comes. En demo no se guarda nada."""
     import random
     import menu as mnu
     from planificar import lunes_objetivo
-    extra = {"alimentos_excluidos": excluir or [], "menu_suplementos": bool(supl)}
+    def entero(v, lo, hi, defecto):
+        try:
+            return max(lo, min(hi, int(v)))
+        except (TypeError, ValueError):
+            return defecto
+    extra = {"alimentos_excluidos": excluir or [], "menu_suplementos": bool(supl),
+             "menu_presupuesto": entero(presupuesto, 50, 20000, None) if presupuesto else None,
+             "menu_adultos": entero(adultos, 1, 10, 1), "menu_ninos": entero(ninos, 0, 10, 0)}
     if not _es_demo():
         guardar_config(extra)
     try:

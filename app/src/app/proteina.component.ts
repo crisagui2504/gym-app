@@ -78,6 +78,21 @@ import type { MenuComida, MenuDia } from './rutina-api.service';
             <b>\${{ m.costo_semana | number: '1.0-0' }}</b> a la semana · ~\${{ m.costo_dia | number: '1.0-0' }} al día<br>
             {{ m.kcal_prom | number: '1.0-0' }} kcal y {{ m.prot_prom }} g de proteína al día en promedio
           </p>
+          <div class="menu-extra">
+            <p *ngIf="m.hogar && m.hogar.factor !== 1">
+              🏠 Lista y cocina para {{ m.hogar.adultos }} adulto{{ m.hogar.adultos !== 1 ? 's' : '' }}<ng-container
+                *ngIf="m.hogar.ninos"> y {{ m.hogar.ninos }} niño{{ m.hogar.ninos !== 1 ? 's' : '' }}</ng-container>
+            </p>
+            <p *ngIf="m.presupuesto as pr" [class.mal]="!pr.cabe">
+              {{ pr.cabe ? '✓ Cabe en tu presupuesto' : '✗ No cabe en tu presupuesto' }}
+              (\${{ pr.costo | number: '1.0-0' }} de \${{ pr.tope | number: '1.0-0' }})
+            </p>
+            <p *ngIf="m.nutrientes as n">
+              Fibra {{ n.fibra | number: '1.0-0' }} g · Hierro {{ n.hierro | number: '1.0-0' }} mg ·
+              Calcio {{ n.calcio | number: '1.0-0' }} mg al día
+              <small *ngFor="let c of n.consejos">{{ c }}</small>
+            </p>
+          </div>
           <div class="menu-sel">
             <button type="button" *ngFor="let d of m.dias" [class.on]="diaSel() === d.dia" (click)="diaSel.set(d.dia)">
               {{ d.nombre.slice(0, 3) }}

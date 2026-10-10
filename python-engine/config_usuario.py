@@ -39,6 +39,9 @@ DEFAULT_CONFIG: dict = {
     # "carnes", "pescado", "lacteos", "huevo") y si se permite proteina en polvo.
     "alimentos_excluidos": [],
     "menu_suplementos": False,
+    "menu_presupuesto": None,   # $ por semana para todo el hogar (None = sin tope)
+    "menu_adultos": 1,          # para cuantos cocinas (contandote)
+    "menu_ninos": 0,
 }
 
 

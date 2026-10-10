@@ -1385,6 +1385,41 @@ check("nunca dice -0.00 %", "-0.00" not in nut.resumen_semanal({"enfoque": "volu
                                                                _pesos(73, -0.00001), _dfn4b, hoy=_hoy49)[1])
 
 print()
+print("== 53. Nutricion fase 5: presupuesto, familia y nutrientes ==")
+_c5 = {"enfoque": "recomposicion", "peso_corporal": 73}
+_n5 = mnu.generar_menu(_c5, _lun)
+_amplio = mnu.generar_menu({**_c5, "menu_presupuesto": 2000}, _lun)
+check("presupuesto amplio: cabe y no cambia el menu",
+      _amplio["presupuesto"]["cabe"] and not _amplio["presupuesto"]["menos_variedad"]
+      and _amplio["dias"] == _n5["dias"])
+_justo = mnu.generar_menu({**_c5, "menu_presupuesto": int(_n5["costo_semana"] - 25)}, _lun)
+check("presupuesto un poco abajo: se cambia variedad por precio y cuesta menos",
+      _justo["presupuesto"]["menos_variedad"] and _justo["costo_semana"] < _n5["costo_semana"], str(_justo["presupuesto"]))
+check("aun con menos variedad, el menu cumple kcal y proteina",
+      all(abs(d["kcal"] - d["kcal_meta"]) <= d["kcal_meta"] * 0.10 and d["prot"] >= _n5["meta"]["proteina_min"] - 1
+          for d in _justo["dias"]))
+_imposible = mnu.generar_menu({**_c5, "menu_presupuesto": 100}, _lun)
+check("presupuesto imposible: no inventa, avisa lo minimo posible",
+      not _imposible["presupuesto"]["cabe"] and any("lo más barato posible" in x for x in _imposible["avisos"]))
+_fam = mnu.generar_menu({**_c5, "menu_adultos": 2, "menu_ninos": 1}, _lun)
+check("familia: factor = adultos + 0.6 x ninos", _fam["hogar"]["factor"] == 2.6 and mnu.factor_hogar({}) == 1)
+_g1 = {f["id"]: f["g"] for f in _n5["lista"]}
+check("familia: la lista del super se multiplica (el menu personal no cambia)",
+      _fam["dias"] == _n5["dias"]
+      and all(abs(f["g"] - _g1[f["id"]] * 2.6) <= 2 for f in _fam["lista"]))
+check("familia: la cocina por adelantado tambien",
+      abs(sum(x["g"] for c in _fam["cocina"] for x in c["tareas"])
+          - 2.6 * sum(x["g"] for c in _n5["cocina"] for x in c["tareas"])) <= 10)
+_nu = _n5["nutrientes"]
+check("nutrientes: promedio semanal de fibra, hierro y calcio con sus referencias",
+      abs(_nu["fibra"] - sum(d["fibra"] for d in _n5["dias"]) / 7) < 0.6 and _nu["fibra_min"] == 25
+      and _nu["calcio_ref"] == 1000 and (_nu["hierro_h"], _nu["hierro_m"]) == (8, 18))
+check("comida mexicana con frijol: la fibra pasa el minimo de 25 g", _nu["fibra"] >= 25, str(_nu))
+_sin_lacteos = mnu.generar_menu({**_c5, "alimentos_excluidos": ["lacteos", "pescado"]}, _lun)["nutrientes"]
+check("sin lacteos ni sardina: si el calcio queda bajo, lo dice",
+      _sin_lacteos["calcio"] >= 900 or any("Calcio bajo" in c for c in _sin_lacteos["consejos"]), str(_sin_lacteos))
+
+print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")
     sys.exit(1)

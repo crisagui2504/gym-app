@@ -72,6 +72,7 @@ def _redondear(aid: str, g: float) -> float:
 def _servir(r: Receta, escala: float, precios: dict[str, float]) -> dict:
     """Receta con las cantidades ya escaladas y redondeadas (los totales salen de ahi)."""
     ing, kcal, prot, carb, grasa, costo = [], 0.0, 0.0, 0.0, 0.0, 0.0
+    fibra = hierro = calcio = 0.0
     for aid, g in r.ingredientes:
         a = alx.ALIMENTOS[aid]
         gg = _redondear(aid, g * escala)
@@ -80,14 +81,54 @@ def _servir(r: Receta, escala: float, precios: dict[str, float]) -> dict:
         prot += a.prot * gg / 100
         carb += a.carb * gg / 100
         grasa += a.grasa * gg / 100
+        fibra += a.fibra * gg / 100
+        hierro += a.hierro * gg / 100
+        calcio += a.calcio * gg / 100
         costo += precios[aid] * gg / 1000
     return {"tiempo": r.tiempo, "receta": r.id, "nombre": r.nombre, "como": r.como,
             "ingredientes": ing, "kcal": round(kcal), "prot": round(prot, 1),
-            "carb": round(carb), "grasa": round(grasa), "costo": round(costo, 2)}
+            "carb": round(carb), "grasa": round(grasa), "fibra": round(fibra, 1),
+            "hierro": round(hierro, 1), "calcio": round(calcio), "costo": round(costo, 2)}
 
 
 def generar_menu(cfg: dict, semana_inicio: date, semilla: int | None = None,
                  precios: dict[str, float] | None = None) -> dict:
+    """El menu de la semana. Con presupuesto (menu_presupuesto, $ por semana para
+    todo el hogar): si el menu normal no cabe, se cambia variedad por precio
+    (se permite repetir mas las recetas baratas) hasta caber; si ni asi, se
+    avisa cuanto es lo minimo posible con tus calorias y tu proteina."""
+    hogar = factor_hogar(cfg)
+    tope = cfg.get("menu_presupuesto")
+    m = _generar(cfg, semana_inicio, semilla, precios)
+    if tope:
+        tope = float(tope)
+        intentos = [m]
+        if m["costo_semana"] * hogar > tope:
+            for variedad, extra in ((0.5, 0), (0.2, 1), (0.0, 2)):
+                intentos.append(_generar(cfg, semana_inicio, semilla, precios, variedad, extra))
+                if intentos[-1]["costo_semana"] * hogar <= tope:
+                    break
+        caben = [x for x in intentos if x["costo_semana"] * hogar <= tope]
+        m = caben[0] if caben else min(intentos, key=lambda x: x["costo_semana"])
+        costo_hogar = round(m["costo_semana"] * hogar, 2)
+        m["presupuesto"] = {"tope": round(tope), "costo": costo_hogar, "cabe": bool(caben),
+                            "menos_variedad": m is not intentos[0]}
+        if not caben:
+            m["avisos"].append(f"Con tus calorías y tu proteína, lo más barato posible es ~${costo_hogar:,.0f} "
+                               f"a la semana (tu tope: ${tope:,.0f}). Para bajarlo: repite más frijol, huevo "
+                               "y soya, o corrige precios que estén altos.")
+    return m
+
+
+def factor_hogar(cfg: dict) -> float:
+    """Para cuantos cocinas: adultos + ninos (un nino come ~60 % de una porcion adulta)."""
+    adultos = max(1, int(cfg.get("menu_adultos") or 1))
+    ninos = max(0, int(cfg.get("menu_ninos") or 0))
+    return round(adultos + 0.6 * ninos, 2)
+
+
+def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios: dict[str, float] | None = None,
+             variedad: float = 1.0, topes_extra: int = 0) -> dict:
     meta = nutricion.metas(cfg)
     K_sem, P = float(meta["kcal"]), float(meta["proteina_min"])
     # kcal de CADA dia segun lo que gasta (pesas, deporte, cardio, descanso); la
@@ -138,8 +179,8 @@ def generar_menu(cfg: dict, semana_inicio: date, semilla: int | None = None,
         K = float(por_dia[i + 1]["kcal"])
 
         def pen(lista, idx_offset=0):
-            v = np.array([usos.get(r.id, 0) * PENALIZA_REPETIR if r else 0.0 for r in lista])
-            tope = np.array([usos.get(r.id, 0) >= TOPE_USOS[r.tiempo] if r else False for r in lista])
+            v = np.array([usos.get(r.id, 0) * PENALIZA_REPETIR * variedad if r else 0.0 for r in lista])
+            tope = np.array([usos.get(r.id, 0) >= TOPE_USOS[r.tiempo] + topes_extra if r else False for r in lista])
             return v, tope
         vd, td = pen(D)
         vc, tc = pen(C)
@@ -147,20 +188,26 @@ def generar_menu(cfg: dict, semana_inicio: date, semilla: int | None = None,
         vs, ts = pen(SN)
         castigo = (vd[:, None, None, None, None] + vc[None, :, None, None, None]
                    + vn[None, None, :, None, None] + vs[None, None, None, None, :])
-        bloqueo = (td[:, None, None, None, None] | tc[None, :, None, None, None]
-                   | tn[None, None, :, None, None] | ts[None, None, None, None, :])
+        tope_usos = (td[:, None, None, None, None] | tc[None, :, None, None, None]
+                     | tn[None, None, :, None, None] | ts[None, None, None, None, :])
         # un poco de azar en la comida: "otro menu" da otro menu, no el mismo
-        ruido = np.array([rng.uniform(0, 2.5) for _ in range(len(C))])[None, :, None, None, None]
+        ruido = np.array([rng.uniform(0, 2.5 * variedad) for _ in range(len(C))])[None, :, None, None, None]
         desvio = np.abs(kcal - K)
         objetivo = costo + castigo + ruido + desvio * 0.01      # $1 por cada 100 kcal de desvio
-        bloqueo = bloqueo | (huevos > MAX_HUEVO_DIA + 1) | (misma > 0)[None, :, :, None, None]
+        mucho_huevo = huevos > MAX_HUEVO_DIA + 1          # este tope nunca se relaja
+        misma_fuente = (misma > 0)[None, :, :, None, None]
         elegido = None
         aviso = None
         # La cuenta de arriba es ANTES de redondear (huevos y tortillas enteros mueven
         # las kcal). Se revisan los mejores candidatos con sus totales REALES y se
         # toma el primero que cumple. Etapas: normal -> mas holgura -> sin la
-        # proteina (no se alcanza con comida; se avisa).
-        for tol, exige_prot in ((TOLERANCIA_KCAL, True), (0.08, True), (0.08, False)):
+        # proteina (no se alcanza con comida; se avisa) -> y si con lo que excluiste
+        # quedan pocas recetas, se relaja la VARIEDAD (repetir recetas, misma
+        # proteina comida y cena) antes que dejarte sin menu.
+        etapas = ((TOLERANCIA_KCAL, True, True), (0.08, True, True), (0.08, False, True),
+                  (0.08, True, False), (0.10, False, False))
+        for tol, exige_prot, con_variedad in etapas:
+            bloqueo = mucho_huevo | ((tope_usos | misma_fuente) if con_variedad else False)
             pre = (desvio <= K * (tol + 0.05)) & ~bloqueo
             if exige_prot:
                 pre &= prot >= P * 0.95
@@ -191,6 +238,8 @@ def generar_menu(cfg: dict, semana_inicio: date, semilla: int | None = None,
                 if not exige_prot:
                     aviso = ("No se alcanza tu proteína con estas recetas y calorías: suma una porción "
                              "de las del botón Proteína (atún, huevo) o activa los suplementos.")
+                elif not con_variedad:
+                    aviso = "Con lo que excluiste quedan pocas recetas: este día repite más de lo normal."
                 break
         if not elegido:
             raise ValueError("No hay combinación posible: revisa lo que excluiste.")
@@ -207,15 +256,18 @@ def generar_menu(cfg: dict, semana_inicio: date, semilla: int | None = None,
             if r:
                 usos[r.id] = usos.get(r.id, 0) + 1
         fecha = semana_inicio + timedelta(days=i)
-        tot = {k: sum(c[k] for c in elegidas) for k in ("kcal", "prot", "carb", "grasa", "costo")}
+        tot = {k: sum(c[k] for c in elegidas)
+               for k in ("kcal", "prot", "carb", "grasa", "fibra", "hierro", "calcio", "costo")}
         if aviso:
             avisos.append(f"{NOMBRES_DIA[i]}: {aviso}")
         dias.append({"dia": i + 1, "nombre": NOMBRES_DIA[i], "fecha": fecha.isoformat(), "comidas": elegidas,
                      "tipo": por_dia[i + 1]["tipo"], "kcal_meta": int(K),
                      "kcal": round(tot["kcal"]), "prot": round(tot["prot"]), "carb": round(tot["carb"]),
-                     "grasa": round(tot["grasa"]), "costo": round(tot["costo"], 2)})
+                     "grasa": round(tot["grasa"]), "fibra": round(tot["fibra"]), "hierro": round(tot["hierro"], 1),
+                     "calcio": round(tot["calcio"]), "costo": round(tot["costo"], 2)})
 
-    lista = lista_super(dias, precios)
+    hogar = factor_hogar(cfg)
+    lista = lista_super(dias, precios, hogar)
     costo_sem = round(sum(d["costo"] for d in dias), 2)
     usados = {ing["id"] for d in dias for c in d["comidas"]
               for x in [c, *c.get("alternativas", [])] for ing in x["ingredientes"]}
@@ -232,7 +284,10 @@ def generar_menu(cfg: dict, semana_inicio: date, semilla: int | None = None,
         "prot_prom": round(sum(d["prot"] for d in dias) / 7),
         "excluidos": sorted(fuera),
         "avisos": avisos,
-        "cocina": cocina_por_adelantado(dias),
+        "cocina": cocina_por_adelantado(dias, hogar),
+        "hogar": {"adultos": max(1, int(cfg.get("menu_adultos") or 1)), "ninos": max(0, int(cfg.get("menu_ninos") or 0)),
+                  "factor": hogar},
+        "nutrientes": nutrientes_semana(dias, K_sem, fuera),
         # lo que la app necesita para rehacer la lista y la cocina si cambias comidas
         "alimentos": {aid: _ficha(alx.ALIMENTOS[aid], precios[aid]) for aid in sorted(usados)},
         "nota": "Cantidades en crudo (frijol, lentejas, arroz y avena en seco). Precios de referencia: "
@@ -279,7 +334,33 @@ PARA_COCINAR = {"frijol": "en olla", "lentejas": "en olla", "arroz": "", "pollo"
 TANDAS = (("Domingo", "para lunes a miércoles", (1, 2, 3)), ("Miércoles en la noche", "para jueves a domingo", (4, 5, 6, 7)))
 
 
-def cocina_por_adelantado(dias: list[dict]) -> list[dict]:
+# Referencias diarias: fibra >= 25 g (OMS) y ~14 g por cada 1,000 kcal (Dietary
+# Guidelines for Americans 2020-2025); hierro 8 mg hombres / 18 mg mujeres de
+# 19-50 anos y calcio 1,000 mg (NIH, Office of Dietary Supplements).
+FIBRA_MIN = 25
+HIERRO_H, HIERRO_M = 8, 18
+CALCIO_REF = 1000
+
+
+def nutrientes_semana(dias: list[dict], kcal: float, fuera: set[str] | None = None) -> dict:
+    prom = {k: round(sum(d.get(k, 0) for d in dias) / 7, 1) for k in ("fibra", "hierro", "calcio")}
+    consejos = []
+    if prom["fibra"] < FIBRA_MIN:
+        consejos.append("Fibra baja: más frijol, lentejas, verduras y fruta con cáscara.")
+    if prom["calcio"] < CALCIO_REF * 0.9:
+        # solo sugiere lo que SI comes
+        fuera = fuera or set()
+        fuentes = [n for ids, n in ((("leche", "yogur", "queso_fresco", "panela"), "leche, yogur o queso"),
+                                    (("sardina",), "sardina (con su hueso)"),
+                                    (("nopales",), "nopales"), (("soya",), "soya texturizada"))
+                   if not all(i in fuera for i in ids)]
+        consejos.append("Calcio bajo: suma " + ", ".join(fuentes) + "; la tortilla nixtamalizada también aporta.")
+    consejos.append("El hierro del frijol y las lentejas se absorbe mejor con vitamina C: limón, jitomate o naranja.")
+    return {**prom, "fibra_min": FIBRA_MIN, "fibra_rec": round(14 * kcal / 1000), "hierro_h": HIERRO_H,
+            "hierro_m": HIERRO_M, "calcio_ref": CALCIO_REF, "consejos": consejos}
+
+
+def cocina_por_adelantado(dias: list[dict], factor: float = 1.0) -> list[dict]:
     salida = []
     for cuando, para, nums in TANDAS:
         total: dict[str, float] = {}
@@ -288,7 +369,7 @@ def cocina_por_adelantado(dias: list[dict]) -> list[dict]:
                 for c in d["comidas"]:
                     for ing in c["ingredientes"]:
                         if ing["id"] in PARA_COCINAR:
-                            total[ing["id"]] = total.get(ing["id"], 0) + ing["g"]
+                            total[ing["id"]] = total.get(ing["id"], 0) + ing["g"] * factor
         tareas = []
         for aid in PARA_COCINAR:
             if total.get(aid):
@@ -301,13 +382,14 @@ def cocina_por_adelantado(dias: list[dict]) -> list[dict]:
     return salida
 
 
-def lista_super(dias: list[dict], precios: dict[str, float] | None = None) -> list[dict]:
+def lista_super(dias: list[dict], precios: dict[str, float] | None = None, factor: float = 1.0) -> list[dict]:
+    """Lo de los 7 dias, para todo el hogar (factor = adultos + 0.6 x ninos)."""
     precios = precios or alx.precios()
     total: dict[str, float] = {}
     for d in dias:
         for c in d["comidas"]:
             for ing in c["ingredientes"]:
-                total[ing["id"]] = total.get(ing["id"], 0) + ing["g"]
+                total[ing["id"]] = total.get(ing["id"], 0) + ing["g"] * factor
     orden = {"leguminosas": 0, "origen_animal": 1, "cereales": 2, "verduras_frutas": 3, "grasas": 4}
     filas = []
     for aid, g in total.items():

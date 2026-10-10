@@ -109,6 +109,10 @@ export interface MenuSemana {
   cocina?: Array<{ cuando: string; para: string; tareas: Array<{ id: string; texto: string }> }>;
   alimentos?: Record<string, { nombre: string; precio_kg: number; compra: string; g_compra: number;
                                piezas: string[]; seco_por_taza: number; grupo: string }>;
+  hogar?: { adultos: number; ninos: number; factor: number };
+  presupuesto?: { tope: number; costo: number; cabe: boolean; menos_variedad: boolean };
+  nutrientes?: { fibra: number; hierro: number; calcio: number; fibra_min: number; fibra_rec: number;
+                 hierro_h: number; hierro_m: number; calcio_ref: number; consejos: string[] };
 }
 
 @Injectable({ providedIn: 'root' })
