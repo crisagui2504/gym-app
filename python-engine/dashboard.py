@@ -19,6 +19,7 @@ from datetime import date, timedelta
 
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.io as pio
 from dash import Dash, Input, Output, State, dash_table, dcc, html, callback
 
 from config_usuario import cargar_config, guardar_config
@@ -48,6 +49,11 @@ FUENTE_TEXTO = "Encode Sans, Segoe UI, sans-serif"
 FUENTE_DISPLAY = "Anton, Impact, Arial Narrow, sans-serif"
 
 
+# plantilla extra que se suma al tema: ejes fijos y sin arrastre en TODAS las graficas
+pio.templates["gym_fijo"] = go.layout.Template(layout=dict(
+    dragmode=False, xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True)))
+
+
 def _aplicar_tema(tema: str) -> None:
     """Setea los colores globales y estilos derivados según el tema elegido."""
     global BG, CARD, CARD2, LINE, TEXT, MUTED, ACCENT, ACCENT2, DANGER, WARN, GRID
@@ -58,7 +64,7 @@ def _aplicar_tema(tema: str) -> None:
     ACCENT, ACCENT2 = p["accent"], p["accent2"]
     DANGER, WARN, GRID = p["danger"], p["warn"], p["grid"]
     PLOTLY_THEME = dict(
-        template=p["template"],
+        template=p["template"] + "+gym_fijo",
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=p["text"], family=FUENTE_TEXTO, size=13),
         margin=dict(l=20, r=20, t=64, b=70),
@@ -345,15 +351,24 @@ def _fig_progresion(df: pd.DataFrame, ejercicio: str) -> go.Figure:
             line=dict(color=WARN, width=2.5, dash="dot", shape="spline"),
             mode="lines+markers", marker=dict(size=7, color=WARN),
         ))
+    xaxis = dict(tickformat="%d/%m", gridcolor="rgba(0,0,0,0)")
+    if len(ton) == 1:           # una sola semana: si no, plotly abre el eje a milisegundos
+        x0 = ton["semana"].iloc[0]
+        xaxis.update(range=[x0 - pd.Timedelta(days=5), x0 + pd.Timedelta(days=5)], dtick=86400000 * 7)
     fig.update_layout(
         **PLOTLY_THEME,
         title=_titulo(f"Progresión — {ejercicio}"),
-        yaxis=dict(title="kg (peso máx / e1RM)", gridcolor=GRID, zeroline=False),
+        xaxis=xaxis,
+        yaxis=dict(title="kg (peso máx / e1RM)", gridcolor=GRID, zeroline=False, rangemode="tozero"),
         yaxis2=dict(title="Tonelaje (kg)", overlaying="y", side="right",
-                    gridcolor="rgba(0,0,0,0)", zeroline=False),
+                    gridcolor="rgba(0,0,0,0)", zeroline=False, rangemode="tozero"),
         legend=_LEGEND_BOTTOM,
         hovermode="x unified",
     )
+    if sub["peso_kg"].max() <= 0:
+        fig.add_annotation(text="Sus series están guardadas con 0 kg: registra el peso en la app<br>"
+                                "para ver la progresión.", xref="paper", yref="paper", x=0.5, y=0.5,
+                           showarrow=False, font=dict(color=MUTED, size=12))
     return fig
 
 
@@ -1502,6 +1517,7 @@ app = Dash(
     __name__,
     title="Gym Tracker — Dashboard",
     update_title=None,
+    meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1, maximum-scale=1"}],
     suppress_callback_exceptions=True,
 )
 # Objeto WSGI para servirlo en produccion con gunicorn (VM): `gunicorn dashboard:server`.

@@ -108,7 +108,25 @@ html, body {
   border-radius: 7px !important;
 }
 .dash-dropdown-search-icon { color: var(--muted) !important; }
-.dash-dropdown-options { background: var(--card2) !important; }
+/* La caja del menu trae max-height 200px + overflow hidden (Dash 4): cortaba
+   la lista y las ultimas opciones no se alcanzaban. Caja en columna: el
+   buscador fijo arriba y SOLO la lista se desliza. */
+.dash-dropdown-content {
+  max-height: min(380px, 60vh) !important;
+  display: flex !important;
+  flex-direction: column;
+}
+.dash-dropdown-search-container { flex: 0 0 auto; }
+.dash-dropdown-options {
+  background: var(--card2) !important;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;          /* deslizar la lista no mueve la pagina */
+  -webkit-overflow-scrolling: touch;
+}
+.dash-dropdown-option { display: block !important; width: 100%; box-sizing: border-box; }
 .dash-dropdown-option {
   color: #c7c7cf !important;
   background: transparent !important;
@@ -312,7 +330,9 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   .gym-shell input[type="number"] { font-size: 16px; }   /* 16px: iOS no hace zoom al tocar el campo */
   .gym-shell .gym-btn { width: 100%; padding: 13px 16px; }
   .gym-shell .dash-dropdown-trigger { font-size: 15px; }
-  .gym-shell label { display: inline-block; }
+  .dash-dropdown-search, .gym-shell input { font-size: 16px !important; }  /* iOS: sin zoom al tocar */
+  .dash-dropdown-content { max-width: calc(100vw - 28px); }
+  .dash-dropdown-option { padding: 12px 14px !important; white-space: normal; }
   .gym-peso-campos > div { flex: 1 1 0; min-width: 0; }
   .gym-peso-campos > button { flex: 1 1 100%; }
 
