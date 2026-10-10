@@ -18,6 +18,7 @@ Todos piden `X-API-Token` (o `?token=` en GET).
 | Encuesta y preferencias | `guardar_feedback.php`, `get_feedback.php`, `guardar_preferencia.php`, `get_preferencias.php` |
 | Avisos push | `guardar_suscripcion.php`, `get_suscripciones.php` |
 | Nutrición | `guardar_proteina.php`, `get_nutricion.php`, `guardar_meta_nutricion.php`, `guardar_menu.php`, `get_menu.php` |
+| Peso corporal | `guardar_peso.php`, `get_peso.php` |
 
 Archivos de apoyo: `bootstrap.php` (CORS, PDO, token, JSON) y `*_tabla.php` (crean las tablas automáticas).
 
@@ -31,6 +32,7 @@ Archivos de apoyo: `bootstrap.php` (CORS, PDO, token, JSON) y `*_tabla.php` (cre
 - `nutricion_dia`
 - `nutricion_meta`
 - `menu_semana`
+- `peso_corporal`
 
 ## `.htaccess`
 

@@ -2457,7 +2457,12 @@ Comparadas con MacroFactor, MyFitnessPal, Cronometer, Fitia, Eat This Much y Mea
   - la revisión del domingo detecta la recomposición con la cintura.
 - `test_funcional`: "Guardar" del dashboard escribe el CSV y llama a la API (simulada).
 - Las 5 suites pasan y `npx ng build` compila sin avisos.
-- Navegador a 375 px, demo y app real: ver abajo.
+- API en vivo, sin escribir datos: `get_peso.php` → `{ok, pesos: []}` (la tabla se creó sola); peso 10 y fecha inválida → 400; sin token → 401.
+- VM actualizada: `exportar_local` deja `peso_corporal.csv` y `backups/peso-2026-10-10.csv` (0 pesajes; no había CSV que migrar).
+- Navegador a 375 px:
+  - demo: anotar 74.6 kg + 83 cm, corregir a 74.4 sin cintura (la conserva), peso 10 rechazado, tendencia visible;
+  - app real (bundle nuevo `main-5A3MEAC2.js`, sin anotar nada): bloque con "Con 8 pesajes más se ve tu tendencia" y `get_peso.php` 200;
+  - en las dos siguen funcionando la rutina del día, la barra `.seg`, Guardar, Historial, Semana y Comida (Proteína y Menú), sin scroll horizontal.
 
 ## Referencias principales
 

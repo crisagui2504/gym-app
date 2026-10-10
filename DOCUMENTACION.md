@@ -286,7 +286,7 @@ No se versionan:
 | `catalogo.generado.ts` | Catálogo de ejercicios del motor (lo genera `exportar_catalogo.py`; una prueba exige que esté al día). |
 | `muscle-map.component.ts` | Mapa muscular en SVG. |
 | `acentos.ts` | Pipe que pone acentos a los nombres que vienen del motor. |
-| `nutricion.ts` | `NutricionService`. Proteína del día por porciones (17 de casa y 20 de "Comí fuera"), meta del motor, creatina con racha, "Lo comí" del menú, menú de la semana, elección de comidas y "ya tengo en casa". Guardado offline con reenvío. |
+| `nutricion.ts` | `NutricionService`. Proteína del día por porciones (17 de casa y 20 de "Comí fuera"), meta del motor, creatina con racha, "Lo comí" del menú, menú de la semana, elección de comidas y "ya tengo en casa", peso de hoy (y cintura) con su tendencia. Guardado offline con reenvío. |
 | `menu-semana.ts` | Funciones puras que rehacen en el teléfono la lista del súper (por hogar) y la cocina por adelantado según las comidas elegidas, y el texto para compartir la lista. |
 | `proteina.component.ts` | Panel **Comida** con dos vistas: Proteína (barra, porciones, creatina, comí fuera) y Menú (resumen, días, cambiar, lo comí, cocina, lista). |
 | `demo.ts` / `demo.generado.ts` | Modo demo (5 toques al logo o `?demo=1`). Usa una API falsa que pide escenarios al motor de la VM y tiene un respaldo empaquetado. Almacén en memoria: nada real se lee ni se escribe. |
@@ -402,6 +402,8 @@ Valores de `guardar_feedback.php`:
 | `guardar_meta_nutricion.php` | POST | `{proteina_min, proteina_max (20–500), kcal? (800–6000), peso?, enfoque?}` | `{ok}` (lo sube el motor) |
 | `guardar_menu.php` | POST | `{semana_inicio, menu: {dias: [...], …}}`, hasta 400 KB | `{ok}` (lo sube el motor) |
 | `get_menu.php` | GET | `fecha` (opcional; hoy) | `{ok, menu \| null}`: el menú más reciente que empezó en las 2 semanas previas a `fecha` |
+| `guardar_peso.php` | POST | `{fecha, peso (30–250), cintura? (40–200)}` | `{ok}`. Un pesaje por día (upsert); sin `cintura` conserva la que ya hubiera ese día. Lo usan la app y el dashboard. |
+| `get_peso.php` | GET | `dias` (1–3650, defecto 60) | `{ok, pesos: [{fecha, peso, cintura \| null}]}`, del más viejo al más nuevo (la app y `exportar_local.py`) |
 
 Reglas de `porciones` en `guardar_proteina.php`:
 
@@ -425,6 +427,7 @@ Reglas de `porciones` en `guardar_proteina.php`:
 | `nutricion_dia` *(auto)* | Proteína del día: `fecha` es la llave, con `proteina_g` y `porciones` (JSON). |
 | `nutricion_meta` *(auto)* | Una sola fila (`id = 1`) con el rango de proteína, kcal, peso y enfoque. |
 | `menu_semana` *(auto)* | Un menú por semana (`semana_inicio`, `datos` en JSON). |
+| `peso_corporal` *(auto)* | Un pesaje por día: `fecha` es la llave, con `peso` y `cintura` (opcional). Fuente de las calorías adaptativas; el motor lo baja a `peso_corporal.csv`. |
 
 Todas están también en `infinityfree/schema.sql`.
 
