@@ -2334,6 +2334,13 @@ Registrar la comida ayuda, pero casi todos dejan de hacerlo con el tiempo. Por e
 - Las 5 suites pasan.
 - En el navegador (vista móvil): "Lo comí" suma, se ve como chip y se quita.
 
+**La app se quedaba con la versión anterior tras cada despliegue.** El service worker pedía `index.html` "a la red", pero con la caché HTTP normal del navegador. InfinityFree no manda `Cache-Control`, así que el navegador servía un `index.html` viejo, que apunta a los bundles viejos. Se comprobó en vivo: el servidor ya tenía `main-X3ZMGVL5.js` y la app seguía cargando el anterior.
+
+Cambios:
+
+- **`sw.js` v5:** la navegación usa `fetch(url, {cache: 'no-store', redirect: 'manual'})` y solo guarda respuestas normales.
+- **`.htaccess`:** `Cache-Control: no-cache` para `index.html`, `sw.js` y el manifiesto.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

@@ -13,3 +13,12 @@
   # Esto evita los errores 404 que InfinityFree castiga
   RewriteRule ^ index.html [L]
 </IfModule>
+
+# index.html y el service worker SIEMPRE se revisan con el servidor: si el
+# navegador los guarda, despues de cada despliegue sigue cargando la version
+# anterior de la app (los bundles main-*.js cambian de nombre, index.html no).
+<IfModule mod_headers.c>
+  <FilesMatch "^(index\.html|sw\.js|manifest\.webmanifest)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>

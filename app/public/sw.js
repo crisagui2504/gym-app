@@ -4,7 +4,9 @@
    - /api/ y otros origenes (fuentes): nunca se cachean aqui. */
 // Cambiar el nombre hace que el activate borre la cache anterior (icono,
 // manifiesto y bundles viejos) en el telefono. v4: avisos push + encuesta.
-const CACHE = 'gymtracker-v4';
+// v5: index.html sin la cache HTTP del navegador (tras un despliegue seguia
+// cargando la version anterior de la app).
+const CACHE = 'gymtracker-v5';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -27,12 +29,16 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.includes('/api/')) return; // datos: siempre a la red
 
   if (req.mode === 'navigate') {
-    // index.html: red primero para no servir un shell viejo
+    // index.html: red primero para no servir un shell viejo. cache 'no-store':
+    // sin esto el navegador contestaba con SU cache HTTP (otro index.html viejo)
     event.respondWith(
-      fetch(req)
+      // redirect 'manual' como la peticion original: una redireccion la sigue el navegador
+      fetch(req.url, { cache: 'no-store', credentials: 'include', redirect: 'manual' })
         .then((resp) => {
-          const copia = resp.clone();
-          caches.open(CACHE).then((c) => c.put(req, copia));
+          if (resp.ok && resp.type === 'basic') {
+            const copia = resp.clone();
+            caches.open(CACHE).then((c) => c.put(req, copia));
+          }
           return resp;
         })
         .catch(() => caches.match(req))
