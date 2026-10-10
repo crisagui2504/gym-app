@@ -122,7 +122,35 @@ html, body {
   color: #ffffff !important;
 }
 
-/* ---- Inputs numéricos ---- */
+/* ---- Inputs numéricos ----
+   Dash 4 envuelve el <input> en .dash-input-container (con fondo blanco y
+   botones - / +): el contenedor es el "campo" y el input va transparente. */
+.dash-input-container {
+  background: var(--card2) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 9px !important;
+  color: var(--text) !important;
+  overflow: hidden;
+}
+.dash-input-container:focus-within { border-color: var(--accent) !important; }
+.dash-input-container input[type="number"],
+.dash-input-container .dash-input-element {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  color: var(--text) !important;
+  height: 100% !important;
+  outline: none;
+}
+.dash-input-stepper {
+  background: transparent !important;
+  color: var(--muted) !important;
+  border: none !important;
+  font-weight: 700;
+  min-width: 36px;
+  cursor: pointer;
+}
+.dash-input-stepper:hover { color: var(--accent) !important; }
 input[type="number"] {
   background: var(--card2) !important;
   color: var(--text) !important;
@@ -130,6 +158,7 @@ input[type="number"] {
   border-radius: 9px !important;
 }
 input[type="number"]:focus { outline: none; border-color: var(--accent) !important; }
+input::placeholder { color: var(--muted); opacity: .8; }
 
 /* ---- Checklist ---- */
 input[type="checkbox"] {
@@ -175,6 +204,13 @@ input[type="checkbox"] {
   background: #2a2a2a !important;
 }
 
+/* Tablas con la misma letra que el resto (la de dash-table es monoespaciada) */
+.dash-table-container .dash-spreadsheet-container td,
+.dash-table-container .dash-spreadsheet-container th,
+.dash-table-container .dash-spreadsheet-container input {
+  font-family: 'Encode Sans', 'Segoe UI', sans-serif !important;
+}
+
 /* ---- Animación de entrada ---- */
 @keyframes gymFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .gym-fade { animation: gymFadeIn .35s ease both; }
@@ -194,4 +230,106 @@ input[type="checkbox"] {
   flex: 0 0 auto !important;
   width: auto !important;
   white-space: nowrap;
+}
+
+/* ============================================================
+   CELULAR (<= 640 px)
+   Los estilos del layout van en linea (Dash), por eso aqui se usa
+   !important. En escritorio nada de esto aplica.
+   ============================================================ */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+@media (max-width: 640px) {
+  .gym-shell { padding: 14px 14px 32px !important; }
+
+  /* Header: marca arriba, acciones en una fila compacta abajo */
+  .gym-header {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px;
+    margin-bottom: 14px !important;
+    padding-bottom: 14px !important;
+  }
+  .gym-brand a { font-size: 22px !important; }
+  .gym-subtitulo { font-size: 11px !important; }
+  .gym-actions { gap: 8px; flex-wrap: nowrap !important; }
+  .gym-actions .gym-btn-ghost {
+    flex: 1 1 0;
+    margin: 0 !important;
+    padding: 9px 8px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .gym-actions > span { flex: 0 0 auto; font-size: 10px !important; }
+
+  /* KPIs: rejilla de 2 columnas, tarjetas bajas; la 5a ocupa todo el ancho */
+  .gym-kpis {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px !important;
+    margin-bottom: 16px !important;
+  }
+  .gym-kpis .gym-kpi {
+    min-width: 0 !important;
+    padding: 12px 12px !important;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas: "ico val" "ico lbl";
+    align-items: center;
+    column-gap: 10px;
+    text-align: left !important;
+  }
+  .gym-kpis .gym-kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .gym-kpi-ico { grid-area: ico; font-size: 20px !important; margin: 0 !important; }
+  .gym-kpi-val { grid-area: val; font-size: 22px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gym-kpi-lbl { grid-area: lbl; margin-top: 3px !important; font-size: 9.5px !important; letter-spacing: .8px !important; }
+  .gym-kpi:hover { transform: none; }
+
+  /* Tarjetas: una por fila y con menos relleno */
+  .gym-card {
+    padding: 14px !important;
+    min-width: 0 !important;
+    flex-basis: 100% !important;
+    border-radius: 12px;
+  }
+
+  /* Pestanas: barra fija arriba al hacer scroll, deslizable con el dedo */
+  .tab-parent .tab-container {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: var(--bg);
+    margin: 0 -14px;
+    padding: 0 8px;
+  }
+  .tab-parent .tab-container .tab {
+    padding: 12px 12px !important;
+    font-size: 13px !important;
+  }
+
+  /* Formularios: campos a todo el ancho y botones comodos para el dedo */
+  .gym-shell .dash-input-container { width: 100% !important; }
+  .gym-shell input[type="number"] { font-size: 16px; }   /* 16px: iOS no hace zoom al tocar el campo */
+  .gym-shell .gym-btn { width: 100%; padding: 13px 16px; }
+  .gym-shell .dash-dropdown-trigger { font-size: 15px; }
+  .gym-shell label { display: inline-block; }
+  .gym-peso-campos > div { flex: 1 1 0; min-width: 0; }
+  .gym-peso-campos > button { flex: 1 1 100%; }
+
+  /* Tablas: letra mas chica, deslizables en horizontal dentro de su tarjeta */
+  .dash-table-container .dash-spreadsheet-container td,
+  .dash-table-container .dash-spreadsheet-container th {
+    font-size: 12px !important;
+    padding: 6px 8px !important;
+  }
+  .dash-table-container { -webkit-overflow-scrolling: touch; }
+  /* "Dia semana" repite "Nombre dia" y "Bloque" lo dice la tecnica: fuera en
+     el celular para que el ejercicio quede a la vista sin deslizar tanto */
+  .dash-spreadsheet-container [data-dash-column="dia_semana"],
+  .dash-spreadsheet-container [data-dash-column="bloque"] { display: none !important; }
+  .dash-table-container .dash-spreadsheet-container td,
+  .dash-table-container .dash-spreadsheet-container th { text-align: left !important; }
+
+  /* Graficas: que nunca empujen el ancho de la pagina */
+  .js-plotly-plot, .dash-graph { max-width: 100%; }
 }

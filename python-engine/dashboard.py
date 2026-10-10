@@ -361,7 +361,7 @@ def _fig_records(df: pd.DataFrame) -> go.Figure:
     if df.empty:
         return _fig_vacia()
     de = _con_e1rm(df)
-    de = de[de["e1rm"] > 0]
+    de = de[(de["e1rm"] > 0) & (de["reps_hechas"] > 0)]   # una serie de 0 reps no es un record
     if de.empty:
         return _fig_vacia()
     prs = de.groupby("ejercicio")["e1rm"].max().sort_values().tail(14)
@@ -373,19 +373,30 @@ def _fig_records(df: pd.DataFrame) -> go.Figure:
     textos = []
     for ej, v in prs.items():
         d = detalle.loc[ej]
-        textos.append(f"  {v:.1f} kg  ({d['peso_kg']:g}×{int(d['reps_hechas'])})")
+        textos.append(f"{v:.1f} kg · {d['peso_kg']:g}×{int(d['reps_hechas'])}")
+    # el nombre va ENCIMA de cada barra (no como etiqueta del eje): asi se lee
+    # completo en cualquier ancho, tambien en el celular
+    prs, textos = prs.iloc[::-1], textos[::-1]          # el mejor arriba
+    colors = colors[::-1]
     fig = go.Figure(go.Bar(
-        x=prs.values, y=prs.index, orientation="h",
+        x=prs.values, y=list(range(len(prs))), orientation="h", width=0.5,
         marker_color=colors, marker_line_width=0,
-        text=textos,
-        textposition="outside", textfont=dict(color=TEXT),
+        text=textos, textposition="inside", insidetextanchor="end",
+        textfont=dict(color=["#141414" if c == "#aaff00" else "#ffffff" for c in colors], size=12),
+        cliponaxis=False,
+        customdata=list(prs.index), hovertemplate="%{customdata}: %{x:.1f} kg<extra></extra>",
     ))
-    theme_records = {**PLOTLY_THEME, "margin": dict(l=20, r=140, t=64, b=30)}
+    for i, ej in enumerate(prs.index):
+        fig.add_annotation(x=0, y=i, yshift=17, xref="paper", yref="y", text=ej, showarrow=False,
+                           xanchor="left", yanchor="bottom", font=dict(size=12, color=TEXT))
     fig.update_layout(
-        **theme_records,
-        title=_titulo("Records Personales — e1RM estimado (fuerza real, no solo kg)"),
-        xaxis=dict(title="e1RM (kg)", gridcolor=GRID),
-        yaxis=dict(gridcolor="rgba(0,0,0,0)"),
+        **{**PLOTLY_THEME, "margin": dict(l=10, r=10, t=56, b=10)},
+        title=_titulo("Records personales · e1RM estimado"),
+        height=80 + 46 * len(prs),
+        uniformtext=dict(minsize=9, mode="show"),
+        xaxis=dict(visible=False, range=[0, maxv * 1.02]),
+        yaxis=dict(visible=False, autorange="reversed", range=None),
+        bargap=0.5,
     )
     return fig
 
@@ -1014,11 +1025,11 @@ def _card(children, style: dict | None = None) -> html.Div:
 
 def _kpi_card(titulo: str, valor: str, icono: str = "") -> html.Div:
     return html.Div([
-        html.Div(icono, style={"fontSize": "22px", "marginBottom": "8px", "opacity": 0.9}),
-        html.Div(valor, style={"fontSize": "34px", "fontFamily": FUENTE_DISPLAY,
+        html.Div(icono, className="gym-kpi-ico", style={"fontSize": "22px", "marginBottom": "8px", "opacity": 0.9}),
+        html.Div(valor, className="gym-kpi-val", style={"fontSize": "34px", "fontFamily": FUENTE_DISPLAY,
                                 "fontWeight": "400", "color": TEXT, "lineHeight": "1",
                                 "letterSpacing": "0.5px"}),
-        html.Div(titulo, style={"fontSize": "10.5px", "color": MUTED, "marginTop": "8px",
+        html.Div(titulo, className="gym-kpi-lbl", style={"fontSize": "10.5px", "color": MUTED, "marginTop": "8px",
                                  "textTransform": "uppercase", "letterSpacing": "1.2px",
                                  "fontWeight": "600"}),
     ], className="gym-kpi", style={
@@ -1203,7 +1214,7 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
         _kpi_card("RPE Promedio",  k["rpe_prom"],        "💓"),
         _kpi_card("Racha",         f"{k['racha']} días",  "🔥"),
         _kpi_card("Ejercicios",    str(k["ejercicios"]), "📋"),
-    ], style={"display": "flex", "gap": "14px", "flexWrap": "wrap", "marginBottom": "22px"})
+    ], className="gym-kpis", style={"display": "flex", "gap": "14px", "flexWrap": "wrap", "marginBottom": "22px"})
 
     tabs = dcc.Tabs(mobile_breakpoint=0, children=[
         # ── Tab 1: Resumen ──────────────────────────────────────────────────
@@ -1237,7 +1248,7 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
                         value=default_ej,
                         clearable=False,
                         className="dash-dropdown",
-                        style={"width": "420px"},
+                        style={"width": "100%", "maxWidth": "420px"},
                     ),
                 ], style={"display": "flex", "alignItems": "center",
                           "marginBottom": "16px", "flexWrap": "wrap", "gap": "8px"}),
@@ -1250,9 +1261,7 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
         # ── Tab 3: Records ──────────────────────────────────────────────────
         dcc.Tab(label="Records (PRs)", style=_TAB_STYLE, selected_style=_TAB_SELECTED_STYLE,
             children=html.Div([
-                _card(dcc.Graph(figure=_fig_records(df),
-                                style={"height": "560px"},
-                                config={"displayModeBar": False})),
+                _card(dcc.Graph(figure=_fig_records(df), config={"displayModeBar": False})),
             ], style={"padding": "16px 0"}),
         ),
 
@@ -1328,7 +1337,7 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
                         ]),
                         html.Button("Registrar", id="peso-guardar", n_clicks=0,
                                     className="gym-btn", style={"alignSelf": "flex-end"}),
-                    ], style={"display": "flex", "gap": "14px", "alignItems": "flex-end",
+                    ], className="gym-peso-campos", style={"display": "flex", "gap": "14px", "alignItems": "flex-end",
                               "flexWrap": "wrap"}),
                     html.P("Pésate en ayunas, después del baño y con la misma báscula; "
                            "la cintura 1-2 veces por semana, a la altura del ombligo y sin "
@@ -1453,10 +1462,10 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
                            style={"color": TEXT, "margin": "0", "fontSize": "21px", "fontWeight": "800",
                                   "letterSpacing": "-0.5px", "lineHeight": "1", "display": "block",
                                   "textDecoration": "none", "cursor": "default"}),
-                    html.Span("Panel de Inteligencia Deportiva",
+                    html.Span("Panel de Inteligencia Deportiva", className="gym-subtitulo",
                               style={"color": MUTED, "fontSize": "12px"}),
                 ]),
-            ], style={"display": "flex", "alignItems": "center", "gap": "12px"}),
+            ], className="gym-brand", style={"display": "flex", "alignItems": "center", "gap": "12px"}),
 
             html.Div([
                 html.Button(btn_tema, id="btn-tema", n_clicks=0,
@@ -1465,8 +1474,8 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
                             className="gym-btn-ghost", style={"marginRight": "14px"}),
                 html.Span(estado_chip[0], style={"color": estado_chip[1], "fontSize": "11px",
                                                   "fontWeight": "700", "letterSpacing": "0.5px"}),
-            ], style={"display": "flex", "alignItems": "center", "flexWrap": "wrap"}),
-        ], style={
+            ], className="gym-actions", style={"display": "flex", "alignItems": "center", "flexWrap": "wrap"}),
+        ], className="gym-header", style={
             "display": "flex", "justifyContent": "space-between", "alignItems": "center",
             "marginBottom": "22px", "paddingBottom": "18px",
             "borderBottom": f"1px solid {LINE}",
@@ -1477,7 +1486,7 @@ def _build_layout(df: pd.DataFrame, estado: str) -> html.Div:
         banner,
         kpi_row,
         tabs,
-    ], style={"padding": "24px 32px", "maxWidth": "1500px", "margin": "0 auto",
+    ], className="gym-shell", style={"padding": "24px 32px", "maxWidth": "1500px", "margin": "0 auto",
                "fontFamily": FUENTE_TEXTO})
 
     # Wrapper full-bleed: aplica el fondo del tema y la clase que cascadea las
