@@ -711,6 +711,8 @@ def _card_proteina(cfg: dict) -> html.Div:
         if prom < m["proteina_min"]:
             msg += (f" Te faltan ~{m['proteina_min'] - prom:.0f} g/día: 1 lata de atún ≈ 24 g, "
                     "4 huevos ≈ 25 g, 1½ tazas de frijol ≈ 23 g.")
+    if a.get("creatina_dias"):
+        msg += f" Creatina: {a['creatina_dias']} de 7 días."
     return _card([
         html.Div("🍗 Proteína", style={"color": color, "fontWeight": "700", "fontSize": "14px",
                                       "marginBottom": "6px"}),
@@ -1319,6 +1321,10 @@ def _menu_vista(m) -> html.Div:
                          style={"color": MUTED, "fontSize": "12px", "marginTop": "2px"}),
                 *([html.Div(c["como"], style={"color": MUTED, "fontSize": "11px", "fontStyle": "italic",
                                                "marginTop": "2px"})] if c.get("como") else []),
+                *([html.Div("Otras opciones: " + " · ".join(
+                    f"{a['nombre']} ({a['kcal']} kcal, {a['prot']:.0f} g, ${a['costo']:.0f})"
+                    for a in c["alternativas"]),
+                    style={"color": MUTED, "fontSize": "11px", "marginTop": "4px"})] if c.get("alternativas") else []),
             ], style={"padding": "8px 0", "borderTop": f"1px solid {LINE}"}))
         dias.append(_card([
             html.Div([html.Span([d["nombre"], html.Span(f" · {d['tipo']}" if d.get("tipo") else "",
@@ -1343,6 +1349,17 @@ def _menu_vista(m) -> html.Div:
     return html.Div([
         resumen,
         html.Div(dias, className="menu-dias", style={"marginTop": "16px"}),
+        *([_card([
+            html.Div("🍳 Cocina por adelantado", style={"color": TEXT, "fontWeight": "700", "fontSize": "15px",
+                                                      "marginBottom": "4px"}),
+            html.P("Lo cocido dura 3-4 días en el refri: por eso se cocina dos veces a la semana.",
+                   style={"color": MUTED, "fontSize": "12px", "margin": "0 0 8px"}),
+            *[html.Div([html.Div(f"{t['cuando']} ({t['para']})", style={"color": ACCENT, "fontWeight": "700",
+                                                                         "fontSize": "13px"}),
+                        html.Ul([html.Li(x["texto"]) for x in t["tareas"]],
+                                style={"color": TEXT, "fontSize": "13px", "margin": "4px 0 8px", "paddingLeft": "18px"})])
+              for t in m["cocina"]],
+        ], {"marginTop": "16px"})] if m.get("cocina") else []),
         _card([html.Div(f"🛒 Lista del súper (≈ ${m['costo_semana']:,.0f})",
                         style={"color": TEXT, "fontWeight": "700", "fontSize": "15px", "marginBottom": "10px"}),
                lista], {"marginTop": "16px"}),

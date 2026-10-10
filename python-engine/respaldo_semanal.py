@@ -119,6 +119,18 @@ def main() -> int:
         # aviso al telefono; si falla, la rutina ya esta subida igual
         import avisos
         registrar(f"aviso push: {avisos.rutina_lista(lunes)} enviado(s)")
+        # revision semanal de nutricion (proteina, peso y calorias); si falla, no pasa nada
+        try:
+            import pandas as pd
+            import nutricion
+            from config_usuario import cargar_config
+            ruta_peso = AQUI / "peso_corporal.csv"
+            dfp = pd.read_csv(ruta_peso, parse_dates=["fecha"]) if ruta_peso.exists() else pd.DataFrame(
+                columns=["fecha", "peso", "cintura"])
+            titulo, cuerpo = nutricion.resumen_semanal(cargar_config(), dfp, nutricion.leer_nutricion_csv(AQUI))
+            registrar(f"revision de nutricion: {avisos.enviar(titulo, cuerpo, etiqueta='nutricion-semana')} enviada(s)")
+        except Exception as e:  # noqa: BLE001
+            registrar(f"revision de nutricion no enviada: {e!r}")
     return 0 if ok else 1
 
 

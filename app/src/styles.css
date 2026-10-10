@@ -2314,3 +2314,115 @@ body.teclado .timer {
   background: var(--accent-tint);
   color: var(--text);
 }
+
+/* ── Comida: creatina, comi fuera, cambiar comida, cocina, despensa ─────────── */
+.creatina-fila {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 8px;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  text-align: left;
+  font-size: 13px;
+  touch-action: manipulation;
+}
+
+.creatina-fila b {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.creatina-fila small {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--accent-ink);
+}
+
+.creatina-fila.on {
+  border-color: var(--accent);
+}
+
+.creatina-fila.on b {
+  color: var(--accent-ink);
+}
+
+.prot-fuera {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+
+.prot-fuera summary {
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.menu-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.menu-acciones .menu-comi {
+  margin-top: 0;
+}
+
+.menu-cambiar {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  touch-action: manipulation;
+}
+
+.menu-cocina {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.menu-cocina small {
+  margin-left: 6px;
+  color: var(--muted);
+}
+
+.menu-cocina ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+
+button.menu-li {
+  width: 100%;
+  background: transparent;
+  text-align: left;
+  touch-action: manipulation;
+}
+
+button.menu-li.tengo span {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.lista-acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.lista-acciones small {
+  font-size: 11px;
+  color: var(--accent-ink);
+}

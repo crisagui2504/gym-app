@@ -1343,6 +1343,48 @@ check("el menu sigue la meta de cada dia",
       all(abs(d["kcal"] - d["kcal_meta"]) <= d["kcal_meta"] * 0.08 for d in mnu.generar_menu(_cb, _lun)["dias"]))
 
 print()
+print("== 52. Nutricion fase 4: cambiar comida, cocina, revision semanal ==")
+_m4 = mnu.generar_menu({"enfoque": "recomposicion", "peso_corporal": 73}, _lun)
+_alts = [(c, a) for d in _m4["dias"] for c in d["comidas"] for a in c.get("alternativas", [])]
+check("casi todas las comidas fuertes tienen alternativas para cambiar",
+      sum(1 for d in _m4["dias"] for c in d["comidas"] if c["tiempo"] != "colacion" and c.get("alternativas"))
+      >= 18, str(len(_alts)))
+check("cada alternativa es del mismo tiempo, otra receta, kcal parecidas y casi la misma proteina",
+      all(a["tiempo"] == c["tiempo"] and a["receta"] != c["receta"]
+          and abs(a["kcal"] - c["kcal"]) <= c["kcal"] * (0.40 if c["tiempo"] == "colacion" else 0.12)
+          and a["prot"] >= c["prot"] * (0.5 if c["tiempo"] == "colacion" else 0.85) for c, a in _alts))
+check("las alternativas van de la mas barata a la mas cara",
+      all([a["costo"] for a in c["alternativas"]] == sorted(a["costo"] for a in c["alternativas"])
+          for d in _m4["dias"] for c in d["comidas"] if c.get("alternativas")))
+check("vegetariano: las alternativas tampoco traen carne ni pescado",
+      not any(i["id"] in ("pollo", "pechuga", "res", "cerdo", "atun", "sardina")
+              for d in _veg["dias"] for c in d["comidas"] for a in c.get("alternativas", []) for i in a["ingredientes"]))
+check("el menu trae la ficha de cada alimento usado (para rehacer la lista en la app)",
+      {i["id"] for d in _m4["dias"] for c in d["comidas"] for x in [c, *c.get("alternativas", [])]
+       for i in x["ingredientes"]} <= set(_m4["alimentos"]))
+_coc = _m4["cocina"]
+_frijol_menu = sum(i["g"] for d in _m4["dias"] for c in d["comidas"] for i in c["ingredientes"] if i["id"] == "frijol")
+check("cocina por adelantado: domingo y miercoles, y suma todo el frijol de la semana",
+      [x["cuando"] for x in _coc] == ["Domingo", "Miércoles en la noche"]
+      and abs(sum(tk["g"] for x in _coc for tk in x["tareas"] if tk["id"] == "frijol") - _frijol_menu) <= 2,
+      str(_coc))
+_h4 = date(2026, 10, 11)
+_dfn4 = pd.DataFrame({"fecha": [pd.Timestamp(_h4 - timedelta(days=i)) for i in range(7)],
+                      "proteina_g": [140, 120, 0, 150, 130, 125, 110], "creatina": [1, 1, 1, 0, 1, 1, 0]})
+_ad4 = nut.adherencia(_dfn4, 131, _h4)
+check("creatina: cuenta los dias de la semana con el check", _ad4["creatina_dias"] == 5, str(_ad4))
+_dfn4b = _dfn4.assign(fecha=[pd.Timestamp(_hoy49 - timedelta(days=i)) for i in range(7)])   # misma semana que los pesos
+_tit, _cuerpo = nut.resumen_semanal({"enfoque": "volumen", "peso_corporal": 73}, _pesos(73, 0.0), _dfn4b, hoy=_hoy49)
+check("revision semanal: proteina, peso, creatina y que hacer con las kcal",
+      "Proteína" in _cuerpo and "%/sem" in _cuerpo and "creatina 5/7" in _cuerpo and "kcal" in _cuerpo, _cuerpo)
+_tit, _cuerpo = nut.resumen_semanal({"enfoque": "recomposicion", "peso_corporal": 73},
+                                    pd.DataFrame(columns=["fecha", "peso", "cintura"]),
+                                    pd.DataFrame(columns=["fecha", "proteina_g"]), hoy=_hoy49)
+check("revision semanal sin datos: anima a registrar, no inventa", "Sin proteína" in _cuerpo and "Pésate" in _cuerpo, _cuerpo)
+check("nunca dice -0.00 %", "-0.00" not in nut.resumen_semanal({"enfoque": "volumen", "peso_corporal": 73},
+                                                               _pesos(73, -0.00001), _dfn4b, hoy=_hoy49)[1])
+
+print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")
     sys.exit(1)

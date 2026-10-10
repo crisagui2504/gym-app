@@ -30,6 +30,12 @@ import type { MenuComida, MenuDia } from './rutina-api.service';
       </p>
       <p class="prot-hint aviso" *ngIf="!nut.meta()">Meta provisional: registra tu peso en el dashboard para calcular la tuya.</p>
 
+      <button type="button" class="creatina-fila" [class.on]="nut.creatinaHoy()" (click)="nut.alternarCreatina()">
+        <span>💊 Creatina de hoy (3-5 g)</span>
+        <b>{{ nut.creatinaHoy() ? '✓ Tomada' : 'Marcar' }}</b>
+        <small *ngIf="nut.rachaCreatina() > 1">{{ nut.rachaCreatina() }} días seguidos</small>
+      </button>
+
       <div class="prot-hoy" *ngIf="anotadas().length">
         <button type="button" *ngFor="let a of anotadas()" (click)="quitar(a)" [attr.aria-label]="'Quitar ' + a.nombre">
           {{ a.nombre }} {{ a.menu ? a.n + ' g' : '×' + a.n }} <span>−</span>
@@ -37,13 +43,24 @@ import type { MenuComida, MenuDia } from './rutina-api.service';
       </div>
 
       <div class="prot-grid">
-        <button type="button" class="prot-item" *ngFor="let p of porciones" (click)="nut.sumar(p.id, 1)"
+        <button type="button" class="prot-item" *ngFor="let p of enCasa" (click)="nut.sumar(p.id, 1)"
                 [class.on]="nut.cantidad(p.id) > 0">
           <span class="prot-nom">{{ p.nombre }}<i *ngIf="p.barato" title="Barato por gramo de proteína">$</i></span>
           <span class="prot-por">{{ p.porcion }}</span>
           <span class="prot-g">+{{ p.g }} g</span>
         </button>
       </div>
+      <details class="prot-fuera">
+        <summary>🌮 Comí fuera</summary>
+        <div class="prot-grid">
+          <button type="button" class="prot-item" *ngFor="let p of fuera" (click)="nut.sumar(p.id, 1)"
+                  [class.on]="nut.cantidad(p.id) > 0">
+            <span class="prot-nom">{{ p.nombre }}</span>
+            <span class="prot-por">{{ p.porcion }} · ~{{ p.kcal }} kcal</span>
+            <span class="prot-g">+{{ p.g }} g</span>
+          </button>
+        </div>
+      </details>
       <p class="prot-nota">
         Valores aproximados por porción. <b>$</b> = de lo más barato por gramo de proteína: frijol + tortilla
         se complementan, y huevo, atún y soya rinden mucho. Cuenta el total del día, no la hora.
@@ -69,24 +86,48 @@ import type { MenuComida, MenuDia } from './rutina-api.service';
           <ng-container *ngIf="dia() as d">
             <p class="menu-dia-tot">
               {{ d.nombre }}<ng-container *ngIf="d.tipo"> · día de {{ d.tipo }}</ng-container>
-              · {{ d.kcal | number: '1.0-0' }} kcal · {{ d.prot }} g · \${{ d.costo | number: '1.0-0' }}
+              <ng-container *ngIf="nut.totalesDe(d) as t">
+                · {{ t.kcal | number: '1.0-0' }} kcal · {{ t.prot | number: '1.0-0' }} g · \${{ t.costo | number: '1.0-0' }}
+              </ng-container>
             </p>
-            <div class="menu-comida" *ngFor="let c of d.comidas">
+            <ng-container *ngFor="let c0 of d.comidas">
+            <div class="menu-comida" *ngIf="nut.comidaDe(d, c0) as c">
               <span class="menu-t">{{ etiqueta[c.tiempo] || c.tiempo }}</span>
               <div class="menu-nom"><strong>{{ c.nombre }}</strong><small>{{ c.kcal }} kcal · {{ c.prot | number: '1.0-0' }} g</small></div>
               <p class="menu-ing">{{ ingredientes(c) }}</p>
               <p class="menu-como" *ngIf="c.como">{{ c.como }}</p>
-              <button type="button" class="menu-comi" *ngIf="esHoy(d)" [class.on]="nut.comioMenu(c.tiempo)"
-                      (click)="nut.alternarMenu(c.tiempo, c.prot)">
-                {{ nut.comioMenu(c.tiempo) ? '✓ Comido · +' + (c.prot | number: '1.0-0') + ' g de proteína' : 'Lo comí (+' + (c.prot | number: '1.0-0') + ' g de proteína)' }}
-              </button>
+              <div class="menu-acciones">
+                <button type="button" class="menu-comi" *ngIf="esHoy(d)" [class.on]="nut.comioMenu(c.tiempo)"
+                        (click)="nut.alternarMenu(c.tiempo, c.prot)">
+                  {{ nut.comioMenu(c.tiempo) ? '✓ Comido · +' + (c.prot | number: '1.0-0') + ' g' : 'Lo comí (+' + (c.prot | number: '1.0-0') + ' g)' }}
+                </button>
+                <button type="button" class="menu-cambiar" *ngIf="c0.alternativas?.length" (click)="nut.cambiarComida(d, c0)">
+                  ⟳ Cambiar ({{ nut.opcionDe(d, c0) + 1 }}/{{ (c0.alternativas?.length ?? 0) + 1 }})
+                </button>
+              </div>
             </div>
+            </ng-container>
           </ng-container>
           <p class="prot-hint aviso" *ngFor="let a of m.avisos">{{ a }}</p>
+          <details class="menu-lista" *ngIf="nut.cocina().length">
+            <summary>🍳 Cocina por adelantado</summary>
+            <p class="prot-nota">Lo cocido dura 3-4 días en el refri: por eso se cocina dos veces a la semana.</p>
+            <div class="menu-cocina" *ngFor="let t of nut.cocina()">
+              <b>{{ t.cuando }}</b> <small>{{ t.para }}</small>
+              <ul><li *ngFor="let x of t.tareas">{{ x.texto }}</li></ul>
+            </div>
+          </details>
           <details class="menu-lista">
-            <summary>🛒 Lista del súper (≈ \${{ m.costo_semana | number: '1.0-0' }})</summary>
-            <div class="menu-li" *ngFor="let f of m.lista">
-              <span>{{ f.nombre }}</span><span>{{ f.compra }}</span><span>\${{ f.costo | number: '1.0-0' }}</span>
+            <summary>🛒 Lista del súper (≈ \${{ nut.costoPendiente() | number: '1.0-0' }} por comprar)</summary>
+            <p class="prot-nota">Toca lo que ya tienes en casa: se quita de la cuenta.</p>
+            <button type="button" class="menu-li" *ngFor="let f of nut.lista()" [class.tengo]="nut.tengo().includes(f.id)"
+                    (click)="nut.alternarTengo(f.id)">
+              <span>{{ nut.tengo().includes(f.id) ? '✓ ' : '' }}{{ f.nombre }}</span><span>{{ f.compra }}</span>
+              <span>\${{ f.costo | number: '1.0-0' }}</span>
+            </button>
+            <div class="lista-acciones">
+              <button type="button" class="menu-cambiar" (click)="compartir()">📤 Compartir lista</button>
+              <small *ngIf="aviso()">{{ aviso() }}</small>
             </div>
           </details>
           <p class="prot-nota">{{ m.nota }} Para cambiar recetas, quitar alimentos o poner tus precios: dashboard, pestaña Menú.</p>
@@ -98,6 +139,9 @@ import type { MenuComida, MenuDia } from './rutina-api.service';
 export class ProteinaComponent implements OnInit {
   readonly nut = inject(NutricionService);
   readonly porciones = PORCIONES;
+  readonly enCasa = PORCIONES.filter((p) => !p.fuera);
+  readonly fuera = PORCIONES.filter((p) => p.fuera);
+  readonly aviso = signal('');
   readonly meta = this.nut.metaEfectiva;
   readonly faltan = computed(() => Math.max(0, this.meta().proteina_min - this.nut.total()));
   readonly anotadas = computed(() => {
@@ -131,6 +175,10 @@ export class ProteinaComponent implements OnInit {
   quitar(a: { id: string; menu: boolean; tiempo: string; n: number }): void {
     if (a.menu) this.nut.alternarMenu(a.tiempo, a.n);
     else this.nut.sumar(a.id, -1);
+  }
+
+  async compartir(): Promise<void> {
+    this.aviso.set(await this.nut.compartirLista());
   }
 
   ingredientes(c: MenuComida): string {

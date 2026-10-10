@@ -85,6 +85,13 @@ Angular 20 (standalone + signals) como PWA: se agrega a la pantalla de inicio y 
 - **Comida** (botón 🍗):
   - **Proteína de hoy:** se anota por porciones mexicanas, sin pesar nada, contra tu meta.
   - **Menú de la semana:** comida mexicana barata que llega a tus calorías y proteína, con la lista del súper y su costo (~$55/día en recomposición).
+  - **Del día a día:**
+    - "Cambiar" una comida por otra parecida;
+    - qué cocinar por adelantado (domingo y miércoles);
+    - "ya tengo en casa" y compartir la lista;
+    - 20 platillos para "Comí fuera";
+    - ✓ de creatina con racha;
+    - revisión semanal de nutrición por aviso.
 - **Avisos push** a las 6 pm si hoy toca gym y no has registrado nada. En iPhone la app tiene que estar instalada (iOS 16.4+).
 
 ---

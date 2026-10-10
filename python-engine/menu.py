@@ -185,7 +185,7 @@ def generar_menu(cfg: dict, semana_inicio: date, semilla: int | None = None,
                 huevo_real = sum(i["g"] for c in cand for i in c["ingredientes"] if i["id"] == "huevo")
                 if (abs(kc_real - K) <= K * tol and huevo_real <= MAX_HUEVO_DIA
                         and (not exige_prot or pr_real >= P)):
-                    elegido = (d_i, c_i, n_i, sn_i, cand)
+                    elegido = (d_i, c_i, n_i, sn_i, cand, s)
                     break
             if elegido:
                 if not exige_prot:
@@ -194,7 +194,15 @@ def generar_menu(cfg: dict, semana_inicio: date, semilla: int | None = None,
                 break
         if not elegido:
             raise ValueError("No hay combinación posible: revisa lo que excluiste.")
-        d_i, c_i, n_i, sn_i, elegidas = elegido
+        d_i, c_i, n_i, sn_i, elegidas, s_dia = elegido
+        # alternativas para "Cambiar" esta comida (parecidas en kcal y proteina)
+        recetas_dia = {"desayuno": D[d_i], "comida": C[c_i], "cena": N[n_i], "colacion": SN[sn_i]}
+        huevo_dia = sum(ing["g"] for c in elegidas for ing in c["ingredientes"] if ing["id"] == "huevo")
+        for c in elegidas:
+            otra = recetas_dia["cena" if c["tiempo"] == "comida" else "comida"] if c["tiempo"] in ("comida", "cena") else None
+            c["alternativas"] = _alternativas(c, grupos[c["tiempo"]], 1.0 if c["tiempo"] == "colacion" else s_dia,
+                                              precios, _fuente(otra) if otra else None,
+                                              MAX_HUEVO_DIA - huevo_dia)
         for r in (D[d_i], C[c_i], N[n_i], SN[sn_i]):
             if r:
                 usos[r.id] = usos.get(r.id, 0) + 1
@@ -209,6 +217,8 @@ def generar_menu(cfg: dict, semana_inicio: date, semilla: int | None = None,
 
     lista = lista_super(dias, precios)
     costo_sem = round(sum(d["costo"] for d in dias), 2)
+    usados = {ing["id"] for d in dias for c in d["comidas"]
+              for x in [c, *c.get("alternativas", [])] for ing in x["ingredientes"]}
     return {
         "semana_inicio": semana_inicio.isoformat(),
         "meta": {"kcal": round(K_sem), "proteina_min": round(P), "proteina_max": meta["proteina_max"],
@@ -222,9 +232,73 @@ def generar_menu(cfg: dict, semana_inicio: date, semilla: int | None = None,
         "prot_prom": round(sum(d["prot"] for d in dias) / 7),
         "excluidos": sorted(fuera),
         "avisos": avisos,
+        "cocina": cocina_por_adelantado(dias),
+        # lo que la app necesita para rehacer la lista y la cocina si cambias comidas
+        "alimentos": {aid: _ficha(alx.ALIMENTOS[aid], precios[aid]) for aid in sorted(usados)},
         "nota": "Cantidades en crudo (frijol, lentejas, arroz y avena en seco). Precios de referencia: "
                 "Profeco 2026 donde hay dato; el resto estimado. Corrígelos con lo que pagas.",
     }
+
+
+def _alternativas(elegida: dict, opciones: list[Receta], escala: float, precios: dict[str, float],
+                  fuente_prohibida: str | None, huevo_libre: float, n: int = 3) -> list[dict]:
+    """Hasta `n` recetas del mismo tiempo, parecidas a la elegida: kcal a +/-12 %
+    (colaciones +/-40 %), al menos 85 % de su proteina, sin repetir la proteina
+    de la otra comida fuerte ni pasarse de huevo. Las mas baratas primero."""
+    k0, p0 = elegida["kcal"], elegida["prot"]
+    huevo0 = sum(i["g"] for i in elegida["ingredientes"] if i["id"] == "huevo")
+    tol = 0.40 if elegida["tiempo"] == "colacion" else 0.12
+    min_prot = 0.5 if elegida["tiempo"] == "colacion" else 0.85      # una colacion es fruta o algo ligero
+    escalas = (1.0,) if elegida["tiempo"] == "colacion" else ESCALAS
+    salida = []
+    for r in opciones:
+        if r.id == elegida["receta"] or (fuente_prohibida and _fuente(r) == fuente_prohibida):
+            continue
+        mejor = None
+        for e in escalas:
+            m = _servir(r, e, precios)
+            huevo = sum(i["g"] for i in m["ingredientes"] if i["id"] == "huevo")
+            if abs(m["kcal"] - k0) <= k0 * tol and m["prot"] >= p0 * min_prot and huevo - huevo0 <= huevo_libre:
+                if mejor is None or abs(m["kcal"] - k0) < abs(mejor["kcal"] - k0):
+                    mejor = m
+        if mejor:
+            salida.append(mejor)
+    salida.sort(key=lambda m: m["costo"])
+    return salida[:n]
+
+
+def _ficha(a: "alx.Alimento", precio: float) -> dict:
+    return {"nombre": a.nombre, "precio_kg": round(precio, 2), "compra": a.compra, "g_compra": a.g_compra,
+            "piezas": list(a.piezas), "seco_por_taza": a.seco_por_taza, "grupo": a.grupo}
+
+
+# lo que conviene cocinar por adelantado; lo cocido dura 3-4 dias en el refri
+# (USDA, "Leftovers and Food Safety"), por eso se cocina dos veces por semana
+PARA_COCINAR = {"frijol": "en olla", "lentejas": "en olla", "arroz": "", "pollo": "cocer y deshebrar",
+                "pechuga": "cocer y deshebrar"}
+TANDAS = (("Domingo", "para lunes a miércoles", (1, 2, 3)), ("Miércoles en la noche", "para jueves a domingo", (4, 5, 6, 7)))
+
+
+def cocina_por_adelantado(dias: list[dict]) -> list[dict]:
+    salida = []
+    for cuando, para, nums in TANDAS:
+        total: dict[str, float] = {}
+        for d in dias:
+            if d["dia"] in nums:
+                for c in d["comidas"]:
+                    for ing in c["ingredientes"]:
+                        if ing["id"] in PARA_COCINAR:
+                            total[ing["id"]] = total.get(ing["id"], 0) + ing["g"]
+        tareas = []
+        for aid in PARA_COCINAR:
+            if total.get(aid):
+                extra = PARA_COCINAR[aid]
+                texto = alx.cantidad_legible(alx.ALIMENTOS[aid], total[aid])
+                tareas.append({"id": aid, "g": round(total[aid]), "texto": texto[0].upper() + texto[1:]
+                               + (f" — {extra}" if extra else "")})
+        if tareas:
+            salida.append({"cuando": cuando, "para": para, "tareas": tareas})
+    return salida
 
 
 def lista_super(dias: list[dict], precios: dict[str, float] | None = None) -> list[dict]:

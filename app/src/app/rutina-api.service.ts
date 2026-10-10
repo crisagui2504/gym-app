@@ -82,6 +82,7 @@ export interface MenuComida {
   kcal: number;
   prot: number;
   costo: number;
+  alternativas?: MenuComida[];     // para "Cambiar" (parecidas en kcal y proteina)
 }
 export interface MenuDia {
   dia: number;
@@ -105,6 +106,9 @@ export interface MenuSemana {
   prot_prom: number;
   avisos: string[];
   nota: string;
+  cocina?: Array<{ cuando: string; para: string; tareas: Array<{ id: string; texto: string }> }>;
+  alimentos?: Record<string, { nombre: string; precio_kg: number; compra: string; g_compra: number;
+                               piezas: string[]; seco_por_taza: number; grupo: string }>;
 }
 
 @Injectable({ providedIn: 'root' })

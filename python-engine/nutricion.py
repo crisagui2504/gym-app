@@ -207,15 +207,41 @@ def evaluar(cfg: dict, dfp: pd.DataFrame, cintura_sem: float | None = None,
 def adherencia(dfn: pd.DataFrame, meta_min: int, hoy: date | None = None, dias: int = 7) -> dict:
     """Proteina registrada en los ultimos `dias`: promedio de los dias con registro."""
     hoy = hoy or date.today()
-    vacio = {"dias_registrados": 0, "promedio": None, "dias_en_meta": 0, "dias": dias}
+    vacio = {"dias_registrados": 0, "promedio": None, "dias_en_meta": 0, "dias": dias, "creatina_dias": 0}
     if dfn is None or dfn.empty:
         return vacio
-    d = dfn[(dfn["fecha"] > pd.Timestamp(hoy - timedelta(days=dias)))
-            & (dfn["fecha"] <= pd.Timestamp(hoy)) & (dfn["proteina_g"] > 0)]
+    semana = dfn[(dfn["fecha"] > pd.Timestamp(hoy - timedelta(days=dias))) & (dfn["fecha"] <= pd.Timestamp(hoy))]
+    creatina = int((semana["creatina"] > 0).sum()) if "creatina" in semana else 0
+    d = semana[semana["proteina_g"] > 0]
     if d.empty:
-        return vacio
+        return {**vacio, "creatina_dias": creatina}
     return {"dias_registrados": int(len(d)), "promedio": float(d["proteina_g"].mean()),
-            "dias_en_meta": int((d["proteina_g"] >= meta_min).sum()), "dias": dias}
+            "dias_en_meta": int((d["proteina_g"] >= meta_min).sum()), "dias": dias, "creatina_dias": creatina}
+
+
+def resumen_semanal(cfg: dict, dfp: pd.DataFrame, dfn: pd.DataFrame, cintura_sem: float | None = None,
+                    hoy: date | None = None) -> tuple[str, str]:
+    """El aviso del domingo (como el check-in semanal de MacroFactor): proteina,
+    tendencia del peso y que hacer con las calorias, en una notificacion."""
+    m = metas(cfg)
+    a = adherencia(dfn, m["proteina_min"], hoy)
+    ev = evaluar(cfg, dfp, cintura_sem, hoy)
+    partes = []
+    if a["dias_registrados"]:
+        partes.append(f"Proteína {a['promedio']:.0f} g/día (meta {m['proteina_min']}) en {a['dias_registrados']} día(s)")
+    else:
+        partes.append("Sin proteína registrada esta semana")
+    if ev["tendencia"] is not None:
+        partes.append(f"peso {round(ev['tendencia'], 2) + 0.0:+.2f} %/sem")      # + 0.0: nunca "-0.00"
+    consejo = {"subir": f"sugerencia: {ev['kcal_delta']:+d} kcal/día (aplícalo en el dashboard)",
+               "bajar": f"sugerencia: {ev['kcal_delta']:+d} kcal/día (aplícalo en el dashboard)",
+               "en_rango": "calorías bien: no cambies nada",
+               "recomposicion": "recomposición en marcha: no cambies nada",
+               "esperando": f"espera {ev['dias_restantes']} día(s) para ver tu último ajuste",
+               "pocos_datos": "pésate más seguido para ajustar tus calorías"}[ev["estado"]]
+    if a["creatina_dias"]:
+        partes.append(f"creatina {a['creatina_dias']}/7")
+    return "🥗 Tu semana de nutrición", " · ".join(partes) + ". " + consejo[0].upper() + consejo[1:] + "."
 
 
 # ── servidor ─────────────────────────────────────────────────────────────────
@@ -255,8 +281,9 @@ def descargar_nutricion(sesion, base_url: str, token: str, dias: int = 120) -> p
     except Exception as e:  # noqa: BLE001
         print(f"Nutricion no disponible ({e.__class__.__name__}).")
         filas = []
-    return pd.DataFrame([{"fecha": f["fecha"], "proteina_g": float(f["proteina_g"])} for f in filas],
-                        columns=["fecha", "proteina_g"])
+    return pd.DataFrame([{"fecha": f["fecha"], "proteina_g": float(f["proteina_g"]),
+                          "creatina": 1 if (f.get("porciones") or {}).get("creatina") else 0} for f in filas],
+                        columns=["fecha", "proteina_g", "creatina"])
 
 
 def leer_nutricion_csv(carpeta=AQUI) -> pd.DataFrame:
@@ -267,6 +294,7 @@ def leer_nutricion_csv(carpeta=AQUI) -> pd.DataFrame:
         d = pd.read_csv(ruta)
         d["fecha"] = pd.to_datetime(d["fecha"], errors="coerce")
         d["proteina_g"] = pd.to_numeric(d["proteina_g"], errors="coerce").fillna(0)
+        d["creatina"] = pd.to_numeric(d["creatina"], errors="coerce").fillna(0) if "creatina" in d else 0
         return d.dropna(subset=["fecha"])
     except Exception:  # noqa: BLE001
         return pd.DataFrame(columns=["fecha", "proteina_g"])

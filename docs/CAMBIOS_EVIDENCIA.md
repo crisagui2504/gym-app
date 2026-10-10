@@ -2341,6 +2341,52 @@ Cambios:
 - **`sw.js` v5:** la navegación usa `fetch(url, {cache: 'no-store', redirect: 'manual'})` y solo guarda respuestas normales.
 - **`.htaccess`:** `Cache-Control: no-cache` para `index.html`, `sw.js` y el manifiesto.
 
+## CA. Nutrición fase 4: lo práctico del día a día (2026-10-10)
+
+Comparadas con MacroFactor, MyFitnessPal, Cronometer, Fitia, Eat This Much y Mealime, las fases 1-3 ya tenían lo "inteligente". Lo que faltaba era flexibilidad diaria, que es donde se sostiene o se abandona una dieta.
+
+**Cambiar una comida** (como en Eat This Much o Mealime).
+
+- `menu.py` da a cada comida hasta 3 alternativas del mismo tiempo. Deben quedar a ±12 % en kcal (±40 % en colaciones) y con al menos 85 % de su proteína (50 % en colaciones).
+- No repiten la proteína de la otra comida fuerte ni se pasan del tope de huevo. Van de la más barata a la más cara.
+- En la app, "⟳ Cambiar (n/m)" recorre las opciones. La elección se guarda en el teléfono y los totales del día se recalculan. Si ya la habías marcado con "Lo comí", su proteína se actualiza.
+- El dashboard muestra "Otras opciones" bajo cada comida.
+
+**Cocina por adelantado.**
+
+- Lo cocido dura 3-4 días en el refri (USDA, *Leftovers and Food Safety*), así que hay dos tandas: domingo (para lunes a miércoles) y miércoles en la noche (para jueves a domingo).
+- Cada tanda incluye leguminosas en olla (en seco, con tazas cocidas), arroz y pollo o pechuga para cocer y deshebrar.
+- La app la recalcula con tus cambios (`menu-semana.ts`, con las mismas reglas que Python, gracias a la ficha `alimentos` que trae el menú).
+
+**Lista del súper:**
+
+- **"Ya tengo en casa":** tocas un renglón, se tacha y sale de la cuenta. Se guarda por semana en el teléfono.
+- **"Compartir lista":** usa la opción de compartir del teléfono (Web Share) o, si no hay, la copia al portapapeles. No incluye lo que ya tienes.
+
+**Comí fuera** (por qué Fitia gana en Latinoamérica: la comida local). 20 platillos de calle y fonda con proteína y kcal **aproximadas**: tacos al pastor y de asada, torta, comida corrida, pozole, enchiladas, chilaquiles, rostizado… Se anotan como porciones.
+
+**Revisión semanal por push** (como el check-in semanal de MacroFactor). El domingo, tras generar la rutina, llega un aviso con:
+
+- la proteína promedio contra la meta;
+- la tendencia del peso;
+- los días con creatina;
+- qué hacer con las calorías: el mismo criterio de la fase 1.
+
+**Creatina:** un ✓ diario, con racha. Es el suplemento con más evidencia: 3-5 g diarios, según la ISSN.
+
+**Verificación.**
+
+- `test_motor` §52 (10 pruebas):
+  - alternativas válidas y ordenadas por costo, también en vegetariano;
+  - la ficha de alimentos completa;
+  - la cocina suma todo el frijol de la semana;
+  - los días con creatina;
+  - la revisión semanal, con datos y sin datos;
+  - nunca "-0.00 %".
+- Las 5 suites pasan.
+- En el navegador (demo, 375 px) se probaron creatina, "comí fuera", cambiar, cocina y "ya tengo".
+- Regresión: rutina, barra de progreso (`.seg`) y Guardar.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

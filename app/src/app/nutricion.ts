@@ -1,7 +1,8 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import * as almacen from './almacen';
 import { fechaLocal } from './entreno-data';
-import { MenuSemana, RutinaApiService } from './rutina-api.service';
+import { MenuComida, MenuDia, MenuSemana, RutinaApiService } from './rutina-api.service';
+import { FilaLista, claveEleccion, cocina, comidasDelDia, listaSuper, textoLista } from './menu-semana';
 
 /**
  * Proteina del dia por PORCIONES (sin pesar comida ni contar calorias): lo que
@@ -18,6 +19,8 @@ export interface Porcion {
   porcion: string;
   g: number;
   barato?: boolean;   // de lo mas barato por gramo de proteina en Mexico (Profeco 2026)
+  kcal?: number;      // solo los platillos de "Comí fuera" (aproximado)
+  fuera?: boolean;    // platillo de la calle / fonda
 }
 
 export const PORCIONES: Porcion[] = [
@@ -37,7 +40,28 @@ export const PORCIONES: Porcion[] = [
   { id: 'avena', nombre: 'Avena', porcion: '½ taza cruda', g: 5, barato: true },
   { id: 'cacahuate', nombre: 'Cacahuates', porcion: '1 puño (30 g)', g: 7 },
   { id: 'scoop', nombre: 'Proteína en polvo', porcion: '1 scoop', g: 24 },
-  { id: 'otro', nombre: 'Otro', porcion: 'algo más', g: 5 }
+  { id: 'otro', nombre: 'Otro', porcion: 'algo más', g: 5 },
+  // ── Comí fuera: platillos comunes de calle y fonda (APROXIMADOS: USDA y recetas típicas) ──
+  { id: 'f_pastor', nombre: 'Tacos al pastor', porcion: '3 tacos', g: 24, kcal: 560, fuera: true },
+  { id: 'f_asada', nombre: 'Tacos de asada', porcion: '3 tacos', g: 30, kcal: 540, fuera: true },
+  { id: 'f_canasta', nombre: 'Tacos de canasta', porcion: '4 tacos', g: 14, kcal: 620, fuera: true },
+  { id: 'f_quesadilla', nombre: 'Quesadillas de comal', porcion: '2 con queso', g: 22, kcal: 600, fuera: true },
+  { id: 'f_torta', nombre: 'Torta de milanesa o pierna', porcion: '1 torta', g: 32, kcal: 750, fuera: true },
+  { id: 'f_corrida', nombre: 'Comida corrida', porcion: 'sopa, arroz, guisado', g: 35, kcal: 900, fuera: true },
+  { id: 'f_pozole', nombre: 'Pozole', porcion: '1 plato grande', g: 30, kcal: 550, fuera: true },
+  { id: 'f_enchiladas', nombre: 'Enchiladas de pollo', porcion: '3 piezas', g: 28, kcal: 650, fuera: true },
+  { id: 'f_chilaquiles', nombre: 'Chilaquiles con pollo', porcion: '1 plato', g: 25, kcal: 700, fuera: true },
+  { id: 'f_tamal', nombre: 'Tamal', porcion: '1 pieza', g: 8, kcal: 300, fuera: true },
+  { id: 'f_rostizado', nombre: 'Pollo rostizado', porcion: '¼ de pollo', g: 38, kcal: 550, fuera: true },
+  { id: 'f_hamburguesa', nombre: 'Hamburguesa sencilla', porcion: '1 pieza', g: 25, kcal: 550, fuera: true },
+  { id: 'f_pizza', nombre: 'Pizza', porcion: '2 rebanadas', g: 24, kcal: 560, fuera: true },
+  { id: 'f_sushi', nombre: 'Sushi empanizado', porcion: '1 rollo', g: 15, kcal: 650, fuera: true },
+  { id: 'f_burrito', nombre: 'Burrito de carne', porcion: '1 pieza', g: 30, kcal: 700, fuera: true },
+  { id: 'f_gorditas', nombre: 'Gorditas de chicharrón', porcion: '2 piezas', g: 14, kcal: 650, fuera: true },
+  { id: 'f_caldo', nombre: 'Caldo de res o de pollo', porcion: '1 plato', g: 30, kcal: 400, fuera: true },
+  { id: 'f_coctel', nombre: 'Cóctel de camarón', porcion: '1 mediano', g: 25, kcal: 250, fuera: true },
+  { id: 'f_esquite', nombre: 'Esquite', porcion: '1 vaso mediano', g: 6, kcal: 350, fuera: true },
+  { id: 'f_licuado', nombre: 'Licuado de plátano (fonda)', porcion: '1 vaso grande', g: 12, kcal: 350, fuera: true }
 ];
 
 const POR_ID = new Map(PORCIONES.map((p) => [p.id, p]));
@@ -84,6 +108,40 @@ export class NutricionService {
   readonly menu = signal<MenuSemana | null>(this.menuGuardado());
   readonly cargandoMenu = signal(false);
   private menuPedido = false;
+  /** Comidas que cambiaste: "fecha|tiempo" -> 0 (la del menu) o 1.. (alternativa). */
+  readonly eleccion = signal<Record<string, number>>(this.leerJson('menu-eleccion', {}));
+  /** Lo que ya tienes en casa (ids), por semana del menu. */
+  readonly tengo = signal<string[]>(this.leerJson('despensa-' + (this.menu()?.semana_inicio ?? ''), []));
+  /** Dias recientes del servidor (para la racha de creatina). */
+  private readonly diasServidor = signal<Array<{ fecha: string; porciones: Record<string, number> }>>([]);
+
+  readonly lista = computed<FilaLista[]>(() => {
+    const m = this.menu();
+    return m ? listaSuper(m, this.eleccion()) : [];
+  });
+  readonly cocina = computed(() => {
+    const m = this.menu();
+    return m ? cocina(m, this.eleccion()) : [];
+  });
+  readonly costoPendiente = computed(() =>
+    this.lista().filter((f) => !this.tengo().includes(f.id)).reduce((s, f) => s + f.costo, 0)
+  );
+  readonly creatinaHoy = computed(() => !!this.porciones()['creatina']);
+  /** Dias seguidos con creatina, contando hoy si ya la tomaste. */
+  readonly rachaCreatina = computed(() => {
+    const con = new Set(this.diasServidor().filter((d) => d.porciones?.['creatina']).map((d) => String(d.fecha).slice(0, 10)));
+    const hoy = fechaLocal(new Date());
+    if (this.creatinaHoy()) con.add(hoy);
+    else con.delete(hoy);
+    const dia = new Date();
+    if (!con.has(hoy)) dia.setDate(dia.getDate() - 1);       // aun no la tomas hoy: la racha viene de ayer
+    let n = 0;
+    while (con.has(fechaLocal(dia))) {
+      n++;
+      dia.setDate(dia.getDate() - 1);
+    }
+    return n;
+  });
 
   readonly total = computed(() => gramosDe(this.porciones()));
   readonly metaEfectiva = computed(() => this.meta() ?? META_POR_DEFECTO);
@@ -116,6 +174,7 @@ export class NutricionService {
           }
         }
         const dias = res.dias ?? [];
+        this.diasServidor.set(dias);
         // otro dispositivo ya registro hoy y este telefono no: se adopta lo del servidor
         const deHoy = dias.find((d) => String(d.fecha).slice(0, 10) === hoy);
         if (!local && deHoy && deHoy.porciones && Object.keys(deHoy.porciones).length) {
@@ -138,6 +197,7 @@ export class NutricionService {
         this.cargandoMenu.set(false);
         if (res.menu) {
           this.menu.set(res.menu);
+          this.tengo.set(this.leerJson('despensa-' + res.menu.semana_inicio, []));
           try {
             localStorage.setItem('menu-semana', JSON.stringify(res.menu));
           } catch {
@@ -150,6 +210,74 @@ export class NutricionService {
         this.menuPedido = false;     // se reintenta la proxima vez que se abra
       }
     });
+  }
+
+  // ----- Menu: cambiar una comida, ya tengo en casa, compartir -----
+  comidaDe(d: MenuDia, c: MenuComida): MenuComida {
+    return comidasDelDia({ ...d, comidas: [c] }, this.eleccion())[0];
+  }
+
+  comidasDe(d: MenuDia): MenuComida[] {
+    return comidasDelDia(d, this.eleccion());
+  }
+
+  totalesDe(d: MenuDia): { kcal: number; prot: number; costo: number } {
+    return this.comidasDe(d).reduce(
+      (s, c) => ({ kcal: s.kcal + c.kcal, prot: s.prot + c.prot, costo: s.costo + c.costo }),
+      { kcal: 0, prot: 0, costo: 0 }
+    );
+  }
+
+  opcionDe(d: MenuDia, c: MenuComida): number {
+    return this.eleccion()[claveEleccion(d, c)] ?? 0;
+  }
+
+  /** Pasa a la siguiente opcion de esa comida (la del menu y sus alternativas, en circulo). */
+  cambiarComida(d: MenuDia, c: MenuComida): void {
+    const n = 1 + (c.alternativas?.length ?? 0);
+    if (n < 2) return;
+    const clave = claveEleccion(d, c);
+    const nueva = { ...this.eleccion(), [clave]: ((this.eleccion()[clave] ?? 0) + 1) % n };
+    this.eleccion.set(nueva);
+    this.guardarJson('menu-eleccion', nueva);
+    // si ya la habias marcado como comida, se actualiza con la proteina de la nueva
+    if (d.fecha === fechaLocal(new Date()) && this.comioMenu(c.tiempo)) {
+      this.alternarMenu(c.tiempo, 0);
+      this.alternarMenu(c.tiempo, this.comidaDe(d, c).prot);
+    }
+  }
+
+  alternarTengo(id: string): void {
+    const m = this.menu();
+    if (!m) return;
+    const t = this.tengo().includes(id) ? this.tengo().filter((x) => x !== id) : [...this.tengo(), id];
+    this.tengo.set(t);
+    this.guardarJson('despensa-' + m.semana_inicio, t);
+  }
+
+  /** Comparte la lista (sin lo que ya tienes); si el telefono no puede, la copia. */
+  async compartirLista(): Promise<string> {
+    const m = this.menu();
+    if (!m) return '';
+    const texto = textoLista(m, this.lista(), this.tengo());
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Lista del súper', text: texto });
+        return '';
+      }
+      await navigator.clipboard.writeText(texto);
+      return 'Lista copiada: pégala en WhatsApp o en tus notas.';
+    } catch {
+      return '';
+    }
+  }
+
+  // ----- Creatina: un toque al dia -----
+  alternarCreatina(): void {
+    const actual = this.deHoy();
+    if (actual['creatina']) delete actual['creatina'];
+    else actual['creatina'] = 1;
+    this.aplicar(actual);
   }
 
   cantidad(id: string): number {
@@ -216,6 +344,23 @@ export class NutricionService {
       },
       error: () => this.sinConexion.set(true)
     });
+  }
+
+  private leerJson<T>(clave: string, defecto: T): T {
+    try {
+      const v = localStorage.getItem(clave);
+      return v ? (JSON.parse(v) as T) : defecto;
+    } catch {
+      return defecto;
+    }
+  }
+
+  private guardarJson(clave: string, valor: unknown): void {
+    try {
+      localStorage.setItem(clave, JSON.stringify(valor));
+    } catch {
+      /* sin espacio: queda en memoria */
+    }
   }
 
   private menuGuardado(): MenuSemana | null {
