@@ -2163,7 +2163,7 @@ body.teclado .timer {
 }
 
 /* ── Comida: pestanas y menu de la semana ──────────────────────────────────── */
-.seg {
+.comida-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
@@ -2173,7 +2173,7 @@ body.teclado .timer {
   background: var(--line);
 }
 
-.seg button {
+.comida-tabs button {
   min-height: 36px;
   border-radius: 9px;
   font-size: 13px;
@@ -2182,7 +2182,7 @@ body.teclado .timer {
   touch-action: manipulation;
 }
 
-.seg button.on {
+.comida-tabs button.on {
   background: var(--card);
   color: var(--text);
 }
@@ -2296,4 +2296,21 @@ body.teclado .timer {
 .menu-li span:last-child {
   text-align: right;
   font-weight: 700;
+}
+
+.menu-comi {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  font-size: 12px;
+  font-weight: 800;
+  touch-action: manipulation;
+}
+
+.menu-comi.on {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  color: var(--text);
 }

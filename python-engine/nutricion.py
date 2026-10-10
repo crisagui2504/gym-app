@@ -68,6 +68,83 @@ def metas(cfg: dict) -> dict:
     }
 
 
+# ── calorias por tipo de dia ─────────────────────────────────────────────────
+# Mismo total SEMANAL (es lo que decide si subes o bajas), repartido segun lo que
+# gasta cada dia. Gasto neto de la actividad = (MET - 1) x kg x horas, con METs
+# del Compendium of Physical Activities (Ainsworth 2011; Herrmann 2024):
+#   pesas 4.5 (entre "moderado" 3.5 y "vigoroso" 6.0: la sesion incluye
+#   descansos), basquetbol "general" 6.5, cardio LISS / caminata rapida 4.0.
+# El descanso activo (caminar) ya es parte del gasto de todos los dias.
+MET = {"pesas": 4.5, "deporte": 6.5, "cardio": 4.0, "descanso": 1.0}
+MIN_CARDIO = 40                 # el LISS del plan dura 35-45 min
+TOPE_REPARTO = 0.20             # ningun dia se aleja mas de +/-20 % del promedio
+NOMBRE_TIPO = {"pesas": "pesas", "deporte": "deporte", "cardio": "cardio", "descanso": "descanso"}
+
+
+def tipos_de_dia(cfg: dict) -> dict[int, str]:
+    """1..7 -> 'pesas' | 'deporte' | 'cardio' | 'descanso', segun el plan de tu split."""
+    from config_usuario import DEFAULT_CONFIG
+    from generador import generar_plan
+    bloques: dict[int, set[str]] = {d: set() for d in range(1, 8)}
+    for f in generar_plan({**DEFAULT_CONFIG, **cfg}):      # cfg parcial (demo, pruebas): defaults
+        bloques.setdefault(f.dia, set()).add((f.bloque or "").lower())
+    tipos = {}
+    for d in range(1, 8):
+        b = bloques.get(d, set())
+        if any("deporte" in x for x in b):
+            tipos[d] = "deporte"
+        elif any(x.startswith(("a -", "b -", "c -")) for x in b):
+            tipos[d] = "pesas"
+        elif any("cardio" in x for x in b):
+            tipos[d] = "cardio"
+        else:
+            tipos[d] = "descanso"
+    return tipos
+
+
+def gasto_actividad(cfg: dict, tipo: str) -> float:
+    """kcal NETAS de la actividad del dia (sobre estar en reposo)."""
+    peso = _peso(cfg)
+    if tipo == "pesas":
+        horas = float(cfg.get("duracion_min") or 75) / 60
+    elif tipo == "deporte":
+        horas = float((cfg.get("deporte") or {}).get("minutos") or 60) / 60
+    elif tipo == "cardio":
+        horas = MIN_CARDIO / 60
+    else:
+        return 0.0
+    return (MET[tipo] - 1) * peso * horas
+
+
+def kcal_por_dia(cfg: dict) -> dict[int, dict]:
+    """{dia: {"tipo", "kcal"}}: el promedio de la semana es exactamente tu meta."""
+    K = metas(cfg)["kcal"]
+    tipos = tipos_de_dia(cfg)
+    extra = {d: gasto_actividad(cfg, t) for d, t in tipos.items()}
+    media = sum(extra.values()) / 7
+    lo, hi = K * (1 - TOPE_REPARTO), K * (1 + TOPE_REPARTO)
+    valor = {d: K + extra[d] - media for d in tipos}
+    # topar y repartir lo recortado entre los dias que no tocan el tope, hasta
+    # que la semana sume exactamente 7 x K sin que ningun dia pase del +/-20 %
+    for _ in range(10):
+        valor = {d: min(hi, max(lo, v)) for d, v in valor.items()}
+        falta = 7 * K - sum(valor.values())
+        libres = [d for d, v in valor.items() if (falta > 0 and v < hi) or (falta < 0 and v > lo)]
+        if abs(falta) < 1 or not libres:
+            break
+        for d in libres:
+            valor[d] += falta / len(libres)
+    return {d: {"tipo": tipos[d], "kcal": int(round(valor[d] / 10) * 10)} for d in tipos}
+
+
+def resumen_por_tipo(cfg: dict) -> dict[str, int]:
+    """{'pesas': 2330, 'deporte': 2610, ...} para mostrar."""
+    out: dict[str, int] = {}
+    for v in kcal_por_dia(cfg).values():
+        out.setdefault(v["tipo"], v["kcal"])
+    return out
+
+
 def tendencia_pct_sem(dfp: pd.DataFrame, hoy: date | None = None, ventana: int = 21) -> float | None:
     """Cambio de peso en %/semana: pendiente de una recta sobre los pesajes de
     las ultimas `ventana` dias. Mas estable que comparar dos medias semanales

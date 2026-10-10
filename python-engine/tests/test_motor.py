@@ -1253,7 +1253,8 @@ def _menu_ok(cfg, nombre):
     m = mnu.generar_menu(cfg, _lun)
     meta = nutricion_metas = __import__("nutricion").metas(cfg)
     K, P = meta["kcal"], meta["proteina_min"]
-    dias_ok = all(abs(d["kcal"] - K) <= K * 0.10 and (d["prot"] >= P - 1 or m["avisos"]) for d in m["dias"])
+    dias_ok = all(abs(d["kcal"] - d["kcal_meta"]) <= d["kcal_meta"] * 0.10 and (d["prot"] >= P - 1 or m["avisos"])
+                  for d in m["dias"])
     check(f"{nombre}: 7 dias, kcal a +/-10 % y proteina >= meta (o aviso)", len(m["dias"]) == 7 and dias_ok,
           str([(d["kcal"], d["prot"]) for d in m["dias"]]) + f" meta {K}/{P}")
     return m
@@ -1313,6 +1314,33 @@ try:
 except ValueError:
     _err = True
 check("si excluyes todo, avisa en vez de inventar", _err)
+
+print()
+print("== 51. Calorias por tipo de dia (mismo total semanal) ==")
+for _split, _esperado in (("upper_lower", {"pesas", "cardio", "descanso"}), ("ppl", {"pesas", "descanso"}),
+                          ("full_body", {"pesas", "cardio", "descanso"})):
+    _c = {"enfoque": "recomposicion", "split": _split, "peso_corporal": 75, "duracion_min": 75}
+    _kd = nut.kcal_por_dia(_c)
+    _K = nut.metas(_c)["kcal"]
+    check(f"{_split}: tipos de dia del plan {sorted(_esperado)}", set(v["tipo"] for v in _kd.values()) == _esperado,
+          str(_kd))
+    check(f"{_split}: el promedio de la semana es tu meta ({_K} kcal)",
+          abs(sum(v["kcal"] for v in _kd.values()) / 7 - _K) <= 10, str(_kd))
+    _rt = nut.resumen_por_tipo(_c)
+    check(f"{_split}: pesas > cardio > descanso", _rt["pesas"] > _rt.get("cardio", 0) and
+          _rt.get("cardio", _rt["pesas"] - 1) > _rt["descanso"], str(_rt))
+_cb = {"enfoque": "volumen", "split": "upper_lower_5", "peso_corporal": 73, "duracion_min": 75,
+       "deporte": {"nombre": "Basquetbol", "dias": [2, 4], "minutos": 90}}
+_kb = nut.kcal_por_dia(_cb)
+check("los dias de basquetbol llevan mas que los de pesas", _kb[2]["tipo"] == "deporte"
+      and _kb[2]["kcal"] > _kb[1]["kcal"], str(_kb))
+_ce = {**_cb, "deporte": {"nombre": "Futbol", "dias": [2], "minutos": 300}}
+_ke = nut.kcal_por_dia(_ce)
+_Ke = nut.metas(_ce)["kcal"]
+check("ningun dia pasa de +/-20 % del promedio (aunque el deporte dure 5 h)",
+      all(abs(v["kcal"] - _Ke) <= _Ke * 0.2 + 10 for v in _ke.values()), str(_ke))
+check("el menu sigue la meta de cada dia",
+      all(abs(d["kcal"] - d["kcal_meta"]) <= d["kcal_meta"] * 0.08 for d in mnu.generar_menu(_cb, _lun)["dias"]))
 
 print()
 if FALLOS:

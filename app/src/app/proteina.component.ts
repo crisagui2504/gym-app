@@ -1,7 +1,8 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { NutricionService, PORCIONES } from './nutricion';
-import type { MenuComida } from './rutina-api.service';
+import { NutricionService, PORCIONES, esDelMenu } from './nutricion';
+import { fechaLocal } from './entreno-data';
+import type { MenuComida, MenuDia } from './rutina-api.service';
 
 /** Panel "Comida": proteína del día por porciones y el menú barato de la semana. */
 @Component({
@@ -10,7 +11,7 @@ import type { MenuComida } from './rutina-api.service';
   imports: [CommonModule],
   template: `
     <section class="panel prot">
-      <div class="seg">
+      <div class="comida-tabs">
         <button type="button" [class.on]="vista() === 'prot'" (click)="vista.set('prot')">🍗 Proteína</button>
         <button type="button" [class.on]="vista() === 'menu'" (click)="verMenu()">🍽️ Menú</button>
       </div>
@@ -30,8 +31,8 @@ import type { MenuComida } from './rutina-api.service';
       <p class="prot-hint aviso" *ngIf="!nut.meta()">Meta provisional: registra tu peso en el dashboard para calcular la tuya.</p>
 
       <div class="prot-hoy" *ngIf="anotadas().length">
-        <button type="button" *ngFor="let a of anotadas()" (click)="nut.sumar(a.id, -1)" [attr.aria-label]="'Quitar ' + a.nombre">
-          {{ a.nombre }} ×{{ a.n }} <span>−</span>
+        <button type="button" *ngFor="let a of anotadas()" (click)="quitar(a)" [attr.aria-label]="'Quitar ' + a.nombre">
+          {{ a.nombre }} {{ a.menu ? a.n + ' g' : '×' + a.n }} <span>−</span>
         </button>
       </div>
 
@@ -66,12 +67,19 @@ import type { MenuComida } from './rutina-api.service';
             </button>
           </div>
           <ng-container *ngIf="dia() as d">
-            <p class="menu-dia-tot">{{ d.nombre }} · {{ d.kcal | number: '1.0-0' }} kcal · {{ d.prot }} g · \${{ d.costo | number: '1.0-0' }}</p>
+            <p class="menu-dia-tot">
+              {{ d.nombre }}<ng-container *ngIf="d.tipo"> · día de {{ d.tipo }}</ng-container>
+              · {{ d.kcal | number: '1.0-0' }} kcal · {{ d.prot }} g · \${{ d.costo | number: '1.0-0' }}
+            </p>
             <div class="menu-comida" *ngFor="let c of d.comidas">
               <span class="menu-t">{{ etiqueta[c.tiempo] || c.tiempo }}</span>
               <div class="menu-nom"><strong>{{ c.nombre }}</strong><small>{{ c.kcal }} kcal · {{ c.prot | number: '1.0-0' }} g</small></div>
               <p class="menu-ing">{{ ingredientes(c) }}</p>
               <p class="menu-como" *ngIf="c.como">{{ c.como }}</p>
+              <button type="button" class="menu-comi" *ngIf="esHoy(d)" [class.on]="nut.comioMenu(c.tiempo)"
+                      (click)="nut.alternarMenu(c.tiempo, c.prot)">
+                {{ nut.comioMenu(c.tiempo) ? '✓ Comido · +' + (c.prot | number: '1.0-0') + ' g de proteína' : 'Lo comí (+' + (c.prot | number: '1.0-0') + ' g de proteína)' }}
+              </button>
             </div>
           </ng-container>
           <p class="prot-hint aviso" *ngFor="let a of m.avisos">{{ a }}</p>
@@ -94,7 +102,12 @@ export class ProteinaComponent implements OnInit {
   readonly faltan = computed(() => Math.max(0, this.meta().proteina_min - this.nut.total()));
   readonly anotadas = computed(() => {
     const p = this.nut.porciones();
-    return PORCIONES.filter((x) => (p[x.id] ?? 0) > 0).map((x) => ({ id: x.id, nombre: x.nombre, n: p[x.id] }));
+    const delMenu = Object.keys(p).filter(esDelMenu).map((id) => ({
+      id, nombre: 'Menú: ' + (this.etiqueta[id.slice(5)] ?? id.slice(5)), n: p[id], menu: true, tiempo: id.slice(5)
+    }));
+    const sueltas = PORCIONES.filter((x) => (p[x.id] ?? 0) > 0)
+      .map((x) => ({ id: x.id, nombre: x.nombre, n: p[x.id], menu: false, tiempo: '' }));
+    return [...delMenu, ...sueltas];
   });
 
   readonly vista = signal<'prot' | 'menu'>('prot');
@@ -109,6 +122,15 @@ export class ProteinaComponent implements OnInit {
   verMenu(): void {
     this.vista.set('menu');
     this.nut.cargarMenu();
+  }
+
+  esHoy(d: MenuDia): boolean {
+    return d.fecha === fechaLocal(new Date());
+  }
+
+  quitar(a: { id: string; menu: boolean; tiempo: string; n: number }): void {
+    if (a.menu) this.nut.alternarMenu(a.tiempo, a.n);
+    else this.nut.sumar(a.id, -1);
   }
 
   ingredientes(c: MenuComida): string {

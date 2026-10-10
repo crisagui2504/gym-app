@@ -213,7 +213,19 @@ export class DemoApiService {
 
   /** Menu del atleta virtual (generado con precios de referencia, viene dentro de la app). */
   getMenu(_fecha = new Date()): Observable<{ ok: boolean; menu: MenuSemana | null }> {
-    return from(this.cargarRespaldo()).pipe(map((r) => ({ ok: true, menu: r.DEMO_MENU })), delay(this.espera));
+    // las fechas del menu de muestra se mueven a ESTA semana (si no, "Lo comí" nunca aparece)
+    const lunes = this.lunes();
+    return from(this.cargarRespaldo()).pipe(
+      map((r) => {
+        const dias = r.DEMO_MENU.dias.map((d) => {
+          const f = new Date(lunes);
+          f.setDate(f.getDate() + d.dia - 1);
+          return { ...d, fecha: fechaLocal(f) };
+        });
+        return { ok: true, menu: { ...r.DEMO_MENU, semana_inicio: fechaLocal(lunes), dias } };
+      }),
+      delay(this.espera)
+    );
   }
 
   guardarProteina(_fecha: string, _g: number, _porciones: Record<string, number>): Observable<{ ok: boolean }> {

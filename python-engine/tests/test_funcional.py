@@ -186,6 +186,37 @@ check("el respaldo de la app existe y trae las 5 semanas y las opciones",
       "DEMO_ESCENARIO" in _ts and "DEMO_OPCIONES" in _ts and _ts.strip() == _dem.generar().strip())
 
 print()
+print("== Estilos de la app: sin clases nuevas definidas dos veces ==")
+import re as _re
+
+
+def _selectores_repetidos(css: str) -> set[str]:
+    """Selectores de primer nivel (fuera de @media) que aparecen en mas de una regla.
+    Un nombre reutilizado por accidente pisa estilos de otra parte de la app: asi
+    el .seg de las pestanas de Comida deformo la barra de progreso de la sesion."""
+    css = _re.sub(r"/\*.*?\*/", "", css, flags=_re.S)
+    nivel, buf, vistos = 0, "", {}
+    for ch in css:
+        if ch == "{":
+            if nivel == 0 and not buf.strip().startswith("@"):
+                for s in buf.split(","):
+                    vistos[s.strip()] = vistos.get(s.strip(), 0) + 1
+            nivel, buf = nivel + 1, ""
+        elif ch == "}":
+            nivel, buf = nivel - 1, ""
+        elif nivel == 0:
+            buf += ch
+    return {s for s, n in vistos.items() if n > 1}
+
+
+# repeticiones que ya existian y son refinamientos a proposito (revisadas)
+_CSS_PERMITIDOS = {"button", ".stepper", ".rpe-grid button", ".readiness-opts button", ".serie-top",
+                   ".ring-track", ".ring-fill", ".logo", ".alt-use", ".enc-omitir", ".enc-enviar"}
+_css_app = (pathlib.Path(dsh.__file__).resolve().parent.parent / "app" / "src" / "styles.css").read_text(encoding="utf-8")
+_nuevos = _selectores_repetidos(_css_app) - _CSS_PERMITIDOS
+check("ningun selector nuevo se define dos veces en app/src/styles.css", not _nuevos, str(sorted(_nuevos)))
+
+print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")
     sys.exit(1)

@@ -2292,6 +2292,48 @@ Registrar la comida ayuda, pero casi todos dejan de hacerlo con el tiempo. Por e
 - Las 5 suites pasan.
 - En el navegador (vista móvil), app y dashboard.
 
+## BZ. Nutrición fase 3: calorías según el día y "Lo comí" (2026-10-10)
+
+**Calorías por tipo de día** (`nutricion.kcal_por_dia`).
+
+- **El total semanal no cambia:** es lo que decide si subes o bajas, y lo ajusta la fase 1. Lo que cambia es el reparto según lo que gasta cada día.
+- **Tipos de día:** salen del plan de tu split. Pesas si hay bloques A/B/C; deporte si hay un bloque "Deporte"; cardio si hay "Cardio"; descanso en lo demás.
+- **Gasto neto de la actividad** = (MET − 1) × kg × horas. Los MET vienen del Compendium of Physical Activities (Ainsworth 2011; Herrmann 2024):
+
+  | Tipo de día | MET | Duración |
+  |---|---|---|
+  | Pesas | 4.5 (entre moderado 3.5 y vigoroso 6.0, porque la sesión incluye descansos) | La de tu sesión |
+  | Básquetbol | 6.5 ("general") | La de tu config |
+  | Cardio LISS | 4.0 | 40 min |
+
+- **Reparto:** cada día recibe la meta más su gasto menos el gasto medio de la semana. Hay un tope de ±20 %, y lo que se recorta se reparte entre los días libres hasta que la semana sume exactamente 7 × la meta.
+- **Para ti** (73 kg, 5 días de pesas y 2 de básquetbol de 90 min): pesas ~2,330 kcal y básquetbol ~2,610. El promedio queda exacto en 2,410.
+- **Proteína:** es la misma todos los días.
+- **Menú:** cada día apunta a su propia meta, y el día muestra su tipo.
+- **Dashboard:** la tarjeta de calorías muestra el reparto por tipo de día.
+
+**"Lo comí"** (app, menú de hoy).
+
+- Cada comida del menú de hoy tiene un botón que suma su proteína al conteo del día. Se guarda como `menu_<tiempo>`, con los gramos como valor; el servidor acepta hasta 300 en esas claves.
+- Tocar otra vez, o tocar su chip en Proteína, lo quita.
+- En demo, el menú de muestra se mueve a la semana actual para que el botón aparezca.
+
+**Lo que se rompió y se arregló.** Las pestañas Proteína/Menú de la fase 2 usaban la clase `.seg`, que ya existía para la barra de progreso de la sesión. Mis estilos la pisaban: la barra se deformaba y las pestañas se encimaban con el texto. La revisión de la fase 2 no lo vio.
+
+- **Arreglo:** la clase ahora se llama `.comida-tabs`. Se comprobó que la barra de progreso vuelve a sus segmentos de 6 px.
+- **Guarda nueva en `test_funcional`:** falla si un selector **nuevo** se define dos veces en `app/src/styles.css`. Las 11 repeticiones antiguas están revisadas y quedan permitidas. Se comprobó que detecta el caso de `.seg`.
+
+**Verificación.**
+
+- `test_motor` §51 (12 pruebas):
+  - los tipos de día de los 3 splits;
+  - el promedio semanal igual a la meta;
+  - pesas > cardio > descanso, y básquetbol > pesas;
+  - el tope del ±20 % aun con 5 h de deporte (esta prueba encontró que el reajuste lo rompía);
+  - el menú sigue la meta de cada día.
+- Las 5 suites pasan.
+- En el navegador (vista móvil): "Lo comí" suma, se ve como chip y se quita.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

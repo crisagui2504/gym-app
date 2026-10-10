@@ -681,8 +681,11 @@ def _card_calorias(cfg: dict, dfp: pd.DataFrame, tc: float | None) -> html.Div:
         html.Div("🔥 Calorías adaptativas", style={"color": color, "fontWeight": "700",
                                                   "fontSize": "14px", "marginBottom": "6px"}),
         html.Div([html.Span(f"~{m['kcal']:,} kcal/día", style={"fontWeight": "800", "fontSize": "18px"}),
-                  html.Span(ajuste, style={"color": MUTED, "fontSize": "12px"})],
-                 style={"color": TEXT, "marginBottom": "8px"}),
+                  html.Span(ajuste + " en promedio", style={"color": MUTED, "fontSize": "12px"})],
+                 style={"color": TEXT, "marginBottom": "4px"}),
+        html.Div("Por día: " + " · ".join(f"{tipo} ~{k:,}" for tipo, k in nutricion.resumen_por_tipo(cfg).items())
+                 + ". Misma suma en la semana: se come más los días que se gasta más.",
+                 style={"color": MUTED, "fontSize": "12px", "marginBottom": "8px"}),
         html.P(msg, style={"color": TEXT, "fontSize": "13px", "margin": "0"}),
         *boton,
         html.P("Se ajusta de a poco (100-300 kcal) y se reevalúa cada 2 semanas: el peso de un día "
@@ -1296,6 +1299,9 @@ def _menu_vista(m) -> html.Div:
         html.P(f"Promedio: {m['kcal_prom']:,} kcal y {m['prot_prom']} g de proteína al día "
                f"(tu meta: {meta['kcal']:,} kcal y {meta['proteina_min']}-{meta['proteina_max']} g).",
                style={"color": TEXT, "fontSize": "13px", "margin": "8px 0 0"}),
+        *([html.P("Las kcal cambian según el día: " + " · ".join(
+            f"{tipo} ~{k:,}" for tipo, k in meta["kcal_por_tipo"].items()) + ".",
+            style={"color": MUTED, "fontSize": "12px", "margin": "4px 0 0"})] if meta.get("kcal_por_tipo") else []),
         *[html.P(a, style={"color": WARN, "fontSize": "12px", "margin": "6px 0 0"}) for a in m.get("avisos", [])],
         html.P(m.get("nota", ""), style={"color": MUTED, "fontSize": "11px", "margin": "8px 0 0"}),
     ])
@@ -1315,7 +1321,9 @@ def _menu_vista(m) -> html.Div:
                                                "marginTop": "2px"})] if c.get("como") else []),
             ], style={"padding": "8px 0", "borderTop": f"1px solid {LINE}"}))
         dias.append(_card([
-            html.Div([html.Span(d["nombre"], style={"fontWeight": "800", "fontSize": "15px"}),
+            html.Div([html.Span([d["nombre"], html.Span(f" · {d['tipo']}" if d.get("tipo") else "",
+                                                        style={"color": MUTED, "fontWeight": "600", "fontSize": "12px"})],
+                                style={"fontWeight": "800", "fontSize": "15px"}),
                       html.Span(f"{d['kcal']:,} kcal · {d['prot']} g · ${d['costo']:.0f}",
                                 style={"color": MUTED, "fontSize": "12px"})],
                      style={"display": "flex", "justifyContent": "space-between", "alignItems": "baseline",

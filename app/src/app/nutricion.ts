@@ -59,9 +59,14 @@ interface Pendiente {
   porciones: Record<string, number>;
 }
 
+/** "menu_<tiempo>": comida del menu marcada como "Lo comi"; su valor ya son gramos. */
+export const esDelMenu = (id: string) => id.startsWith('menu_');
+
 export function gramosDe(porciones: Record<string, number>): number {
   let total = 0;
-  for (const [id, n] of Object.entries(porciones)) total += (POR_ID.get(id)?.g ?? 0) * (n || 0);
+  for (const [id, n] of Object.entries(porciones)) {
+    total += esDelMenu(id) ? n || 0 : (POR_ID.get(id)?.g ?? 0) * (n || 0);
+  }
   return Math.round(total * 10) / 10;
 }
 
@@ -153,16 +158,37 @@ export class NutricionService {
 
   sumar(id: string, delta: number): void {
     if (!POR_ID.has(id)) return;
-    const hoy = fechaLocal(new Date());
-    if (hoy !== this.fecha) {
-      // paso la medianoche con la app abierta: el dia nuevo empieza en cero
-      this.fecha = hoy;
-      this.porciones.set({});
-    }
-    const actual = { ...this.porciones() };
+    const actual = this.deHoy();
     const n = Math.max(0, Math.min(50, (actual[id] ?? 0) + delta));
     if (n === 0) delete actual[id];
     else actual[id] = n;
+    this.aplicar(actual);
+  }
+
+  /** "Lo comi" en una comida del menu de hoy: suma su proteina; otra vez la quita. */
+  alternarMenu(tiempo: string, gramos: number): void {
+    const id = 'menu_' + tiempo.replace(/[^a-z]/g, '').slice(0, 19);
+    const actual = this.deHoy();
+    if (actual[id]) delete actual[id];
+    else actual[id] = Math.max(1, Math.min(300, Math.round(gramos)));
+    this.aplicar(actual);
+  }
+
+  comioMenu(tiempo: string): boolean {
+    return !!this.porciones()['menu_' + tiempo.replace(/[^a-z]/g, '').slice(0, 19)];
+  }
+
+  /** Copia de las porciones de HOY (si paso la medianoche con la app abierta, empieza en cero). */
+  private deHoy(): Record<string, number> {
+    const hoy = fechaLocal(new Date());
+    if (hoy !== this.fecha) {
+      this.fecha = hoy;
+      this.porciones.set({});
+    }
+    return { ...this.porciones() };
+  }
+
+  private aplicar(actual: Record<string, number>): void {
     this.porciones.set(actual);
     void almacen.guardar('proteina-' + this.fecha, actual);
     // se manda el total del dia un momento despues (varios toques = un solo envio)

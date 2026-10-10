@@ -89,7 +89,10 @@ def _servir(r: Receta, escala: float, precios: dict[str, float]) -> dict:
 def generar_menu(cfg: dict, semana_inicio: date, semilla: int | None = None,
                  precios: dict[str, float] | None = None) -> dict:
     meta = nutricion.metas(cfg)
-    K, P = float(meta["kcal"]), float(meta["proteina_min"])
+    K_sem, P = float(meta["kcal"]), float(meta["proteina_min"])
+    # kcal de CADA dia segun lo que gasta (pesas, deporte, cardio, descanso); la
+    # semana promedia exactamente tu meta. La proteina es la misma todos los dias.
+    por_dia = nutricion.kcal_por_dia(cfg)
     precios = precios or alx.precios()
     fuera = excluidos(cfg)
     disp = [r for r in RECETAS if not any(aid in fuera for aid, _ in r.ingredientes)]
@@ -132,6 +135,8 @@ def generar_menu(cfg: dict, semana_inicio: date, semilla: int | None = None,
     usos: dict[str, int] = {}
     dias, avisos = [], []
     for i in range(7):
+        K = float(por_dia[i + 1]["kcal"])
+
         def pen(lista, idx_offset=0):
             v = np.array([usos.get(r.id, 0) * PENALIZA_REPETIR if r else 0.0 for r in lista])
             tope = np.array([usos.get(r.id, 0) >= TOPE_USOS[r.tiempo] if r else False for r in lista])
@@ -198,6 +203,7 @@ def generar_menu(cfg: dict, semana_inicio: date, semilla: int | None = None,
         if aviso:
             avisos.append(f"{NOMBRES_DIA[i]}: {aviso}")
         dias.append({"dia": i + 1, "nombre": NOMBRES_DIA[i], "fecha": fecha.isoformat(), "comidas": elegidas,
+                     "tipo": por_dia[i + 1]["tipo"], "kcal_meta": int(K),
                      "kcal": round(tot["kcal"]), "prot": round(tot["prot"]), "carb": round(tot["carb"]),
                      "grasa": round(tot["grasa"]), "costo": round(tot["costo"], 2)})
 
@@ -205,8 +211,9 @@ def generar_menu(cfg: dict, semana_inicio: date, semilla: int | None = None,
     costo_sem = round(sum(d["costo"] for d in dias), 2)
     return {
         "semana_inicio": semana_inicio.isoformat(),
-        "meta": {"kcal": round(K), "proteina_min": round(P), "proteina_max": meta["proteina_max"],
-                 "enfoque": meta["enfoque"], "peso": meta["peso"]},
+        "meta": {"kcal": round(K_sem), "proteina_min": round(P), "proteina_max": meta["proteina_max"],
+                 "enfoque": meta["enfoque"], "peso": meta["peso"],
+                 "kcal_por_tipo": nutricion.resumen_por_tipo(cfg)},
         "dias": dias,
         "lista": lista,
         "costo_semana": costo_sem,
@@ -286,11 +293,12 @@ if __name__ == "__main__":
     import sys
     from config_usuario import cargar_config
     m = generar_menu(cargar_config(), date.today() - timedelta(days=date.today().weekday()))
+    print(f"Por tipo de dia: {m['meta']['kcal_por_tipo']}")
     print(f"Semana {m['semana_inicio']}: ${m['costo_semana']:.0f} (${m['costo_dia']:.0f}/día) | "
           f"{m['kcal_prom']} kcal y {m['prot_prom']} g de proteína en promedio "
           f"(meta {m['meta']['kcal']} kcal, {m['meta']['proteina_min']} g)")
     for d in m["dias"]:
-        print(f"\n{d['nombre']}: {d['kcal']} kcal, {d['prot']} g prot, ${d['costo']:.0f}")
+        print(f"\n{d['nombre']} ({d['tipo']}, meta {d['kcal_meta']}): {d['kcal']} kcal, {d['prot']} g prot, ${d['costo']:.0f}")
         for c in d["comidas"]:
             print(f"  [{c['tiempo']}] {c['nombre']}: " + ", ".join(i["texto"] for i in c["ingredientes"]))
     print("\nLISTA DEL SÚPER")

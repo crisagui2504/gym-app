@@ -5,7 +5,7 @@ require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/nutricion_tabla.php';
 require_token();
 
-// POST {fecha: 'YYYY-MM-DD', proteina_g: 128.5, porciones: {"huevo": 3, "frijol": 1}}
+// POST {fecha: 'YYYY-MM-DD', proteina_g: 128.5, porciones: {"huevo": 3, "frijol": 1, "menu_comida": 49}}
 // Guarda el TOTAL del dia (la app manda siempre el estado completo): reenviarlo
 // es seguro, no duplica.
 $data = json_input();
@@ -27,7 +27,9 @@ if (!is_array($porciones) || count($porciones) > 40) {
 $limpias = [];
 foreach ($porciones as $id => $n) {
     $cant = filter_var($n, FILTER_VALIDATE_INT);
-    if (!is_string($id) || !preg_match('/^[a-z0-9_]{1,24}$/', $id) || $cant === false || $cant < 0 || $cant > 50) {
+    // "menu_<tiempo>": comida del menu marcada como "Lo comi"; el valor son sus GRAMOS de proteina
+    $tope = (is_string($id) && strncmp($id, 'menu_', 5) === 0) ? 300 : 50;
+    if (!is_string($id) || !preg_match('/^[a-z0-9_]{1,24}$/', $id) || $cant === false || $cant < 0 || $cant > $tope) {
         json_response(['ok' => false, 'error' => 'Porciones invalidas'], 400);
     }
     if ($cant > 0) {

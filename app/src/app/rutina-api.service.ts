@@ -88,6 +88,8 @@ export interface MenuDia {
   nombre: string;
   fecha: string;
   comidas: MenuComida[];
+  tipo?: string;        // pesas | deporte | cardio | descanso (las kcal se reparten segun el gasto)
+  kcal_meta?: number;
   kcal: number;
   prot: number;
   costo: number;
