@@ -47,3 +47,7 @@ python-engine/config_usuario.vm.json
 # Datos de cada persona extra que genera "Nuevo usuario.bat" (config.php con la
 # contrasena de SU base de datos y su token): se quedan en este PC, nunca en git.
 instancias/*/
+
+# Credenciales del servidor (MySQL + token): viven SOLO en htdocs/api/ de InfinityFree
+# y en este PC. Ni git ni el CI las suben (servidor/armar_deploy.sh las excluye).
+infinityfree/api/config.php

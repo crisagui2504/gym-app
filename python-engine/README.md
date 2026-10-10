@@ -1,10 +1,15 @@
-# Motor Algorítmico Local (capa Local)
+# Motor, nutrición y dashboard (Python)
 
-Corre en tu PC, **no** se sube a InfinityFree. Es el "cerebro": genera los planes,
-aplica la sobrecarga progresiva basada en evidencia y sirve el dashboard.
+Corre en la VM de Azure (principal) y en el PC (respaldo). No se sube a InfinityFree. Es el "cerebro":
 
-> Fundamento científico de cada regla: [`../docs/CAMBIOS_EVIDENCIA.md`](../docs/CAMBIOS_EVIDENCIA.md)
-> · Documentación técnica: [`../DOCUMENTACION.md`](../DOCUMENTACION.md)
+- arma y ajusta la rutina semanal;
+- calcula las metas de nutrición y el menú barato;
+- sirve el dashboard.
+
+Más información:
+
+- Fundamento de cada regla: [`../docs/CAMBIOS_EVIDENCIA.md`](../docs/CAMBIOS_EVIDENCIA.md).
+- Documentación técnica completa: [`../DOCUMENTACION.md`](../DOCUMENTACION.md#7-módulos-del-motor-y-del-dashboard-python).
 
 ## Setup
 
@@ -13,47 +18,44 @@ cd python-engine
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-copy .env.example .env      # editá API_BASE_URL, API_TOKEN y MES_INICIO
+copy .env.example .env      # API_BASE_URL, API_TOKEN, MES_INICIO, VAPID_PRIVADA, VAPID_PUBLICA
 ```
 
 ## Módulos
 
-| Archivo | Qué hace |
+| Área | Módulos |
 |---|---|
-| `ejercicios_db.py` | Base de ejercicios por patrón de movimiento + **ponderación de estímulo por submúsculo** (`ESTIMULOS`) + bisagras axiales |
-| `enfoques.py` | 5 enfoques (reps, técnicas, macros en g/kg, cardio) y 3 splits (U/L, PPL en orden Push/Piernas/Pull, Full Body) |
-| `generador.py` | Construye el plan: selección por **ganancia marginal de submúsculo**, topes por región, protección lumbar, rotación por mesociclo |
-| `config_usuario.py` | Persiste enfoque/split/prioridades/peso/duración/equipo excluido en `config_usuario.json` |
-| `plan_template.py` | Dataclass `Fila` (unidad del plan) + plantilla de referencia |
-| `planificar.py` | Sobrecarga progresiva: doble progresión estricta, RPE de trabajo, deload reactivo, marca anterior. Descarga historial, calcula y sube el plan |
-| `exportar_local.py` | Descarga `historial.csv` + **backup fechado** en `backups/` |
-| `motor_semanal.py` / `.bat` | Orquestador para el Programador de tareas de Windows (log en `motor.log`) |
-| `dashboard.py` | Dashboard Dash/Plotly (progresión, e1RM, PRs, fatiga, peso+cintura, config, plan, mesociclo) |
-| `tests/test_motor.py` | Suite de pruebas + **simulaciones** de cobertura/sobrecarga (45 combos) |
+| Plan de entreno | `ejercicios_db.py` (98 ejercicios) · `enfoques.py` (5 enfoques, 4 splits) · `generador.py` · `planificar.py` (motor semanal) · `entrenador.py` (modelo de fuerza) · `feedback.py` (encuesta, dolor, bienestar, preferencias) · `volumen.py` · `config_usuario.py` |
+| Nutrición | `nutricion.py` (metas, calorías adaptativas, kcal por tipo de día, revisión semanal) · `alimentos_mx.py` (35 alimentos, precios) · `recetas_mx.py` (48 recetas) · `menu.py` (menú semanal barato) |
+| Servidor y datos | `respaldo_semanal.py` / `motor_semanal.py` (la semana sin pisar lo ya subido) · `exportar_local.py` (CSV + respaldos) · `avisos.py` / `recordatorio.py` (push) · `dashboard.py` (11 pestañas + modo demo) |
+| Demo y app | `simulador.py` (atleta virtual) · `demo_motor.py` · `exportar_demo.py` · `exportar_catalogo.py` |
 
-## Correr el motor
+## Comandos
 
 ```powershell
-python planificar.py           # calcula y sube la semana objetivo
-DRY_RUN=1 python planificar.py # solo imprime, no envía  (PowerShell: $env:DRY_RUN=1)
-python dashboard.py            # dashboard en http://127.0.0.1:8050
-python tests/test_motor.py     # corre la suite (debe decir "todas las pruebas pasaron")
+python dashboard.py            # http://127.0.0.1:8050 (o GymTracker.bat en la raíz)
+python planificar.py           # calcula y sube la semana   ($env:DRY_RUN=1 para no subir)
+python menu.py                 # imprime el menú de la semana y la lista del súper
+python exportar_local.py       # baja historial, encuesta, preferencias y nutrición
+python exportar_catalogo.py    # app/src/app/catalogo.generado.ts (si cambias ejercicios)
+python exportar_demo.py        # app/src/app/demo.generado.ts (si cambias la demo o el menú)
 ```
 
-Flujo de `planificar.py`:
+## Pruebas
 
-1. Resuelve el antibot de InfinityFree (reto AES-128/CBC con `pycryptodome`).
-2. Descarga `exportar_csv.php` (historial real).
-3. Calcula la semana objetivo según la posición en el mesociclo de 5 semanas y las
-   reglas de progresión por bloque (basadas en evidencia).
-4. Envía el plan a `actualizar_plan.php`.
-
-## Variables de `.env`
-
-```env
-API_BASE_URL=https://tu-dominio.infinityfreeapp.com/api
-API_TOKEN=el-mismo-token-que-config.php
-MES_INICIO=2026-06-22          # lunes de la S1 del mesociclo (define semana y rotación)
-# SEMANA_SIGUIENTE=2026-06-29  # opcional: forzar semana destino
-# DRY_RUN=1                    # opcional: no envía nada
+```powershell
+python tests/test_motor.py        # reglas del motor, nutrición y menú
+python tests/test_funcional.py    # dashboard, modo demo, estilos de la app
+python tests/test_plan_qa.py      # calidad del plan (35 criterios)
+python tests/test_barrido.py      # 13 440 semanas sin violar topes
+python tests/test_simulacion.py   # el motor como entrenador (9 atletas virtuales)
 ```
+
+Las cinco corren en GitHub Actions antes de cada despliegue.
+
+## Archivos locales (no se versionan)
+
+- **Configuración:** `.env` y `config_usuario.json`.
+- **Datos:** `historial.csv`, `feedback.csv`, `preferencias.csv`, `nutricion.csv` y `peso_corporal.csv`.
+- **Menú:** `menu_semana.json` y `precios_alimentos.json` (tus precios).
+- **Otros:** `backups/` y `motor.log`.
