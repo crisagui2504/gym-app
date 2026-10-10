@@ -532,22 +532,14 @@ def _panel_encuesta() -> html.Div | None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Peso corporal — registro local + tendencia (la báscula pilota las kcal)
+# Peso corporal — registro (CSV local + MySQL) + tendencia (la báscula pilota las kcal)
 # ─────────────────────────────────────────────────────────────────────────────
-PESO_CSV = pathlib.Path(__file__).resolve().parent / "peso_corporal.csv"
+PESO_CSV = pathlib.Path(__file__).resolve().parent / nutricion.CSV_PESO
 
 
 def _cargar_peso() -> pd.DataFrame:
-    if not PESO_CSV.exists():
-        return pd.DataFrame(columns=["fecha", "peso", "cintura"])
-    df = pd.read_csv(PESO_CSV)
-    df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
-    df["peso"] = pd.to_numeric(df["peso"], errors="coerce")
-    if "cintura" not in df:
-        df["cintura"] = pd.NA
-    df["cintura"] = pd.to_numeric(df["cintura"], errors="coerce")
-    return (df.dropna(subset=["fecha", "peso"])
-              .sort_values("fecha").drop_duplicates("fecha", keep="last"))
+    """Copia local de los pesajes (la fuente es MySQL: exportar_local.py la refresca)."""
+    return nutricion.leer_peso_csv(PESO_CSV)
 
 
 def _registrar_peso(peso: float, cintura: float | None = None) -> None:
@@ -591,18 +583,7 @@ def _fig_peso(dfp: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def _tendencia_cintura(dfp: pd.DataFrame) -> float | None:
-    """Cambio de cintura (cm/semana) sobre los registros de los últimos 21 días."""
-    cin = dfp.dropna(subset=["cintura"]) if "cintura" in dfp else dfp.iloc[0:0]
-    if len(cin) < 3:
-        return None
-    cin = cin[cin["fecha"] >= cin["fecha"].max() - pd.Timedelta(days=21)]
-    if len(cin) < 3:
-        return None
-    dias = (cin["fecha"].max() - cin["fecha"].min()).days
-    if dias < 7:
-        return None
-    return float((cin["cintura"].iloc[-1] - cin["cintura"].iloc[0]) / dias * 7)
+_tendencia_cintura = nutricion.tendencia_cintura
 
 
 def _tendencia_semanal(dfp: pd.DataFrame) -> float | None:
@@ -2113,6 +2094,8 @@ def _guardar_peso_cb(n_clicks, peso, cintura):
     if peso and 30 <= float(peso) <= 250:
         cin = float(cintura) if cintura and 40 <= float(cintura) <= 200 else None
         _registrar_peso(float(peso), cin)
+        # la fuente es MySQL (la app tambien registra ahi); si falla, exportar_local lo sube
+        nutricion.subir_peso_en_segundo_plano(date.today().isoformat(), float(peso), cin)
         # mantiene los macros (g/día) y el motor alineados con el peso real
         guardar_config({"peso_corporal": float(peso)})
         nutricion.subir_meta_en_segundo_plano()  # la meta de proteina sigue a tu peso

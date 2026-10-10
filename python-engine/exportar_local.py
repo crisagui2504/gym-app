@@ -5,6 +5,9 @@ Reutiliza el solucionador de antibot de planificar.py.
 Ademas guarda una copia fechada en backups/ (una por dia, se conservan las
 ultimas 30): el historial vive en un hosting gratuito, asi que estas copias
 locales son el verdadero respaldo de tus datos.
+
+Tambien baja el peso corporal (MySQL, tabla peso_corporal) a peso_corporal.csv,
+con su propio backup fechado (backups/peso-AAAA-MM-DD.csv).
 """
 from __future__ import annotations
 
@@ -21,14 +24,15 @@ CABECERAS = (
 )
 
 BACKUPS_MAX = 30
+AQUI = pathlib.Path(__file__).resolve().parent
 
 
-def _respaldar(texto: str) -> None:
+def _respaldar(texto: str, prefijo: str = "historial", raiz: pathlib.Path = AQUI) -> None:
     """Copia fechada en backups/ (sobrescribe la del dia; borra las mas viejas)."""
-    carpeta = pathlib.Path(__file__).resolve().parent / "backups"
+    carpeta = raiz / "backups"
     carpeta.mkdir(exist_ok=True)
-    (carpeta / f"historial-{date.today().isoformat()}.csv").write_text(texto, encoding="utf-8")
-    viejos = sorted(carpeta.glob("historial-*.csv"))[:-BACKUPS_MAX]
+    (carpeta / f"{prefijo}-{date.today().isoformat()}.csv").write_text(texto, encoding="utf-8")
+    viejos = sorted(carpeta.glob(f"{prefijo}-*.csv"))[:-BACKUPS_MAX]
     for v in viejos:
         v.unlink(missing_ok=True)
 
@@ -61,6 +65,25 @@ def main() -> None:
     nut = nutricion.descargar_nutricion(sesion, base_url, token)
     nut.to_csv(destino.parent / nutricion.CSV_NUTRICION, index=False)
     print(f"{nutricion.CSV_NUTRICION} actualizado ({len(nut)} dias)")
+    exportar_peso(sesion, base_url, token)
+
+
+def exportar_peso(sesion, base_url: str, token: str, raiz: pathlib.Path = AQUI):
+    """Peso corporal: la fuente es MySQL (app y dashboard). Lo que solo este en el
+    CSV local se sube antes de reescribirlo (la migracion de la primera vez, o un
+    envio del dashboard que fallo). Devuelve los pesajes, o None sin servidor."""
+    import nutricion
+    ruta = raiz / nutricion.CSV_PESO
+    dfp, subidos = nutricion.sincronizar_peso(sesion, base_url, token, ruta)
+    if dfp is None:
+        print(f"{nutricion.CSV_PESO} sin cambios (el servidor no respondio)")
+        return None
+    _respaldar(ruta.read_text(encoding="utf-8"), "peso", raiz)
+    print(f"{nutricion.CSV_PESO} actualizado ({len(dfp)} pesajes, {subidos} subidos del CSV local) + backup fechado")
+    # el ultimo pesaje manda (macros y meta de proteina de la app)
+    if nutricion.alinear_peso_config(dfp):
+        print(f"peso_corporal de tu config -> {dfp['peso'].iloc[-1]:.1f} kg (meta de nutricion resubida)")
+    return dfp
 
 
 if __name__ == "__main__":

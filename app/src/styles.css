@@ -2448,3 +2448,66 @@ button.menu-li.tengo span {
   margin-top: 2px;
   font-size: 11px;
 }
+
+/* ── Comida: peso de hoy (la bascula pilota las calorias del motor) ─────────── */
+.peso-dia {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+.peso-dia-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.peso-dia-top span {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.peso-dia-campos {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) auto;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.peso-dia-campos input {
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: 16px;               /* 16 px: iOS no hace zoom al escribir */
+}
+
+.peso-dia-campos button {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.peso-dia-msg {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--accent-ink);
+}
+
+.peso-dia-tend {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.peso-dia-tend b {
+  color: var(--text);
+}

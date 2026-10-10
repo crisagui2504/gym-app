@@ -3,7 +3,7 @@ import { Observable, from, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { environment } from '../environments/environment';
 import { fechaLocal } from './entreno-data';
-import type { EjercicioPlan, FeedbackItem, HistorialResponse, MenuSemana, NutricionResponse, RutinaHoyResponse, SeriePayload } from './rutina-api.service';
+import type { EjercicioPlan, FeedbackItem, HistorialResponse, MenuSemana, NutricionResponse, Pesaje, RutinaHoyResponse, SeriePayload } from './rutina-api.service';
 
 /**
  * MODO DEMO (oculto): para ensenar la app sin tocar NADA real.
@@ -230,5 +230,31 @@ export class DemoApiService {
 
   guardarProteina(_fecha: string, _g: number, _porciones: Record<string, number>): Observable<{ ok: boolean }> {
     return of({ ok: true });
+  }
+
+  /** Pesajes del atleta virtual (bajando ~0.25 kg/sem) + lo que anotes en la demo, solo en memoria. */
+  private readonly pesosDemo = new Map<string, Pesaje>();
+
+  getPeso(dias = 60): Observable<{ ok: boolean; pesos: Pesaje[] }> {
+    const hoy = new Date();
+    hoy.setHours(12, 0, 0, 0);
+    const base = new Map<string, Pesaje>();
+    for (let i = 20; i >= 1; i--) {
+      if (i % 6 === 0) continue;                       // algun dia sin pesarse, como en la vida real
+      const f = new Date(hoy);
+      f.setDate(f.getDate() - i);
+      const ruido = [0.3, -0.2, 0.1, -0.3, 0.2][i % 5];
+      base.set(fechaLocal(f), { fecha: fechaLocal(f), peso: Math.round((75 + i * 0.036 + ruido) * 10) / 10,
+                                cintura: i % 7 === 0 ? Math.round((84 + i * 0.03) * 10) / 10 : null });
+    }
+    for (const [k, v] of this.pesosDemo) base.set(k, v);
+    const pesos = [...base.values()].filter((p) => (hoy.getTime() - new Date(p.fecha + 'T12:00').getTime()) / 864e5 <= dias)
+      .sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
+    return of({ ok: true, pesos }).pipe(delay(this.espera));
+  }
+
+  guardarPeso(fecha: string, peso: number, cintura: number | null): Observable<{ ok: boolean }> {
+    this.pesosDemo.set(fecha, { fecha, peso, cintura: cintura ?? this.pesosDemo.get(fecha)?.cintura ?? null });
+    return of({ ok: true }).pipe(delay(this.espera));
   }
 }

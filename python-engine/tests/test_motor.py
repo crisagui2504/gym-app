@@ -1420,6 +1420,120 @@ check("sin lacteos ni sardina: si el calcio queda bajo, lo dice",
       _sin_lacteos["calcio"] >= 900 or any("Calcio bajo" in c for c in _sin_lacteos["consejos"]), str(_sin_lacteos))
 
 print()
+print("== 54. Peso corporal en MySQL: sincronizar sin perder nada ==")
+import tempfile as _tf
+import config_usuario as _cu
+import exportar_local as _exl
+
+
+class _ServidorPeso:
+    """Hace lo mismo que get_peso.php / guardar_peso.php (upsert por fecha, sin
+    cintura conserva la del dia), en memoria. `caido` = sin red; `rechaza` = POST falla."""
+    def __init__(self, filas=None, caido=False, rechaza=False):
+        self.filas = {f["fecha"]: dict(f) for f in (filas or [])}
+        self.caido, self.rechaza, self.posts = caido, rechaza, []
+
+    def _resp(self, datos):
+        r = type("R", (), {})()
+        r.raise_for_status = lambda: None
+        r.json = lambda: datos
+        return r
+
+    def get(self, url, params=None, headers=None, timeout=None):
+        if self.caido:
+            raise ConnectionError("sin red")
+        assert url.endswith("/get_peso.php") and headers["X-API-Token"] == "tk"
+        return self._resp({"ok": True, "pesos": [self.filas[k] for k in sorted(self.filas)]})
+
+    def post(self, url, json=None, headers=None, timeout=None):
+        assert url.endswith("/guardar_peso.php")
+        self.posts.append(dict(json))
+        if self.rechaza:
+            raise ConnectionError("sin red")
+        if not 30 <= json["peso"] <= 250 or not ("cintura" not in json or 40 <= json["cintura"] <= 200):
+            return self._resp({"ok": False})
+        previa = self.filas.get(json["fecha"], {}).get("cintura")
+        self.filas[json["fecha"]] = {"fecha": json["fecha"], "peso": json["peso"],
+                                     "cintura": json.get("cintura", previa)}
+        return self._resp({"ok": True})
+
+
+_d54 = pathlib.Path(_tf.mkdtemp())
+_csv54 = _d54 / nut.CSV_PESO
+pd.DataFrame([{"fecha": "2026-10-01", "peso": 80.0, "cintura": 90.0},
+              {"fecha": "2026-10-02", "peso": 79.8, "cintura": None},
+              {"fecha": "2026-10-03", "peso": 79.9, "cintura": None}]).to_csv(_csv54, index=False)
+_srv = _ServidorPeso([{"fecha": "2026-10-03", "peso": 79.5, "cintura": 89.0},
+                      {"fecha": "2026-10-04", "peso": 79.4, "cintura": None}])
+_dfp, _sub = nut.sincronizar_peso(_srv, "https://x", "tk", _csv54)
+check("migracion: las fechas que solo estaban en el CSV se suben a MySQL",
+      _sub == 2 and sorted(_srv.filas) == ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"], str(_srv.posts))
+check("migracion: la cintura viaja con su pesaje y sin cintura no se manda el campo",
+      _srv.filas["2026-10-01"]["cintura"] == 90.0 and "cintura" not in _srv.posts[1])
+check("si una fecha esta en los dos, gana MySQL (no se pisa lo de la app)",
+      _srv.filas["2026-10-03"]["peso"] == 79.5
+      and float(_dfp.loc[_dfp["fecha"] == pd.Timestamp("2026-10-03"), "peso"].iloc[0]) == 79.5)
+_rel = nut.leer_peso_csv(_csv54)
+check("el CSV queda igual a MySQL, ordenado y con fechas AAAA-MM-DD",
+      list(_rel["fecha"].dt.strftime("%Y-%m-%d")) == sorted(_srv.filas) and list(_rel["peso"]) == [80.0, 79.8, 79.5, 79.4]
+      and "2026-10-01," in _csv54.read_text(encoding="utf-8"))
+_n_posts = len(_srv.posts)
+nut.sincronizar_peso(_srv, "https://x", "tk", _csv54)
+check("la segunda vez no sube nada (la migracion es una sola vez)", len(_srv.posts) == _n_posts)
+_antes = _csv54.read_text(encoding="utf-8")
+check("servidor caido: (None, 0) y el CSV local NO se toca",
+      nut.sincronizar_peso(_ServidorPeso(caido=True), "https://x", "tk", _csv54) == (None, 0)
+      and _csv54.read_text(encoding="utf-8") == _antes)
+_html = _ServidorPeso()
+_html.get = lambda *a, **k: type("R", (), {"raise_for_status": lambda s: None,
+                                          "json": lambda s: (_ for _ in ()).throw(ValueError("antibot"))})()
+check("respuesta HTML (antibot de InfinityFree): tampoco se toca", nut.descargar_peso(_html, "https://x", "tk") is None)
+_dfp, _sub = nut.sincronizar_peso(_ServidorPeso(rechaza=True), "https://x", "tk", _csv54)
+check("si la subida falla, lo local se queda en el CSV para reintentar",
+      _sub == 0 and len(_dfp) == 4 and len(nut.leer_peso_csv(_csv54)) == 4)
+check("sin cintura, el servidor conserva la del dia",
+      nut.subir_peso(_srv, "https://x", "tk", "2026-10-01", 80.2) and _srv.filas["2026-10-01"]["cintura"] == 90.0
+      and _srv.filas["2026-10-01"]["peso"] == 80.2)
+check("peso fuera de rango: el servidor lo rechaza y subir_peso da False",
+      not nut.subir_peso(_srv, "https://x", "tk", "2026-10-05", 10))
+_csv_mal = _d54 / "mal.csv"
+_csv_mal.write_text("fecha,peso\nbasura,xx\n2026-10-02,80\n2026-10-02,79\n", encoding="utf-8")
+check("leer_peso_csv: ignora filas rotas y deja un pesaje por dia (el ultimo)",
+      list(nut.leer_peso_csv(_csv_mal)["peso"]) == [79.0] and nut.leer_peso_csv(_d54 / "no.csv").empty)
+
+# exportar_peso (lo que corre exportar_local cada 3 h) en una carpeta temporal
+_d54b = pathlib.Path(_tf.mkdtemp())
+_meta_subida, _cfg_ruta_real = [], _cu.CONFIG_PATH
+_subir_meta_real = nut.subir_meta
+_cu.CONFIG_PATH = _d54b / "config_usuario.json"
+nut.subir_meta = lambda cfg=None: _meta_subida.append(_cu.cargar_config()["peso_corporal"]) or True
+try:
+    _cu.guardar_config({"peso_corporal": 75, "enfoque": "volumen"})
+    _srv2 = _ServidorPeso([{"fecha": (_hoy49 - timedelta(days=20 - i)).isoformat(), "peso": round(73 + 0.0 * i, 1),
+                            "cintura": None} for i in range(21)])
+    _srv2.filas[_hoy49.isoformat()]["peso"] = 73.4
+    _ex = _exl.exportar_peso(_srv2, "https://x", "tk", _d54b)
+    check("exportar_peso: escribe peso_corporal.csv y su backup fechado",
+          (_d54b / nut.CSV_PESO).exists() and len(list((_d54b / "backups").glob("peso-*.csv"))) == 1)
+    check("el ultimo pesaje pasa a la config y la meta se resube con el",
+          _cu.cargar_config()["peso_corporal"] == 73.4 and _meta_subida == [73.4])
+    _exl.exportar_peso(_srv2, "https://x", "tk", _d54b)
+    check("sin pesaje nuevo no se reescribe la config ni se resube la meta", _meta_subida == [73.4])
+    check("con 21 pesajes las calorias adaptativas YA se activan (no 'pocos_datos')",
+          nut.evaluar(_cu.cargar_config(), _ex, hoy=_hoy49)["estado"] != "pocos_datos")
+    check("exportar_peso sin servidor: None y nada cambia",
+          _exl.exportar_peso(_ServidorPeso(caido=True), "https://x", "tk", _d54b) is None and _meta_subida == [73.4])
+finally:
+    _cu.CONFIG_PATH = _cfg_ruta_real
+    nut.subir_meta = _subir_meta_real
+_cin = pd.DataFrame({"fecha": [pd.Timestamp(_hoy49 - timedelta(days=14 - i)) for i in range(15)],
+                     "peso": [80.0] * 15, "cintura": [90 - i * 0.1 for i in range(15)]})
+_tit, _cuerpo = nut.resumen_semanal({"enfoque": "recomposicion", "peso_corporal": 80}, _cin,
+                                    pd.DataFrame(columns=["fecha", "proteina_g"]), nut.tendencia_cintura(_cin), hoy=_hoy49)
+check("revision del domingo con cintura: detecta la recomposicion",
+      nut.tendencia_cintura(_cin) < -0.2 and "recomposición en marcha" in _cuerpo.lower(), _cuerpo)
+
+print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")
     sys.exit(1)

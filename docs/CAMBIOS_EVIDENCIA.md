@@ -2420,6 +2420,45 @@ Comparadas con MacroFactor, MyFitnessPal, Cronometer, Fitia, Eat This Much y Mea
 - Las 5 suites pasan.
 - Navegador (375 px): app y dashboard.
 
+## CC. Peso corporal en la app y en MySQL (2026-10-10)
+
+**Problema.** Las calorías adaptativas (`nutricion.evaluar`, `tendencia_pct_sem`) y la revisión del domingo dependen de la tendencia del peso, pero el peso solo se podía registrar en el dashboard y vivía en `python-engine/peso_corporal.csv` de la VM, **sin respaldo**. Sin pesajes, ninguna de las dos se activaba nunca.
+
+**API (InfinityFree).**
+
+- Tabla `peso_corporal` (fecha PK, peso, cintura opcional), autocreada como las de nutrición (`peso_tabla.php`) y en `schema.sql`.
+- `guardar_peso.php`: POST `{fecha, peso 30-250, cintura 40-200 opcional}`, upsert por fecha. Sin cintura conserva la que ya hubiera ese día (`COALESCE`): pesarte otra vez no borra la cintura.
+- `get_peso.php?dias=N` (60 por defecto, tope 3650).
+
+**App: "⚖️ Peso de hoy"** en la vista Proteína del panel Comida.
+
+- Peso y cintura opcional; "Anotar" / "Corregir" (un pesaje por día).
+- Sin internet: queda en el teléfono (IndexedDB, `peso-pendiente`) y se reenvía al volver la red o al abrir la app, igual que la proteína. Solo se borra de la cola si no cambió mientras viajaba.
+- Muestra la tendencia con **la misma cuenta que el motor**: recta sobre los pesajes de los últimos 21 días, con al menos 8 pesajes y 10 días de rango. Si faltan, dice cuántos pesajes más hacen falta.
+- Modo demo: el atleta virtual trae 3 semanas de pesajes y lo que anotes queda solo en memoria.
+
+**Motor y dashboard.** La fuente pasa a ser MySQL.
+
+- `exportar_local.py` (cada 3 h en la VM) baja todos los pesajes a `peso_corporal.csv` y guarda un backup fechado (`backups/peso-AAAA-MM-DD.csv`, últimos 30), como el historial.
+- Antes de reescribir el CSV sube a MySQL las fechas que **solo** estén en el CSV local. Así se migra una sola vez lo que hubiera en la VM (hoy no hay nada) y se recupera un envío del dashboard que haya fallado. Si una fecha está en los dos, gana MySQL. Si el servidor no responde, el CSV no se toca.
+- El último pesaje pasa a `peso_corporal` de la config y la meta de proteína/kcal se vuelve a subir (`nutricion.subir_meta` sigue usando el último peso), aunque lo hayas anotado en la app.
+- "Guardar" del dashboard escribe el CSV y además lo manda a la API (en segundo plano).
+- La revisión del domingo ahora también recibe la tendencia de la cintura, para detectar la recomposición.
+
+**Verificación.**
+
+- `test_motor` §54 (17 pruebas), con un servidor simulado que hace lo mismo que los PHP:
+  - migración: sube solo las fechas locales, una sola vez, con su cintura;
+  - si una fecha está en los dos lados, gana MySQL;
+  - servidor caído o respuesta HTML del antibot: el CSV local no se toca;
+  - si la subida falla, lo local se queda para reintentar;
+  - backup fechado, el último peso pasa a la config y la meta se resube (solo si cambió);
+  - con 21 pesajes las calorías adaptativas ya salen de `pocos_datos`;
+  - la revisión del domingo detecta la recomposición con la cintura.
+- `test_funcional`: "Guardar" del dashboard escribe el CSV y llama a la API (simulada).
+- Las 5 suites pasan y `npx ng build` compila sin avisos.
+- Navegador a 375 px, demo y app real: ver abajo.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

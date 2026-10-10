@@ -140,3 +140,12 @@ CREATE TABLE IF NOT EXISTS menu_semana (
   datos MEDIUMTEXT NOT NULL,
   actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Peso corporal (peso_tabla.php): un pesaje por dia (la app o el dashboard).
+-- La cintura es opcional (1-2 veces por semana); re-pesarse sin cintura la conserva.
+CREATE TABLE IF NOT EXISTS peso_corporal (
+  fecha DATE NOT NULL PRIMARY KEY,
+  peso DECIMAL(5,1) NOT NULL,
+  cintura DECIMAL(5,1) NULL,
+  actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

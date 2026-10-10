@@ -72,6 +72,13 @@ export interface NutricionResponse {
   dias: Array<{ fecha: string; proteina_g: number; porciones: Record<string, number> }>;
 }
 
+/** Un pesaje por dia (infinityfree/api/peso_tabla.php); cintura opcional. */
+export interface Pesaje {
+  fecha: string;
+  peso: number;
+  cintura: number | null;
+}
+
 /** Menu semanal barato (python-engine/menu.py), tal cual lo genera el motor. */
 export interface MenuComida {
   tiempo: string;
@@ -190,6 +197,20 @@ export class RutinaApiService {
     return this.http.post<{ ok: boolean }>(
       `${environment.apiBaseUrl}/guardar_proteina.php`,
       { fecha, proteina_g, porciones },
+      { headers: this.headers }
+    );
+  }
+
+  /** Pesajes de los ultimos dias (del mas viejo al mas nuevo). */
+  getPeso(dias = 60): Observable<{ ok: boolean; pesos: Pesaje[] }> {
+    return this.http.get<{ ok: boolean; pesos: Pesaje[] }>(`${environment.apiBaseUrl}/get_peso.php?dias=${dias}`, { headers: this.headers });
+  }
+
+  /** Pesaje del dia (upsert por fecha; sin cintura, el servidor conserva la que tenga). */
+  guardarPeso(fecha: string, peso: number, cintura: number | null): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(
+      `${environment.apiBaseUrl}/guardar_peso.php`,
+      cintura == null ? { fecha, peso } : { fecha, peso, cintura },
       { headers: this.headers }
     );
   }

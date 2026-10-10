@@ -84,6 +84,7 @@ Angular 20 (standalone + signals) como PWA: se agrega a la pantalla de inicio y 
 - **Mover el día de descanso** de la semana, historial de sesiones, mapa muscular, tema claro y oscuro.
 - **Comida** (botón 🍗):
   - **Proteína de hoy:** se anota por porciones mexicanas, sin pesar nada, contra tu meta.
+  - **⚖️ Peso de hoy** (y cintura opcional): se guarda en MySQL, funciona sin internet y muestra tu tendencia (%/semana). Con 8 pesajes en 3 semanas, el motor ya ajusta tus calorías.
   - **Menú de la semana:** comida mexicana barata que llega a tus calorías y proteína, con la lista del súper y su costo (~$55/día en recomposición).
   - **Del día a día:**
     - "Cambiar" una comida por otra parecida;
@@ -112,7 +113,7 @@ Dash + Plotly, público en la VM y también se puede abrir local con `GymTracker
 | Récords | Tu mejor e1RM por ejercicio y la serie que lo logró |
 | Fatiga (RPE) | RPE semanal con zona óptima y zona de descarga, y calibración de tu RPE |
 | Volumen | Series efectivas por músculo contra MEV, MAV y MRV, y lo que cambió la encuesta |
-| Peso corporal | Peso y cintura, **calorías adaptativas** (ajuste según la tendencia real de tu peso, con botón Aplicar) y tu proteína de los últimos 7 días |
+| Peso corporal | Peso y cintura (los de la app y los del dashboard, en MySQL), **calorías adaptativas** (ajuste según la tendencia real de tu peso, con botón Aplicar) y tu proteína de los últimos 7 días |
 | 🍽️ Menú | Menú semanal barato (los 7 días, lista del súper y costo), "No como", "Generar otro" y tus precios |
 | Logbook | Todas las series, con filtros |
 | ⚙ Configuración | Enfoque, split, prioridades, duración, equipo y macros en gramos |

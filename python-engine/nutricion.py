@@ -298,3 +298,139 @@ def leer_nutricion_csv(carpeta=AQUI) -> pd.DataFrame:
         return d.dropna(subset=["fecha"])
     except Exception:  # noqa: BLE001
         return pd.DataFrame(columns=["fecha", "proteina_g"])
+
+
+# ── peso corporal ────────────────────────────────────────────────────────────
+# La FUENTE es MySQL (tabla peso_corporal: lo registran la app y el dashboard).
+# peso_corporal.csv es la copia local que leen el dashboard y la revision del
+# domingo; la reescribe exportar_local.py cada 3 horas (con backup fechado).
+CSV_PESO = "peso_corporal.csv"
+COLUMNAS_PESO = ["fecha", "peso", "cintura"]
+
+
+def _limpiar_peso(df: pd.DataFrame) -> pd.DataFrame:
+    """fecha (datetime), peso y cintura numericos; un pesaje por dia (el ultimo), ordenado."""
+    df = df.copy()
+    for c in COLUMNAS_PESO:
+        if c not in df:
+            df[c] = pd.NA
+    df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
+    df["peso"] = pd.to_numeric(df["peso"], errors="coerce")
+    df["cintura"] = pd.to_numeric(df["cintura"], errors="coerce")
+    return (df.dropna(subset=["fecha", "peso"]).sort_values("fecha")
+              .drop_duplicates("fecha", keep="last")[COLUMNAS_PESO].reset_index(drop=True))
+
+
+def leer_peso_csv(ruta=AQUI / CSV_PESO) -> pd.DataFrame:
+    ruta = pathlib.Path(ruta)
+    if not ruta.exists():
+        return pd.DataFrame(columns=COLUMNAS_PESO)
+    try:
+        return _limpiar_peso(pd.read_csv(ruta))
+    except Exception:  # noqa: BLE001
+        return pd.DataFrame(columns=COLUMNAS_PESO)
+
+
+def tendencia_cintura(dfp: pd.DataFrame) -> float | None:
+    """Cambio de cintura (cm/semana) sobre los registros de los ultimos 21 dias."""
+    cin = dfp.dropna(subset=["cintura"]) if "cintura" in dfp else dfp.iloc[0:0]
+    if len(cin) < 3:
+        return None
+    cin = cin[cin["fecha"] >= cin["fecha"].max() - pd.Timedelta(days=21)]
+    if len(cin) < 3:
+        return None
+    dias = (cin["fecha"].max() - cin["fecha"].min()).days
+    if dias < 7:
+        return None
+    return float((cin["cintura"].iloc[-1] - cin["cintura"].iloc[0]) / dias * 7)
+
+
+def descargar_peso(sesion, base_url: str, token: str, dias: int = 3650) -> pd.DataFrame | None:
+    """Todos los pesajes de MySQL. None si no se pudo (sin red, sin endpoint o el
+    antibot de InfinityFree): entonces NO se toca la copia local."""
+    try:
+        r = sesion.get(f"{base_url}/get_peso.php", params={"dias": dias},
+                       headers={"X-API-Token": token}, timeout=30)
+        r.raise_for_status()
+        j = r.json()
+        if not j.get("ok"):
+            return None
+        filas = j.get("pesos") or []
+    except Exception as e:  # noqa: BLE001
+        print(f"Peso corporal no disponible ({e.__class__.__name__}).")
+        return None
+    return _limpiar_peso(pd.DataFrame(filas, columns=COLUMNAS_PESO))
+
+
+def subir_peso(sesion, base_url: str, token: str, fecha: str, peso: float,
+               cintura: float | None = None) -> bool:
+    """Upsert del pesaje del dia en MySQL (sin cintura, el servidor conserva la que tenga)."""
+    cuerpo = {"fecha": fecha, "peso": round(float(peso), 1)}
+    if cintura is not None and not pd.isna(cintura):
+        cuerpo["cintura"] = round(float(cintura), 1)
+    try:
+        r = sesion.post(f"{base_url}/guardar_peso.php", json=cuerpo,
+                        headers={"X-API-Token": token}, timeout=40)
+        r.raise_for_status()
+        return bool(r.json().get("ok"))
+    except Exception as e:  # noqa: BLE001
+        print(f"Peso no subido ({e.__class__.__name__}): exportar_local lo reintenta.")
+        return False
+
+
+def subir_peso_en_segundo_plano(fecha: str, peso: float, cintura: float | None = None) -> None:
+    """Para el dashboard: el CSV local ya quedo escrito; MySQL se actualiza sin
+    hacer esperar a la pagina. Si falla, exportar_local.py lo sube despues
+    (las fechas que solo estan en el CSV se suben antes de reescribirlo)."""
+    import threading
+
+    def _subir():
+        try:
+            from dotenv import load_dotenv
+            load_dotenv(AQUI / ".env")
+            import planificar as pl
+            base, token = pl.api_config()
+            subir_peso(pl.sesion_infinityfree(base), base, token, fecha, peso, cintura)
+        except Exception as e:  # noqa: BLE001
+            print(f"Peso no subido ({e.__class__.__name__}): exportar_local lo reintenta.")
+
+    threading.Thread(target=_subir, daemon=True).start()
+
+
+def sincronizar_peso(sesion, base_url: str, token: str, ruta=AQUI / CSV_PESO) -> tuple[pd.DataFrame | None, int]:
+    """MySQL -> peso_corporal.csv, sin perder nada:
+    1. las fechas que solo estan en el CSV local (pesajes viejos del dashboard,
+       o uno cuyo envio fallo) se suben a MySQL: asi se migra el CSV la primera vez;
+    2. el CSV se reescribe con MySQL (gana el servidor si una fecha esta en los
+       dos) + lo local que no se pudo subir (se reintenta la proxima vez).
+    Devuelve (pesajes, cuantos se subieron); (None, 0) si el servidor no respondio."""
+    servidor = descargar_peso(sesion, base_url, token)
+    if servidor is None:
+        return None, 0
+    local = leer_peso_csv(ruta)
+    solo_local = local[~local["fecha"].isin(set(servidor["fecha"]))]
+    subidos = sum(subir_peso(sesion, base_url, token, f.fecha.date().isoformat(), f.peso,
+                             None if pd.isna(f.cintura) else f.cintura)
+                  for f in solo_local.itertuples())
+    todo = _limpiar_peso(pd.concat([solo_local, servidor], ignore_index=True)) if len(solo_local) else servidor
+    todo.to_csv(ruta, index=False, date_format="%Y-%m-%d")
+    return todo, int(subidos)
+
+
+def alinear_peso_config(dfp: pd.DataFrame, cfg: dict | None = None) -> bool:
+    """El ultimo pesaje manda: si cambio, va a tu config (macros, maquinas
+    asistidas) y la meta de proteina/kcal se vuelve a subir para la app."""
+    if dfp is None or dfp.empty:
+        return False
+    from config_usuario import cargar_config, guardar_config
+    ultimo = round(float(dfp["peso"].iloc[-1]), 1)
+    cfg = cfg or cargar_config()
+    try:
+        actual = float(cfg.get("peso_corporal") or 0)
+    except (TypeError, ValueError):
+        actual = 0.0
+    if abs(actual - ultimo) < 0.05 or not 30 <= ultimo <= 250:
+        return False
+    guardar_config({"peso_corporal": ultimo})
+    subir_meta()
+    return True

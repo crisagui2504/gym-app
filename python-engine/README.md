@@ -36,7 +36,7 @@ copy .env.example .env      # API_BASE_URL, API_TOKEN, MES_INICIO, VAPID_PRIVADA
 python dashboard.py            # http://127.0.0.1:8050 (o GymTracker.bat en la raíz)
 python planificar.py           # calcula y sube la semana   ($env:DRY_RUN=1 para no subir)
 python menu.py                 # imprime el menú de la semana y la lista del súper
-python exportar_local.py       # baja historial, encuesta, preferencias y nutrición
+python exportar_local.py       # baja historial, encuesta, preferencias, nutrición y peso (MySQL -> CSV)
 python exportar_catalogo.py    # app/src/app/catalogo.generado.ts (si cambias ejercicios)
 python exportar_demo.py        # app/src/app/demo.generado.ts (si cambias la demo o el menú)
 ```

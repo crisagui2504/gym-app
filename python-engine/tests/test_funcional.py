@@ -66,6 +66,20 @@ check("fig peso con cintura", dsh._fig_peso(dfp2) is not None)
 _pp = dsh._panel_peso()
 check("panel de peso: grafica + calorias adaptativas + proteina",
       len(_pp) == 3 and "adaptativas" in str(_pp[1]) and "Prote" in str(_pp[2]))
+# "Guardar" del dashboard: CSV local + MySQL (la subida y la config, simuladas: nada real)
+_subidas, _cfgs = [], []
+_reales = (dsh.guardar_config, dsh.nutricion.subir_peso_en_segundo_plano, dsh.nutricion.subir_meta_en_segundo_plano)
+dsh.guardar_config = _cfgs.append
+dsh.nutricion.subir_peso_en_segundo_plano = lambda *a: _subidas.append(a)
+dsh.nutricion.subir_meta_en_segundo_plano = lambda *a: None
+try:
+    dsh._guardar_peso_cb(1, 74.9, 82.5)
+    dsh._guardar_peso_cb(1, 500, None)          # fuera de rango: ni CSV ni API
+finally:
+    dsh.guardar_config, dsh.nutricion.subir_peso_en_segundo_plano, dsh.nutricion.subir_meta_en_segundo_plano = _reales
+check("Guardar peso en el dashboard: escribe el CSV y lo manda a la API (MySQL)",
+      _subidas == [(hoy.isoformat(), 74.9, 82.5)] and dsh._cargar_peso()["peso"].iloc[-1] == 74.9
+      and _cfgs == [{"peso_corporal": 74.9}], str(_subidas))
 dsh.PESO_CSV = _real_csv
 
 # ── 3. Nutricion en gramos ───────────────────────────────────────────────────

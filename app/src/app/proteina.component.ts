@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { NutricionService, PORCIONES, esDelMenu } from './nutricion';
+import { NutricionService, PESAJES_TENDENCIA, PORCIONES, esDelMenu } from './nutricion';
 import { fechaLocal } from './entreno-data';
 import type { MenuComida, MenuDia } from './rutina-api.service';
 
@@ -28,13 +28,41 @@ import type { MenuComida, MenuDia } from './rutina-api.service';
         Meta {{ meta().proteina_min }}–{{ meta().proteina_max }} g/día<ng-container *ngIf="meta().peso"> para {{ meta().peso }} kg</ng-container>.
         <ng-container *ngIf="nut.promedio7() !== null"> Promedio de tus últimos días: {{ nut.promedio7() | number: '1.0-0' }} g.</ng-container>
       </p>
-      <p class="prot-hint aviso" *ngIf="!nut.meta()">Meta provisional: registra tu peso en el dashboard para calcular la tuya.</p>
+      <p class="prot-hint aviso" *ngIf="!nut.meta()">Meta provisional: anota tu peso aquí abajo y el motor calcula la tuya en unas horas.</p>
 
       <button type="button" class="creatina-fila" [class.on]="nut.creatinaHoy()" (click)="nut.alternarCreatina()">
         <span>💊 Creatina de hoy (3-5 g)</span>
         <b>{{ nut.creatinaHoy() ? '✓ Tomada' : 'Marcar' }}</b>
         <small *ngIf="nut.rachaCreatina() > 1">{{ nut.rachaCreatina() }} días seguidos</small>
       </button>
+
+      <div class="peso-dia">
+        <div class="peso-dia-top">
+          <strong>⚖️ Peso de hoy</strong>
+          <span *ngIf="nut.pesoHoy() as p">✓ {{ p.peso | number: '1.1-1' }} kg<ng-container *ngIf="p.cintura"> · {{ p.cintura | number: '1.0-1' }} cm</ng-container></span>
+        </div>
+        <div class="peso-dia-campos">
+          <input #kg type="number" inputmode="decimal" step="0.1" min="30" max="250" placeholder="kg"
+                 aria-label="Peso en kg" [value]="nut.pesoHoy()?.peso ?? ''" (keyup.enter)="anotarPeso(kg.value, cin.value)">
+          <input #cin type="number" inputmode="decimal" step="0.5" min="40" max="200" placeholder="cintura (opc.)"
+                 aria-label="Cintura en cm (opcional)" [value]="nut.pesoHoy()?.cintura ?? ''" (keyup.enter)="anotarPeso(kg.value, cin.value)">
+          <button type="button" (click)="anotarPeso(kg.value, cin.value)">{{ nut.pesoHoy() ? 'Corregir' : 'Anotar' }}</button>
+        </div>
+        <p class="peso-dia-msg" *ngIf="pesoMsg()">{{ pesoMsg() }}</p>
+        <p class="peso-dia-tend" *ngIf="nut.tendencia() as t; else sinTendencia">
+          Tendencia: <b>{{ conSigno(t.pct, 2) }} %/sem</b> ({{ conSigno(t.kg, 2) }} kg/sem, últimos 21 días).
+          El motor ajusta tus calorías con esto.
+        </p>
+        <ng-template #sinTendencia>
+          <p class="peso-dia-tend">
+            Pésate en ayunas, idealmente a diario.
+            <ng-container *ngIf="faltanPesajes() > 0; else casi">Con {{ faltanPesajes() }} pesaje{{ faltanPesajes() !== 1 ? 's' : '' }}
+              más se ve tu tendencia y el motor ajusta tus calorías.</ng-container>
+            <ng-template #casi>La tendencia necesita pesajes de al menos 10 días.</ng-template>
+          </p>
+        </ng-template>
+        <p class="peso-dia-tend" *ngIf="nut.pesoPendiente()">Sin conexión: el peso queda en el teléfono y se sube solo.</p>
+      </div>
 
       <div class="prot-hoy" *ngIf="anotadas().length">
         <button type="button" *ngFor="let a of anotadas()" (click)="quitar(a)" [attr.aria-label]="'Quitar ' + a.nombre">
@@ -169,6 +197,9 @@ export class ProteinaComponent implements OnInit {
     return [...delMenu, ...sueltas];
   });
 
+  readonly pesoMsg = signal('');
+  readonly faltanPesajes = computed(() => Math.max(0, PESAJES_TENDENCIA - this.nut.pesajes21()));
+
   readonly vista = signal<'prot' | 'menu'>('prot');
   readonly diaSel = signal(((new Date().getDay() + 6) % 7) + 1);     // hoy (1 = lunes)
   readonly dia = computed(() => this.nut.menu()?.dias.find((d) => d.dia === this.diaSel()) ?? null);
@@ -190,6 +221,19 @@ export class ProteinaComponent implements OnInit {
   quitar(a: { id: string; menu: boolean; tiempo: string; n: number }): void {
     if (a.menu) this.nut.alternarMenu(a.tiempo, a.n);
     else this.nut.sumar(a.id, -1);
+  }
+
+  async anotarPeso(kg: string, cintura: string): Promise<void> {
+    const n = (v: string) => Number(String(v).replace(',', '.'));
+    const error = await this.nut.anotarPeso(n(kg), cintura.trim() ? n(cintura) : null);
+    this.pesoMsg.set(error || '✓ Anotado.');
+    if (!error) setTimeout(() => this.pesoMsg() === '✓ Anotado.' && this.pesoMsg.set(''), 2500);
+  }
+
+  /** +0.25 / −0.10 / ±0.00 (nunca "-0.00"). */
+  conSigno(v: number, dec: number): string {
+    const r = Math.round(v * 10 ** dec) / 10 ** dec + 0;
+    return (r > 0 ? '+' : r < 0 ? '−' : '±') + Math.abs(r).toFixed(dec);
   }
 
   async compartir(): Promise<void> {

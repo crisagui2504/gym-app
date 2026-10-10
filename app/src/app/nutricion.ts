@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import * as almacen from './almacen';
 import { fechaLocal } from './entreno-data';
-import { MenuComida, MenuDia, MenuSemana, RutinaApiService } from './rutina-api.service';
+import { MenuComida, MenuDia, MenuSemana, Pesaje, RutinaApiService } from './rutina-api.service';
 import { FilaLista, claveEleccion, cocina, comidasDelDia, listaSuper, textoLista } from './menu-semana';
 
 /**
@@ -83,6 +83,44 @@ interface Pendiente {
   porciones: Record<string, number>;
 }
 
+/** Pesajes que aun no llegan al servidor (sin red), por fecha. */
+type PesosPendientes = Record<string, { peso: number; cintura: number | null }>;
+
+export const PESAJES_TENDENCIA = 8;       // como python-engine/nutricion.py tendencia_pct_sem
+const VENTANA_TENDENCIA = 21;
+
+const mediodia = (fecha: string) => new Date(fecha + 'T12:00:00').getTime();
+
+/** Pesajes de los ultimos 21 dias (inclusive), ordenados. */
+export function pesajesRecientes(pesos: Pesaje[], hoy = new Date()): Pesaje[] {
+  const desde = new Date(hoy);
+  desde.setHours(12, 0, 0, 0);
+  desde.setDate(desde.getDate() - VENTANA_TENDENCIA);
+  const lim = fechaLocal(desde);
+  return pesos.filter((p) => p.fecha >= lim && p.peso > 0).sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
+}
+
+/** Cambio de peso por semana: recta sobre los pesajes de los ultimos 21 dias, la
+ *  misma cuenta que hace el motor para ajustar las calorias (nutricion.py):
+ *  hacen falta 8 pesajes y 10 dias de rango; con menos, la bascula solo mide agua. */
+export function tendenciaPeso(pesos: Pesaje[], hoy = new Date()): { pct: number; kg: number } | null {
+  const d = pesajesRecientes(pesos, hoy);
+  if (d.length < PESAJES_TENDENCIA) return null;
+  const x = d.map((p) => Math.round((mediodia(p.fecha) - mediodia(d[0].fecha)) / 864e5));
+  if (x[x.length - 1] < 10) return null;
+  const y = d.map((p) => Number(p.peso));
+  const mx = x.reduce((s, v) => s + v, 0) / x.length;
+  const my = y.reduce((s, v) => s + v, 0) / y.length;
+  let num = 0;
+  let den = 0;
+  x.forEach((v, i) => {
+    num += (v - mx) * (y[i] - my);
+    den += (v - mx) ** 2;
+  });
+  const kg = (num / den) * 7;
+  return { kg, pct: (kg / my) * 100 };
+}
+
 /** "menu_<tiempo>": comida del menu marcada como "Lo comi"; su valor ya son gramos. */
 export const esDelMenu = (id: string) => id.startsWith('menu_');
 
@@ -112,6 +150,12 @@ export class NutricionService {
   readonly eleccion = signal<Record<string, number>>(this.leerJson('menu-eleccion', {}));
   /** Lo que ya tienes en casa (ids), por semana del menu. */
   readonly tengo = signal<string[]>(this.leerJson('despensa-' + (this.menu()?.semana_inicio ?? ''), []));
+  /** Pesajes (servidor + los que aun no suben), del mas viejo al mas nuevo. */
+  readonly pesos = signal<Pesaje[]>(this.leerJson('pesos-cache', []));
+  readonly pesoPendiente = signal(false);
+  readonly pesoHoy = computed(() => this.pesos().find((p) => p.fecha === fechaLocal(new Date())) ?? null);
+  readonly tendencia = computed(() => tendenciaPeso(this.pesos()));
+  readonly pesajes21 = computed(() => pesajesRecientes(this.pesos()).length);
   /** Dias recientes del servidor (para la racha de creatina). */
   private readonly diasServidor = signal<Array<{ fecha: string; porciones: Record<string, number> }>>([]);
 
@@ -185,6 +229,69 @@ export class NutricionService {
       },
       error: () => this.sinConexion.set(true)
     });
+    this.cargarPesos();
+  }
+
+  // ----- Peso corporal: lo que pilota las calorias (el motor lo lee de MySQL) -----
+  private cargarPesos(): void {
+    this.api.getPeso(60).subscribe({
+      next: async (res) => {
+        const pend = (await almacen.leer<PesosPendientes>('peso-pendiente')) ?? {};
+        // lo que aun no sube manda: es mas nuevo que lo del servidor
+        const todos = new Map((res.pesos ?? []).map((p) => [String(p.fecha).slice(0, 10), {
+          fecha: String(p.fecha).slice(0, 10), peso: Number(p.peso), cintura: p.cintura == null ? null : Number(p.cintura)
+        }]));
+        for (const [fecha, p] of Object.entries(pend)) todos.set(fecha, { fecha, ...p });
+        this.fijarPesos([...todos.values()]);
+        this.pesoPendiente.set(Object.keys(pend).length > 0);
+      },
+      error: () => undefined         // sin red: se queda lo guardado en el telefono
+    });
+  }
+
+  /** Anota (o corrige) el peso de hoy. Devuelve un error para mostrar, o ''. */
+  async anotarPeso(peso: number, cintura: number | null): Promise<string> {
+    if (!(peso >= 30 && peso <= 250)) return 'El peso va de 30 a 250 kg.';
+    if (cintura != null && !(cintura >= 40 && cintura <= 200)) return 'La cintura va de 40 a 200 cm.';
+    const fecha = fechaLocal(new Date());
+    const previa = this.pesos().find((p) => p.fecha === fecha);
+    const nuevo: Pesaje = {
+      fecha,
+      peso: Math.round(peso * 10) / 10,
+      cintura: cintura != null ? Math.round(cintura * 10) / 10 : previa?.cintura ?? null   // sin cintura: conserva la de hoy
+    };
+    this.fijarPesos([...this.pesos().filter((p) => p.fecha !== fecha), nuevo]);
+    const pend = (await almacen.leer<PesosPendientes>('peso-pendiente')) ?? {};
+    pend[fecha] = { peso: nuevo.peso, cintura: nuevo.cintura };
+    await almacen.guardar('peso-pendiente', pend);
+    this.enviarPesos(pend);
+    return '';
+  }
+
+  private fijarPesos(pesos: Pesaje[]): void {
+    const orden = [...pesos].sort((a, b) => (a.fecha < b.fecha ? -1 : 1)).slice(-90);
+    this.pesos.set(orden);
+    this.guardarJson('pesos-cache', orden);
+  }
+
+  /** Upsert por fecha: reenviar es seguro. Solo se borra de la cola si no cambio mientras viajaba. */
+  private enviarPesos(pend: PesosPendientes): void {
+    const fechas = Object.keys(pend);
+    this.pesoPendiente.set(fechas.length > 0);
+    for (const fecha of fechas) {
+      const p = pend[fecha];
+      this.api.guardarPeso(fecha, p.peso, p.cintura).subscribe({
+        next: async () => {
+          const actual = (await almacen.leer<PesosPendientes>('peso-pendiente')) ?? {};
+          if (actual[fecha] && actual[fecha].peso === p.peso && actual[fecha].cintura === p.cintura) {
+            delete actual[fecha];
+            await almacen.guardar('peso-pendiente', actual);
+          }
+          this.pesoPendiente.set(Object.keys(actual).length > 0);
+        },
+        error: () => this.pesoPendiente.set(true)
+      });
+    }
   }
 
   /** Menu de la semana (lo genera el motor); se guarda en el telefono para verlo sin red. */
@@ -328,6 +435,8 @@ export class NutricionService {
   async reenviarPendiente(): Promise<void> {
     const p = await almacen.leer<Pendiente>('proteina-pendiente');
     if (p) this.enviar(p);
+    const pesos = await almacen.leer<PesosPendientes>('peso-pendiente');
+    if (pesos && Object.keys(pesos).length) this.enviarPesos(pesos);
   }
 
   private enviar(p: Pendiente): void {
