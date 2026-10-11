@@ -17,7 +17,7 @@ Todos piden `X-API-Token` (o `?token=` en GET).
 | Entreno | `get_rutina_hoy.php`, `get_historial.php`, `guardar_entreno.php`, `actualizar_plan.php`, `exportar_csv.php`, `get_notas.php` |
 | Encuesta y preferencias | `guardar_feedback.php`, `get_feedback.php`, `guardar_preferencia.php`, `get_preferencias.php` |
 | Avisos push | `guardar_suscripcion.php`, `get_suscripciones.php` |
-| Nutrición | `guardar_proteina.php`, `get_nutricion.php`, `guardar_meta_nutricion.php`, `guardar_menu.php`, `get_menu.php` |
+| Nutrición | `guardar_proteina.php`, `get_nutricion.php`, `guardar_meta_nutricion.php`, `guardar_menu.php`, `get_menu.php`, `guardar_no_me_gusta.php`, `get_no_me_gusta.php` |
 | Peso corporal | `guardar_peso.php`, `get_peso.php` |
 
 Archivos de apoyo: `bootstrap.php` (CORS, PDO, token, JSON) y `*_tabla.php` (crean las tablas automáticas).
@@ -32,6 +32,7 @@ Archivos de apoyo: `bootstrap.php` (CORS, PDO, token, JSON) y `*_tabla.php` (cre
 - `nutricion_dia`
 - `nutricion_meta`
 - `menu_semana`
+- `menu_no_me_gusta`
 - `peso_corporal`
 
 ## `.htaccess`

@@ -2567,6 +2567,59 @@ Comparado con la versión anterior (mismo perfil y semana): antes $358, 22 recet
   - "DASH" genera un menú con todas las reglas en ✓;
   - no hay scroll horizontal.
 
+## CE. Menú comparado con apps probadas: sal en DASH, lista más corta y "No me gusta" (2026-10-10)
+
+**Por qué.** Comparé el menú de la tanda CD con apps de planes de comida ya probadas (Eat This Much, Mealime) y con ensayos de apps DASH. Salieron tres huecos reales.
+
+**1. La sal en DASH.**
+
+- **Hueco:** el límite DASH (2,300 o 1,500 mg) es de todo el sodio del día, pero el menú solo contaba el de los alimentos, no la sal de cocinar. En el menú real de la VM hubo un día con 2,089 mg solo de alimentos: quedaban ~0.5 g de sal para todo el día.
+- **Evidencia:** en el ensayo DASH Cloud (59 mujeres, 3 meses), las dos ramas siguieron en ~3,000 mg de sodio al día, arriba de la meta. Anotar lo que comes y recibir una calificación DASH no lo bajó.
+- **Cambio:**
+  - Se reserva la sal de cocinar. Con 2,300 mg, los alimentos quedan en ≤ 1,500 mg y caben 2 g de sal (⅓ de cucharadita). Con 1,500 mg, los alimentos quedan en ≤ 1,200 mg y caben 0.75 g de sal (⅛ de cucharadita).
+  - Cada día dice "🧂 Sal para cocinar hoy: hasta X g", en gramos y en cucharaditas (app y dashboard).
+  - Las alternativas de "Cambiar" respetan el mismo límite.
+
+**2. La lista del súper (como Mealime).**
+
+- **Hueco:** con 50 opciones, la lista subió de 28 a 37 alimentos distintos, con más paquetes usados a medias.
+- **Referencia:** Mealime arma la semana con recetas que comparten ingredientes para reducir el desperdicio.
+- **Cambio:** el generador cobra $5 virtuales por cada ingrediente que aún no está en la lista de la semana. Así prefiere recetas que reusan lo que ya compraste.
+- **Medido** (12 menús: mexicana, DASH, mediterránea y definición, con 3 semillas cada uno):
+
+  | | Recetas distintas | Cosas en la lista | Costo (por gramos) |
+  |---|---|---|---|
+  | Sin reusar | 25.2 | 34.1 | $431 |
+  | Reusando ($5) | 23.8 | **27.7** (–19 %) | $447 (+4 %) |
+
+  El costo por gramos sube 4 %, pero ese número no ve los paquetes que se quedan a medias.
+
+**3. "No me gusta" por receta o alimento (como Eat This Much).**
+
+- **Hueco:** solo se podían excluir grupos completos (carnes, lácteos…).
+- **App:** botón 👎 en cada comida.
+  - La marca y la cambia por otra opción en ese momento.
+  - "Cambiar" ya no la ofrece.
+  - Sin internet, se guarda en el teléfono y se manda después.
+- **Dashboard:** "No me gustan estas recetas" y "No como estos alimentos", con buscador.
+- **API:** `guardar_no_me_gusta.php` y `get_no_me_gusta.php`, con la tabla `menu_no_me_gusta`, que se crea sola.
+- **Motor:** `generar_y_publicar` baja la lista antes de generar y deja una copia en `no_me_gusta.json`. Las recetas marcadas no salen ni en el menú ni en "Cambiar", y los alimentos marcados se excluyen.
+
+**Lo que no cambié, y por qué.** La lista de reglas con ✓/✗ se queda como información. En DASH Cloud, una calificación DASH de 0 a 9 con las metas cumplidas y fallidas no mejoró la adherencia, y a los participantes no les motivó. En Nourish (301 adultos, app con metas, mensajes y coach), la puntuación DASH a los 6 meses no fue distinta a la del grupo control. No hay que esperar que la lista haga cumplir la dieta.
+
+**Verificación.**
+
+- `tests/test_menu.py` (47 pruebas):
+  - DASH deja ≥ 2 g de sal y los alimentos ≤ 1,500 mg cada día; alimentos + sal = 2,300;
+  - DASH bajo en sodio: alimentos ≤ 1,200 mg;
+  - medidas en cucharaditas;
+  - reusar ingredientes deja ≥ 10 % menos cosas sin bajar de 18 recetas;
+  - la receta marcada no sale ni en "Cambiar" y el alimento marcado en ninguna receta;
+  - una copia local rota se ignora;
+  - el dashboard manda a MySQL solo lo que cambió.
+- PHP sin errores de sintaxis (`php -l`). Las 6 suites pasan y `npx ng build` compila.
+- App en demo a 375 px: 👎 cambia la comida en el momento, "Cambiar" pasa por las opciones 2→3→4 sin volver a la marcada y no hay scroll horizontal.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

@@ -149,3 +149,11 @@ CREATE TABLE IF NOT EXISTS peso_corporal (
   cintura DECIMAL(5,1) NULL,
   actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- "No me gusta" del menu (recetas o alimentos). (auto: api/no_me_gusta_tabla.php)
+CREATE TABLE IF NOT EXISTS menu_no_me_gusta (
+  tipo VARCHAR(10) NOT NULL,
+  id VARCHAR(60) NOT NULL,
+  creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (tipo, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

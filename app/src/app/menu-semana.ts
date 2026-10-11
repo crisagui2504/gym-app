@@ -29,6 +29,14 @@ const TANDAS: Array<[string, string, number[]]> = [
 ];
 const ORDEN_GRUPO: Record<string, number> = { leguminosas: 0, origen_animal: 1, cereales: 2, verduras_frutas: 3, grasas: 4 };
 
+/** Gramos de sal en medidas de cocina (1 cucharadita rasa ~ 6 g); igual que menu.py. */
+export function cucharadita(g: number): string {
+  const tabla: Array<[number, string]> = [[0.5, 'una pizca'], [1.25, '≈ ⅛ de cucharadita'], [1.75, '≈ ¼ de cucharadita'],
+    [2.5, '≈ ⅓ de cucharadita'], [4, '≈ ½ cucharadita'], [5.25, '≈ ¾ de cucharadita']];
+  for (const [limite, txt] of tabla) if (g < limite) return txt;
+  return '≈ 1 cucharadita';
+}
+
 /** La comida que elegiste (0 = la del menu, 1.. = sus alternativas). */
 export function elegida(c: MenuComida, idx: number): MenuComida {
   const alts = c.alternativas ?? [];

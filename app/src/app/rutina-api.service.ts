@@ -101,6 +101,8 @@ export interface MenuDia {
   kcal: number;
   prot: number;
   costo: number;
+  /** Solo DASH: gramos de sal que caben ese dia para cocinar (el limite es de todo el dia). */
+  sal_g?: number | null;
 }
 export interface MenuSemana {
   semana_inicio: string;
@@ -122,6 +124,8 @@ export interface MenuSemana {
                  hierro_h: number; hierro_m: number; calcio_ref: number; consejos: string[];
                  sodio?: number; sat_pct?: number; verdfruta?: number };
   carb_prom?: number;
+  /** Lo que marcaste "no me gusta" cuando se genero este menu. */
+  no_me_gusta?: { recetas: string[]; alimentos: string[] };
   /** Tipo de dieta (mexicana | dash | mediterranea), enfasis y cada regla contra lo que trae el menu. */
   dieta?: { id: string; nombre: string; enfasis: string; enfasis_nombre: string;
             cumple: { regla: string; valor: string; ok: boolean | null; nota?: string }[] };
@@ -202,6 +206,15 @@ export class RutinaApiService {
     return this.http.post<{ ok: boolean }>(
       `${environment.apiBaseUrl}/guardar_proteina.php`,
       { fecha, proteina_g, porciones },
+      { headers: this.headers }
+    );
+  }
+
+  /** Marca (o quita, con baja) una receta o alimento como "no me gusta": el motor ya no lo pone. */
+  guardarNoMeGusta(tipo: 'receta' | 'alimento', id: string, baja = false): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(
+      `${environment.apiBaseUrl}/guardar_no_me_gusta.php`,
+      baja ? { tipo, id, baja: true } : { tipo, id },
       { headers: this.headers }
     );
   }

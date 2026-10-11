@@ -28,6 +28,7 @@ python-engine/preferencias.csv
 python-engine/nutricion.csv
 python-engine/menu_semana.json
 python-engine/precios_alimentos.json
+python-engine/no_me_gusta.json
 python-engine/.recordatorio_enviado
 python-engine/backups/
 python-engine/motor.log

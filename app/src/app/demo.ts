@@ -232,6 +232,11 @@ export class DemoApiService {
     return of({ ok: true });
   }
 
+  /** En la demo el "no me gusta" vive solo en este telefono. */
+  guardarNoMeGusta(_tipo: 'receta' | 'alimento', _id: string, _baja = false): Observable<{ ok: boolean }> {
+    return of({ ok: true });
+  }
+
   /** Pesajes del atleta virtual (bajando ~0.25 kg/sem) + lo que anotes en la demo, solo en memoria. */
   private readonly pesosDemo = new Map<string, Pesaje>();
 

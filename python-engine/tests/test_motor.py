@@ -1242,6 +1242,7 @@ import recetas_mx as rcx
 _lun = date(2026, 10, 12)
 _tmp_precios = pathlib.Path(__import__("tempfile").mkdtemp()) / "precios.json"
 alx.PRECIOS_USUARIO = _tmp_precios          # la prueba nunca toca tus precios reales
+mnu.NO_ME_GUSTA_LOCAL = _tmp_precios.with_name("no_me_gusta.json")   # ni lo que marcaste 👎
 
 check("todas las recetas usan alimentos del catalogo",
       all(aid in alx.ALIMENTOS for r in rcx.RECETAS for aid, _ in r.ingredientes))

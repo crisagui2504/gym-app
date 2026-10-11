@@ -2,7 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import * as almacen from './almacen';
 import { fechaLocal } from './entreno-data';
 import { MenuComida, MenuDia, MenuSemana, Pesaje, RutinaApiService } from './rutina-api.service';
-import { FilaLista, claveEleccion, cocina, comidasDelDia, listaSuper, textoLista } from './menu-semana';
+import { FilaLista, claveEleccion, cocina, comidasDelDia, elegida, listaSuper, textoLista } from './menu-semana';
 
 /**
  * Proteina del dia por PORCIONES (sin pesar comida ni contar calorias): lo que
@@ -148,6 +148,10 @@ export class NutricionService {
   private menuPedido = false;
   /** Comidas que cambiaste: "fecha|tiempo" -> 0 (la del menu) o 1.. (alternativa). */
   readonly eleccion = signal<Record<string, number>>(this.leerJson('menu-eleccion', {}));
+  /** Recetas que marcaste 👎: no se ofrecen en "Cambiar" y el motor ya no las pone. */
+  readonly noMeGusta = signal<string[]>(this.leerJson('no-me-gusta', []));
+  /** Lo que el telefono aun no pudo mandar: id -> alta (true) o baja (false). */
+  private noGustaPend: Record<string, boolean> = this.leerJson('no-me-gusta-pend', {});
   /** Lo que ya tienes en casa (ids), por semana del menu. */
   readonly tengo = signal<string[]>(this.leerJson('despensa-' + (this.menu()?.semana_inicio ?? ''), []));
   /** Pesajes (servidor + los que aun no suben), del mas viejo al mas nuevo. */
@@ -304,6 +308,14 @@ export class NutricionService {
         this.cargandoMenu.set(false);
         if (res.menu) {
           this.menu.set(res.menu);
+          // lo marcado en el dashboard (o en otro telefono) + lo de aqui que aun no sube
+          const servidor = res.menu.no_me_gusta?.recetas ?? [];
+          const juntos = new Set([...this.noMeGusta(), ...servidor]);
+          for (const [id, alta] of Object.entries(this.noGustaPend)) {
+            if (alta) juntos.add(id); else juntos.delete(id);
+          }
+          this.noMeGusta.set([...juntos]);
+          this.guardarJson('no-me-gusta', [...juntos]);
           this.tengo.set(this.leerJson('despensa-' + res.menu.semana_inicio, []));
           try {
             localStorage.setItem('menu-semana', JSON.stringify(res.menu));
@@ -339,18 +351,56 @@ export class NutricionService {
     return this.eleccion()[claveEleccion(d, c)] ?? 0;
   }
 
-  /** Pasa a la siguiente opcion de esa comida (la del menu y sus alternativas, en circulo). */
+  /** Pasa a la siguiente opcion de esa comida (la del menu y sus alternativas, en circulo),
+   *  saltando las que marcaste 👎. */
   cambiarComida(d: MenuDia, c: MenuComida): void {
     const n = 1 + (c.alternativas?.length ?? 0);
     if (n < 2) return;
     const clave = claveEleccion(d, c);
-    const nueva = { ...this.eleccion(), [clave]: ((this.eleccion()[clave] ?? 0) + 1) % n };
+    const actual = this.eleccion()[clave] ?? 0;
+    let sig = (actual + 1) % n;
+    for (let i = 0; i < n - 1 && this.noGusta(elegida(c, sig).receta); i++) sig = (sig + 1) % n;
+    if (sig === actual) return;
+    const nueva = { ...this.eleccion(), [clave]: sig };
     this.eleccion.set(nueva);
     this.guardarJson('menu-eleccion', nueva);
     // si ya la habias marcado como comida, se actualiza con la proteina de la nueva
     if (d.fecha === fechaLocal(new Date()) && this.comioMenu(c.tiempo)) {
       this.alternarMenu(c.tiempo, 0);
       this.alternarMenu(c.tiempo, this.comidaDe(d, c).prot);
+    }
+  }
+
+  noGusta(receta: string): boolean {
+    return this.noMeGusta().includes(receta);
+  }
+
+  /** 👎 en una comida: se marca (o se desmarca) y, si es la que tocaba, se cambia por otra. */
+  marcarNoMeGusta(d: MenuDia, c: MenuComida): void {
+    const receta = this.comidaDe(d, c).receta;
+    const alta = !this.noGusta(receta);
+    const lista = alta ? [...this.noMeGusta(), receta] : this.noMeGusta().filter((x) => x !== receta);
+    this.noMeGusta.set(lista);
+    this.guardarJson('no-me-gusta', lista);
+    this.noGustaPend = { ...this.noGustaPend, [receta]: alta };
+    this.guardarJson('no-me-gusta-pend', this.noGustaPend);
+    this.enviarNoMeGusta();
+    if (alta) this.cambiarComida(d, c);
+  }
+
+  private enviarNoMeGusta(): void {
+    for (const [id, alta] of Object.entries(this.noGustaPend)) {
+      this.api.guardarNoMeGusta('receta', id, !alta).subscribe({
+        next: () => {
+          // solo se borra si no lo volviste a tocar mientras viajaba
+          if (this.noGustaPend[id] === alta) {
+            const { [id]: _, ...resto } = this.noGustaPend;
+            this.noGustaPend = resto;
+            this.guardarJson('no-me-gusta-pend', resto);
+          }
+        },
+        error: () => this.sinConexion.set(true)
+      });
     }
   }
 
@@ -437,6 +487,7 @@ export class NutricionService {
     if (p) this.enviar(p);
     const pesos = await almacen.leer<PesosPendientes>('peso-pendiente');
     if (pesos && Object.keys(pesos).length) this.enviarPesos(pesos);
+    if (Object.keys(this.noGustaPend).length) this.enviarNoMeGusta();
   }
 
   private enviar(p: Pendiente): void {

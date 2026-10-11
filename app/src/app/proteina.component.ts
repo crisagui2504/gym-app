@@ -3,6 +3,7 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { NutricionService, PESAJES_TENDENCIA, PORCIONES, esDelMenu } from './nutricion';
 import { fechaLocal } from './entreno-data';
 import type { MenuComida, MenuDia } from './rutina-api.service';
+import { cucharadita } from './menu-semana';
 
 /** Panel "Comida": proteína del día por porciones y el menú barato de la semana. */
 @Component({
@@ -145,6 +146,9 @@ import type { MenuComida, MenuDia } from './rutina-api.service';
                 · {{ t.kcal | number: '1.0-0' }} kcal · {{ t.prot | number: '1.0-0' }} g · \${{ t.costo | number: '1.0-0' }}
               </ng-container>
             </p>
+            <p class="menu-sal" *ngIf="d.sal_g != null">
+              🧂 Sal para cocinar hoy: hasta {{ d.sal_g | number: '1.1-1' }} g ({{ cucharadita(d.sal_g) }}), en la olla y en la mesa
+            </p>
             <ng-container *ngFor="let c0 of d.comidas">
             <div class="menu-comida" *ngIf="nut.comidaDe(d, c0) as c">
               <span class="menu-t">{{ etiqueta[c.tiempo] || c.tiempo }}</span>
@@ -155,6 +159,11 @@ import type { MenuComida, MenuDia } from './rutina-api.service';
                 <button type="button" class="menu-comi" *ngIf="esHoy(d)" [class.on]="nut.comioMenu(c.tiempo)"
                         (click)="nut.alternarMenu(c.tiempo, c.prot)">
                   {{ nut.comioMenu(c.tiempo) ? '✓ Comido · +' + (c.prot | number: '1.0-0') + ' g' : 'Lo comí (+' + (c.prot | number: '1.0-0') + ' g)' }}
+                </button>
+                <button type="button" class="menu-nogusta" [class.on]="nut.noGusta(c.receta)"
+                        (click)="nut.marcarNoMeGusta(d, c0)"
+                        [attr.aria-label]="nut.noGusta(c.receta) ? 'Quitar no me gusta' : 'No me gusta: no volver a ponerla'">
+                  👎{{ nut.noGusta(c.receta) ? ' No me gusta' : '' }}
                 </button>
                 <button type="button" class="menu-cambiar" *ngIf="c0.alternativas?.length" (click)="nut.cambiarComida(d, c0)">
                   ⟳ Cambiar ({{ nut.opcionDe(d, c0) + 1 }}/{{ (c0.alternativas?.length ?? 0) + 1 }})
@@ -215,6 +224,7 @@ export class ProteinaComponent implements OnInit {
   readonly vista = signal<'prot' | 'menu'>('prot');
   readonly diaSel = signal(((new Date().getDay() + 6) % 7) + 1);     // hoy (1 = lunes)
   readonly dia = computed(() => this.nut.menu()?.dias.find((d) => d.dia === this.diaSel()) ?? null);
+  readonly cucharadita = cucharadita;
   readonly etiqueta: Record<string, string> = { desayuno: 'Desayuno', comida: 'Comida', colacion: 'Colación', cena: 'Cena' };
 
   ngOnInit(): void {

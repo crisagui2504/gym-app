@@ -58,5 +58,5 @@ Las seis corren en GitHub Actions antes de cada despliegue.
 
 - **Configuración:** `.env` y `config_usuario.json`.
 - **Datos:** `historial.csv`, `feedback.csv`, `preferencias.csv`, `nutricion.csv` y `peso_corporal.csv`.
-- **Menú:** `menu_semana.json` y `precios_alimentos.json` (tus precios).
+- **Menú:** `menu_semana.json`, `precios_alimentos.json` (tus precios) y `no_me_gusta.json` (copia de lo que marcaste 👎).
 - **Otros:** `backups/` y `motor.log`.

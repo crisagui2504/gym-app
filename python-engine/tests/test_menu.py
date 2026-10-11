@@ -15,7 +15,9 @@ import menu as mnu  # noqa: E402
 import nutricion  # noqa: E402
 import recetas_mx as rcx  # noqa: E402
 
-alx.PRECIOS_USUARIO = pathlib.Path(tempfile.mkdtemp()) / "precios.json"   # nunca tus precios reales
+TMP = pathlib.Path(tempfile.mkdtemp())
+alx.PRECIOS_USUARIO = TMP / "precios.json"          # nunca tus precios reales
+mnu.NO_ME_GUSTA_LOCAL = TMP / "no_me_gusta.json"    # ni lo que marcaste 👎
 FALLAS: list[str] = []
 LUN = date(2026, 10, 12)
 BASE = {"enfoque": "recomposicion", "peso_corporal": 73}
@@ -74,10 +76,24 @@ check("cambia a descremada, integral y magra (nunca leche entera, arroz blanco, 
 check("carne roja <= 2 veces", sum(1 for d in dash["dias"] for c in d["comidas"]
                                     if any(i["id"] in mnu.CARNE_ROJA for i in c["ingredientes"])) <= 2)
 baja = mnu.generar_menu({**BASE, "menu_dieta": "dash", "menu_sodio_max": 1500}, LUN)
+check("DASH deja sal para cocinar: alimentos <= 1,500 mg y >= 2 g de sal cada dia",
+      all(d["sodio"] <= 1500 and d["sal_g"] >= 2.0 for d in dash["dias"]),
+      str([(d["sodio"], d["sal_g"]) for d in dash["dias"]]))
+check("la sal del dia cuadra: alimentos + sal = 2,300 mg",
+      all(abs(d["sodio"] + d["sal_g"] * mnu.SAL_G_MG - 2300) <= 25 for d in dash["dias"]))
+check("la regla de sal se dice en medidas de cocina",
+      "cucharadita" in regla(dash, "Sal para cocinar")["valor"] and regla(dash, "Sal para cocinar")["ok"])
+check("sin DASH no se habla de sal", all(d["sal_g"] is None for d in m0["dias"]))
+check("cucharaditas: 2 g ~ 1/3, 0.75 g ~ 1/8, 6 g ~ 1",
+      "⅓" in mnu.cucharadita(2.0) and "⅛" in mnu.cucharadita(0.75) and mnu.cucharadita(6) == "≈ 1 cucharadita")
+check("DASH bajo en sodio: alimentos <= 1,200 mg (deja ~0.75 g de sal) y lo dice",
+      all(d["sodio"] <= 1200 and d["sal_g"] >= 0.7 for d in baja["dias"])
+      and all(d["sodio"] + d["sal_g"] * mnu.SAL_G_MG <= 1525 for d in baja["dias"]),
+      str([(d["sodio"], d["sal_g"]) for d in baja["dias"]]))
 check("DASH bajo en sodio: cada dia <= 1,500 mg y lo dice",
       all(d["sodio"] <= 1500 for d in baja["dias"]) and "1,500" in baja["dieta"]["nombre"])
 check("las alternativas (Cambiar) tampoco pasan el sodio del dia",
-      all(d["sodio"] - c["sodio"] + a["sodio"] <= 1500 + 30
+      all(d["sodio"] - c["sodio"] + a["sodio"] <= 1200 + 30
           for d in baja["dias"] for c in d["comidas"] for a in c.get("alternativas", [])))
 sin_lac = mnu.generar_menu({**BASE, "menu_dieta": "dash", "alimentos_excluidos": ["lacteos"]}, LUN)
 r = regla(sin_lac, "Lácteos")
@@ -113,6 +129,57 @@ check("las kcal no cambian con el enfasis (+/-10 %)",
 mix = mnu.generar_menu({**BASE, "menu_dieta": "dash", "menu_enfasis": "proteina"}, LUN)
 check("DASH + mas proteina: las dos cosas a la vez",
       all(r["ok"] for r in mix["dieta"]["cumple"]) and mix["prot_prom"] >= meta["proteina_max"] - 3)
+
+print("\n== Lista del super: reusar ingredientes (como Mealime) ==")
+_antes = mnu.NUEVO_INGREDIENTE
+mnu.NUEVO_INGREDIENTE = 0.0
+sin_reuso = [len(mnu.generar_menu({**BASE, **x}, LUN, s)["lista"]) for x in ({}, {"menu_dieta": "dash"}) for s in (1, 2, 3)]
+mnu.NUEVO_INGREDIENTE = _antes
+con_reuso = [len(mnu.generar_menu({**BASE, **x}, LUN, s)["lista"]) for x in ({}, {"menu_dieta": "dash"}) for s in (1, 2, 3)]
+check("reusar ingredientes deja al menos 10 % menos cosas en la lista",
+      sum(con_reuso) <= 0.9 * sum(sin_reuso), f"{con_reuso} vs {sin_reuso}")
+check("y sin perder variedad (18+ recetas distintas)",
+      len({c["receta"] for d in m0["dias"] for c in d["comidas"]}) >= 18)
+
+print("\n== No me gusta ==")
+favorita = m0["dias"][0]["comidas"][1]["receta"]
+mnu._guardar_no_me_gusta({favorita}, {"frijol"})
+nm = mnu.generar_menu(BASE, LUN)
+todas = {x["receta"] for d in nm["dias"] for c in d["comidas"] for x in [c, *c.get("alternativas", [])]}
+check("la receta marcada no sale ni en el menu ni en Cambiar", favorita not in todas)
+check("el alimento marcado no sale en ninguna receta", "frijol" not in ids(nm)
+      and not any(i["id"] == "frijol" for d in nm["dias"] for c in d["comidas"] for a in c.get("alternativas", [])
+                  for i in a["ingredientes"]))
+check("el menu dice que tienes marcado (la app lo usa)",
+      nm["no_me_gusta"] == {"recetas": [favorita], "alimentos": ["frijol"]})
+mnu.NO_ME_GUSTA_LOCAL.write_text("{roto", encoding="utf-8")
+check("copia local rota: se ignora (no truena el menu)", mnu.no_me_gusta() == (set(), set()))
+
+
+class _Sesion:
+    def __init__(self):
+        self.envios = []
+
+    def post(self, url, headers=None, timeout=None, json=None):
+        self.envios.append(json)
+        return type("R", (), {"raise_for_status": lambda s: None})()
+
+
+_s = _Sesion()
+_api_real = mnu._api
+mnu._api = lambda: (_s, "https://x/api", "t")
+mnu._guardar_no_me_gusta({"tacos_lentejas", "bowl_frijol"}, set())
+mnu.fijar_no_me_gusta({"tacos_lentejas", "atun_mexicana"}, {"huevo"})
+check("dashboard: solo se manda a MySQL lo que cambio (alta, baja y alimento)",
+      sorted(map(str, _s.envios)) == sorted(map(str, [{"tipo": "receta", "id": "atun_mexicana"},
+                                                       {"tipo": "receta", "id": "bowl_frijol", "baja": True},
+                                                       {"tipo": "alimento", "id": "huevo"}]))
+      and mnu.no_me_gusta() == ({"tacos_lentejas", "atun_mexicana"}, {"huevo"}), str(_s.envios))
+_s.envios.clear()
+mnu.fijar_no_me_gusta({"tacos_lentejas", "atun_mexicana"}, {"huevo"})
+check("sin cambios no se manda nada", _s.envios == [])
+mnu._api = _api_real
+mnu.NO_ME_GUSTA_LOCAL.unlink()
 
 print("\n== Barrido: 4 enfoques x 3 pesos x 3 dietas x 3 enfasis ==")
 errores, sin_aviso = [], []

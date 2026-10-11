@@ -341,6 +341,9 @@ No se versionan:
    - tope de usos por receta;
    - comida y cena sin la misma proteína;
    - como máximo 4 huevos al día.
+   - **Sal en DASH:** el límite de sodio es de todo el día, y la mayor parte viene de la sal. A los alimentos les toca el límite menos la sal de cocinar: ≤ 1,500 mg con 2 g de sal (⅓ de cucharadita) para 2,300, y ≤ 1,200 mg con 0.75 g para 1,500. Cada día dice cuánta sal cabe (`sal_g`).
+   - **Reusar ingredientes (como Mealime):** $5 virtuales por cada ingrediente que aún no está en la lista de la semana. La lista baja ~19 % (34 → 28 cosas en promedio) con la misma variedad.
+   - **No me gusta:** las recetas y alimentos marcados (app 👎, dashboard) no salen ni en el menú ni en "Cambiar". Copia local en `no_me_gusta.json`; `generar_y_publicar` la actualiza desde MySQL antes de generar.
 4. **Etapas de respaldo:** dieta completa con énfasis → más holgura → dieta básica (sodio, saturada, verdura mínima) → sin énfasis → sin dieta → sin proteína → sin variedad; nunca el huevo. Cada cosa que se suelta se avisa. Con exclusiones fuertes hay menú en vez de error.
 5. **Presupuesto (`menu_presupuesto`):** si no cabe, baja la variedad en 3 pasos. Si aun así no cabe, avisa lo mínimo posible.
 6. **Hogar:** la lista y la cocina se multiplican por adultos + 0.6 × niños.
@@ -407,6 +410,8 @@ Valores de `guardar_feedback.php`:
 | `guardar_meta_nutricion.php` | POST | `{proteina_min, proteina_max (20–500), kcal? (800–6000), peso?, enfoque?}` | `{ok}` (lo sube el motor) |
 | `guardar_menu.php` | POST | `{semana_inicio, menu: {dias: [...], …}}`, hasta 400 KB | `{ok}` (lo sube el motor) |
 | `get_menu.php` | GET | `fecha` (opcional; hoy) | `{ok, menu \| null}`: el menú más reciente que empezó en las 2 semanas previas a `fecha` |
+| `guardar_no_me_gusta.php` | POST | `{tipo: receta \| alimento, id ([a-z0-9_], hasta 60), baja?}` | `{ok}`. Marca o quita un "no me gusta" (la app con 👎, el dashboard); marcarlo dos veces no duplica. |
+| `get_no_me_gusta.php` | GET | — | `{ok, recetas: [...], alimentos: [...]}` (lo baja `menu.py` antes de generar) |
 | `guardar_peso.php` | POST | `{fecha, peso (30–250), cintura? (40–200)}` | `{ok}`. Un pesaje por día (upsert); sin `cintura` conserva la que ya hubiera ese día. Lo usan la app y el dashboard. |
 | `get_peso.php` | GET | `dias` (1–3650, defecto 60) | `{ok, pesos: [{fecha, peso, cintura \| null}]}`, del más viejo al más nuevo (la app y `exportar_local.py`) |
 
@@ -432,6 +437,7 @@ Reglas de `porciones` en `guardar_proteina.php`:
 | `nutricion_dia` *(auto)* | Proteína del día: `fecha` es la llave, con `proteina_g` y `porciones` (JSON). |
 | `nutricion_meta` *(auto)* | Una sola fila (`id = 1`) con el rango de proteína, kcal, peso y enfoque. |
 | `menu_semana` *(auto)* | Un menú por semana (`semana_inicio`, `datos` en JSON). |
+| `menu_no_me_gusta` *(auto)* | Recetas o alimentos marcados "no me gusta": llave (`tipo`, `id`). |
 | `peso_corporal` *(auto)* | Un pesaje por día: `fecha` es la llave, con `peso` y `cintura` (opcional). Fuente de las calorías adaptativas; el motor lo baja a `peso_corporal.csv`. |
 
 Todas están también en `infinityfree/schema.sql`.
@@ -447,7 +453,7 @@ Cada push a `main` que toque `app/`, `infinityfree/`, `python-engine/` o `instan
    | Suite | Qué comprueba |
    |---|---|
    | `test_motor.py` | Reglas del motor, nutrición, menú, calorías por día, presupuesto, peso corporal (54 secciones). |
-   | `test_menu.py` | Menú de 50 opciones: reglas DASH y mediterránea, énfasis, variedad, barrido de 108 perfiles. |
+   | `test_menu.py` | Menú de 50 opciones: reglas DASH (con la sal de cocinar) y mediterránea, énfasis, variedad, lista corta, "no me gusta", barrido de 108 perfiles. |
    | `test_funcional.py` | Dashboard y helpers, aislamiento del modo demo y su API, menú en demo, **selectores CSS duplicados** en `app/src/styles.css`. |
    | `test_plan_qa.py` | 35 criterios de calidad del plan. |
    | `test_barrido.py` | 13 440 semanas sin violar topes. |

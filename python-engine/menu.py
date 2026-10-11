@@ -30,6 +30,7 @@ from recetas_mx import RECETAS, Receta
 
 AQUI = pathlib.Path(__file__).resolve().parent
 MENU_LOCAL = AQUI / "menu_semana.json"       # copia para el dashboard (ignorada por git)
+NO_ME_GUSTA_LOCAL = AQUI / "no_me_gusta.json"  # copia de lo que marcaste en la app o el dashboard
 ESCALAS = (0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5)  # tamano de las 3 comidas del dia
 TOLERANCIA_KCAL = 0.05
 MAX_HUEVO_DIA = 200          # g: 4 huevos al dia como mucho (variedad, no salud)
@@ -37,6 +38,8 @@ TOPE_USOS = {"desayuno": 2, "comida": 1, "cena": 1, "colacion": 2}   # con ~50 o
 PENALIZA_REPETIR = 9.0       # $ "virtuales" por cada vez que la receta ya salio
 NOMBRES_DIA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 RUIDO = 4.0                  # $ virtuales de azar por receta (variedad entre semanas)
+NUEVO_INGREDIENTE = 5.0      # $ virtuales por cada ingrediente que no esta ya en tu lista de la semana
+SAL_G_MG = 393               # mg de sodio en 1 g de sal (cloruro de sodio)
 POR_TIEMPO_DIA = 18          # recetas de cada tiempo que se combinan cada dia (de ~50; cambia el dia a dia)
 
 # Grupos para las reglas de cada dieta
@@ -62,7 +65,7 @@ DIETAS = {
     "dash": {"nombre": "DASH (presión arterial)",
              "cambios": {"leche": "leche_light", "arroz": "arroz_integral", "pasta": "pasta_integral",
                          "res": "res_magra", "pollo": "pechuga", "queso_fresco": "panela"},
-             "sodio_max": 2300, "sat_pct": 0.07, "verdfruta": (400, 600), "lacteos_min": 2, "roja_max": 2,
+             "sodio_max": 2300, "sal_g": 2.0, "sat_pct": 0.07, "verdfruta": (400, 600), "lacteos_min": 2, "roja_max": 2,
              "pescado_min": 0},
     "mediterranea": {"nombre": "Mediterránea",
                      "cambios": {"aceite": "aceite_oliva", "res": "res_magra"},
@@ -77,7 +80,12 @@ def dieta_de(cfg: dict) -> tuple[str, dict]:
     d = dict(DIETAS[clave])
     if clave == "dash" and int(cfg.get("menu_sodio_max") or 2300) <= 1500:
         d["sodio_max"] = 1500
+        d["sal_g"] = 0.75
         d["nombre"] = "DASH bajo en sodio (1,500 mg)"
+    # La mayor parte del sodio viene de la sal y de lo procesado: el limite DASH es
+    # de TODO el dia, asi que a los alimentos les toca el limite menos la sal que
+    # vas a usar al cocinar (2 g ~ 1/3 de cucharadita; 0.75 g en la version baja).
+    d["sodio_alimentos"] = int((d["sodio_max"] - d["sal_g"] * SAL_G_MG) // 50 * 50) if d["sodio_max"] else None
     return clave, d
 
 
@@ -96,7 +104,75 @@ def excluidos(cfg: dict) -> set[str]:
         fuera.update(alx.GRUPOS_EXCLUIBLES.get(x, [x]))
     if not cfg.get("menu_suplementos", False):
         fuera.add("proteina_polvo")          # solo si lo activas: comida primero
+    fuera |= no_me_gusta()[1]
     return fuera
+
+
+def cucharadita(g: float) -> str:
+    """Gramos de sal en medidas de cocina (1 cucharadita rasa ~ 6 g)."""
+    for limite, txt in ((0.5, "una pizca"), (1.25, "≈ ⅛ de cucharadita"), (1.75, "≈ ¼ de cucharadita"),
+                        (2.5, "≈ ⅓ de cucharadita"), (4.0, "≈ ½ cucharadita"), (5.25, "≈ ¾ de cucharadita")):
+        if g < limite:
+            return txt
+    return "≈ 1 cucharadita"
+
+
+def no_me_gusta() -> tuple[set[str], set[str]]:
+    """(recetas, alimentos) que marcaste "no me gusta" (copia local de MySQL)."""
+    try:
+        d = json.loads(NO_ME_GUSTA_LOCAL.read_text(encoding="utf-8"))
+        validos_r = {r.id for r in RECETAS}
+        return ({x for x in d.get("recetas", []) if x in validos_r},
+                {x for x in d.get("alimentos", []) if x in alx.ALIMENTOS})
+    except (OSError, ValueError, AttributeError):
+        return set(), set()
+
+
+def _guardar_no_me_gusta(recetas: set[str], alimentos: set[str]) -> None:
+    NO_ME_GUSTA_LOCAL.write_text(json.dumps({"recetas": sorted(recetas), "alimentos": sorted(alimentos)},
+                                            ensure_ascii=False), encoding="utf-8")
+
+
+def _api():
+    from dotenv import load_dotenv
+    load_dotenv(AQUI / ".env")
+    import planificar as pl
+    base, token = pl.api_config()
+    return pl.sesion_infinityfree(base), base, token
+
+
+def descargar_no_me_gusta() -> bool:
+    """Baja lo que marcaste en la app. Si el servidor no responde, se queda la copia local."""
+    try:
+        sesion, base, token = _api()
+        r = sesion.get(f"{base}/get_no_me_gusta.php", headers={"X-API-Token": token}, timeout=20)
+        r.raise_for_status()
+        j = r.json()
+        if not j.get("ok"):
+            return False
+        _guardar_no_me_gusta(set(j.get("recetas") or []), set(j.get("alimentos") or []))
+        return True
+    except Exception as e:  # noqa: BLE001
+        print(f"No me gusta no disponible ({e.__class__.__name__}): se usa la copia local.")
+        return False
+
+
+def fijar_no_me_gusta(recetas: set[str], alimentos: set[str]) -> None:
+    """Lo que elegiste en el dashboard: se guarda local y se manda a MySQL solo lo que cambio."""
+    antes_r, antes_a = no_me_gusta()
+    _guardar_no_me_gusta(set(recetas), set(alimentos))
+    cambios = ([("receta", x, False) for x in set(recetas) - antes_r] + [("receta", x, True) for x in antes_r - set(recetas)]
+               + [("alimento", x, False) for x in set(alimentos) - antes_a]
+               + [("alimento", x, True) for x in antes_a - set(alimentos)])
+    if not cambios:
+        return
+    try:
+        sesion, base, token = _api()
+        for tipo, x, baja in cambios:
+            sesion.post(f"{base}/guardar_no_me_gusta.php", headers={"X-API-Token": token}, timeout=20,
+                        json={"tipo": tipo, "id": x, **({"baja": True} if baja else {})}).raise_for_status()
+    except Exception as e:  # noqa: BLE001
+        print(f"No me gusta no subido ({e.__class__.__name__}): queda en la copia local.")
 
 
 def _valores(r: Receta, precios: dict[str, float]) -> tuple[float, float, float]:
@@ -221,7 +297,8 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
     por_dia = nutricion.kcal_por_dia(cfg)
     precios = precios or alx.precios()
     fuera = excluidos(cfg)
-    disp = [_con_dieta(r, dieta["cambios"], fuera) for r in RECETAS]
+    no_recetas, _ = no_me_gusta()
+    disp = [_con_dieta(r, dieta["cambios"], fuera) for r in RECETAS if r.id not in no_recetas]
     disp = [r for r in disp if not any(aid in fuera for aid, _ in r.ingredientes)]
     grupos = {t: [r for r in disp if r.tiempo == t] for t in ("desayuno", "comida", "cena", "colacion")}
     for t in ("desayuno", "comida", "cena"):
@@ -233,6 +310,7 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
     vf_min, vf_ideal = dieta["verdfruta"]
 
     usos: dict[str, int] = {}
+    comprados: set[str] = set()          # lo que ya esta en la lista del super de esta semana
     semana = {"roja": 0, "pescado": 0}
     dias, avisos = [], []
     for i in range(7):
@@ -302,7 +380,13 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
         ruido = ((rd[:, None, None, None, None] + rc[None, :, None, None, None] + rn[None, None, :, None, None])
                  * esc[None, None, None, :, None])          # crece con la porcion, como el costo
         desvio = np.abs(kcal - K)
-        objetivo = costo + castigo + ruido + desvio * 0.01 + suave + premio_pescado
+        # Como Mealime: preferir recetas que reusan lo que ya compraste en la semana
+        # (menos cosas distintas en la lista y menos paquetes a medias)
+        nd, nc, nn, ns = (np.array([len({a for a, _ in r.ingredientes} - comprados) if r else 0 for r in L], float)
+                          for L in (D, C, N, SN))
+        reuso = NUEVO_INGREDIENTE * (nd[:, None, None, None, None] + nc[None, :, None, None, None]
+                                     + nn[None, None, :, None, None] + ns[None, None, None, None, :])
+        objetivo = costo + castigo + ruido + desvio * 0.01 + suave + premio_pescado + reuso
         mucho_huevo = huevos > MAX_HUEVO_DIA + 1
         fuente_c = np.array([_fuente(r) for r in C])
         fuente_n = np.array([_fuente(r) for r in N])
@@ -312,8 +396,8 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
             """nivel 2: la dieta completa (verdura ideal, lacteos, pescado del dia);
             1: lo basico (sodio, grasa saturada, verdura minima); 0: nada."""
             ok = True
-            if nivel and dieta["sodio_max"]:
-                ok = ok & (sod <= dieta["sodio_max"])
+            if nivel and dieta["sodio_alimentos"]:
+                ok = ok & (sod <= dieta["sodio_alimentos"])
             if nivel and dieta["sat_pct"]:
                 ok = ok & (sa * 9 <= dieta["sat_pct"] * kc)
             if nivel and vf_min:
@@ -389,7 +473,7 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
         sodio_dia = sum(c["sodio"] for c in elegidas)
         for c in elegidas:
             otra = recetas_dia["cena" if c["tiempo"] == "comida" else "comida"] if c["tiempo"] in ("comida", "cena") else None
-            sodio_libre = (dieta["sodio_max"] - (sodio_dia - c["sodio"])) if dieta["sodio_max"] else None
+            sodio_libre = (dieta["sodio_alimentos"] - (sodio_dia - c["sodio"])) if dieta["sodio_alimentos"] else None
             c["alternativas"] = _alternativas(c, grupos[c["tiempo"]], 1.0 if c["tiempo"] == "colacion" else s_dia,
                                               precios, _fuente(otra) if otra else None,
                                               MAX_HUEVO_DIA - huevo_dia, sodio_libre=sodio_libre,
@@ -397,6 +481,7 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
         for r in recetas_dia.values():
             if r:
                 usos[r.id] = usos.get(r.id, 0) + 1
+                comprados.update(a for a, _ in r.ingredientes)
         semana["roja"] += int(vec[C[c_i].id][9] + vec[N[n_i].id][9])
         semana["pescado"] += int(vec[C[c_i].id][10] + vec[N[n_i].id][10])
         fecha = semana_inicio + timedelta(days=i)
@@ -411,7 +496,9 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
                      "grasa": round(tot["grasa"]), "fibra": round(tot["fibra"]), "hierro": round(tot["hierro"], 1),
                      "calcio": round(tot["calcio"]), "sodio": round(tot["sodio"]), "sat": round(tot["sat"], 1),
                      "verdfruta": round(tot["verdfruta"]), "lacteos": round(tot["lacteos"], 1),
-                     "costo": round(tot["costo"], 2)})
+                     "costo": round(tot["costo"], 2),
+                     "sal_g": (round(max(0.0, (dieta["sodio_max"] - tot["sodio"]) / SAL_G_MG), 1)
+                               if dieta["sodio_max"] else None)})
 
     hogar = factor_hogar(cfg)
     lista = lista_super(dias, precios, hogar)
@@ -434,6 +521,7 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
         "prot_prom": round(sum(d["prot"] for d in dias) / 7),
         "carb_prom": round(sum(d["carb"] for d in dias) / 7),
         "excluidos": sorted(fuera),
+        "no_me_gusta": {"recetas": sorted(no_recetas), "alimentos": sorted(no_me_gusta()[1])},
         "avisos": avisos,
         "cocina": cocina_por_adelantado(dias, hogar),
         "hogar": {"adultos": max(1, int(cfg.get("menu_adultos") or 1)), "ninos": max(0, int(cfg.get("menu_ninos") or 0)),
@@ -452,8 +540,12 @@ def cumplimiento_dieta(dias: list[dict], dieta: dict, semana: dict, fuera: set[s
     reglas = []
     if dieta["sodio_max"]:
         v = max(d["sodio"] for d in dias)
-        reglas.append({"regla": f"Sodio de los alimentos ≤ {dieta['sodio_max']:,} mg al día",
-                       "valor": f"máx. {v:,.0f} mg", "ok": v <= dieta["sodio_max"]})
+        sal = min(d["sal_g"] for d in dias)
+        reglas.append({"regla": f"Sodio de los alimentos ≤ {dieta['sodio_alimentos']:,} mg al día",
+                       "valor": f"máx. {v:,.0f} mg", "ok": v <= dieta["sodio_alimentos"] + 5})
+        reglas.append({"regla": f"Sal para cocinar dentro de {dieta['sodio_max']:,} mg de sodio",
+                       "valor": f"≥ {sal:.1f} g al día ({cucharadita(sal)})", "ok": sal >= dieta["sal_g"] - 0.05,
+                       "nota": "Mídela: es toda la sal del día, en la olla y en la mesa."})
     if dieta["sat_pct"]:
         v = sum(d["sat"] * 9 for d in dias) / max(1, sum(d["kcal"] for d in dias)) * 100
         reglas.append({"regla": f"Grasa saturada ≤ {dieta['sat_pct'] * 100:.0f} % de las kcal",
@@ -627,6 +719,8 @@ def generar_y_publicar(cfg: dict | None = None, semana_inicio: date | None = Non
     from config_usuario import cargar_config
     import planificar as pl
     cfg = cfg or cargar_config()
+    if subir:
+        descargar_no_me_gusta()          # lo que marcaste en la app cuenta para el menu nuevo
     menu = generar_menu(cfg, semana_inicio or pl.lunes_objetivo(), semilla)
     guardar_local(menu)
     if subir:

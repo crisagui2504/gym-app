@@ -1273,6 +1273,8 @@ def _menu_actual(forzar: bool = False):
                 and (m.get("dieta") or {}).get("id") == mnu.dieta_de(cfg)[0]
                 and (m.get("dieta") or {}).get("nombre") == mnu.dieta_de(cfg)[1]["nombre"]
                 and (m.get("dieta") or {}).get("enfasis") == (cfg.get("menu_enfasis") or "equilibrado")
+                and m.get("no_me_gusta") == {"recetas": sorted(mnu.no_me_gusta()[0]),
+                                             "alimentos": sorted(mnu.no_me_gusta()[1])}
                 and (m.get("presupuesto") or {}).get("tope") == (round(float(cfg["menu_presupuesto"]))
                                                                   if cfg.get("menu_presupuesto") else None)):
             return m
@@ -1286,6 +1288,7 @@ def _menu_actual(forzar: bool = False):
 
 
 def _menu_vista(m) -> html.Div:
+    import menu as mnu
     if isinstance(m, str) or not m:
         return _card(html.P(m or "No se pudo generar el menú.", style={"color": WARN, "margin": "0"}))
     meta = m["meta"]
@@ -1334,6 +1337,9 @@ def _menu_vista(m) -> html.Div:
                                 style={"color": MUTED, "fontSize": "12px"})],
                      style={"display": "flex", "justifyContent": "space-between", "alignItems": "baseline",
                             "color": TEXT, "marginBottom": "4px", "gap": "8px"}),
+            *([html.Div(f"🧂 Sal para cocinar hoy: hasta {d['sal_g']:.1f} g ({mnu.cucharadita(d['sal_g'])})",
+                        style={"color": ACCENT, "fontSize": "12px", "margin": "0 0 4px"})]
+              if d.get("sal_g") is not None else []),
             *comidas,
         ], {"padding": "16px"}))
     lista = dash_table.DataTable(
@@ -1416,7 +1422,10 @@ def _resumen_hogar_y_nutrientes(m: dict) -> list:
 
 def _tab_menu_children() -> html.Div:
     import alimentos_mx as alx
+    import menu as mnu
+    from recetas_mx import RECETAS as RECETAS_MX
     cfg = _menu_cfg()
+    no_r, no_a = (set(), set()) if _es_demo() else mnu.no_me_gusta()
     precios = alx.precios()
     tabla_precios = dash_table.DataTable(
         id="precios-tabla",
@@ -1455,6 +1464,23 @@ def _tab_menu_children() -> html.Div:
                                    value=cfg.get("menu_enfasis") or "equilibrado")]),
         ], className="menu-dieta-ctl", style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(240px, 1fr))",
                                               "gap": "10px", "marginTop": "14px"}),
+        html.Div([
+            html.Label("No me gustan estas recetas", style=_LABEL_STYLE),
+            dcc.Dropdown(id="menu-no-recetas", multi=True, className="dash-dropdown", style=_DD_STYLE,
+                         placeholder="Busca una receta…",
+                         options=[{"label": f"{_ETIQ_TIEMPO.get(r.tiempo, r.tiempo)}: {r.nombre}", "value": r.id}
+                                  for r in sorted(RECETAS_MX, key=lambda r: (r.tiempo, r.nombre))],
+                         value=sorted(no_r)),
+            html.Label("No como estos alimentos", style={**_LABEL_STYLE, "display": "block", "marginTop": "12px"}),
+            dcc.Dropdown(id="menu-no-alimentos", multi=True, className="dash-dropdown", style=_DD_STYLE,
+                         placeholder="Busca un alimento…",
+                         options=[{"label": a.nombre, "value": a.id}
+                                  for a in sorted(alx.ALIMENTOS.values(), key=lambda a: a.nombre)
+                                  if a.id != "proteina_polvo"],
+                         value=sorted(no_a)),
+            html.P("También se marcan con 👎 en la app. Cuentan desde el siguiente menú que generes.",
+                   style={"color": MUTED, "fontSize": "11px", "margin": "6px 0 0"}),
+        ], style={"marginTop": "14px"}),
         dcc.Checklist(id="menu-supl", options=[{"label": " Permitir proteína en polvo (solo si con comida no llego)",
                                                 "value": "si"}],
                       value=["si"] if cfg.get("menu_suplementos") else [],
@@ -2175,9 +2201,12 @@ def _aplicar_kcal(n_clicks, delta):
     State("menu-ninos", "value"),
     State("menu-dieta", "value"),
     State("menu-enfasis", "value"),
+    State("menu-no-recetas", "value"),
+    State("menu-no-alimentos", "value"),
     prevent_initial_call=True,
 )
-def _generar_menu_cb(n_clicks, excluir, supl, presupuesto=None, adultos=1, ninos=0, dieta=None, enfasis=None):
+def _generar_menu_cb(n_clicks, excluir, supl, presupuesto=None, adultos=1, ninos=0, dieta=None, enfasis=None,
+                     no_recetas=None, no_alimentos=None):
     """Otro menu (otra semilla) con lo que no comes. En demo no se guarda nada."""
     import random
     import menu as mnu
@@ -2195,6 +2224,8 @@ def _generar_menu_cb(n_clicks, excluir, supl, presupuesto=None, adultos=1, ninos
              "menu_enfasis": enfasis if enfasis in mnu.ENFASIS else "equilibrado"}
     if not _es_demo():
         guardar_config(extra)
+        # lo que marcaste aqui manda; lo marcado en la app ya viene en la lista
+        mnu.fijar_no_me_gusta(set(no_recetas or []), set(no_alimentos or []))
     try:
         m = mnu.generar_menu({**_menu_cfg(), **extra}, lunes_objetivo(), random.randrange(10 ** 6))
     except ValueError as e:
