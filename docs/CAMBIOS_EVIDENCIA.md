@@ -2539,7 +2539,7 @@ Comparadas con MacroFactor, MyFitnessPal, Cronometer, Fitia, Eat This Much y Mea
 | DASH | ~$405 | 24 | < 1,700 mg | 4 % | ~630 g |
 | Mediterránea | ~$375 | 24 | — | 5 % | ~570 g |
 
-La variedad cuesta ~15 % más que el menú anterior, que repetía las 14 recetas más baratas. Con presupuesto (`menu_presupuesto`), se vuelve a cambiar variedad por precio.
+Comparado con la versión anterior (mismo perfil y semana): antes $358, 22 recetas y 28 alimentos en la lista; ahora $352, 23 recetas y **37 alimentos** en la lista. Cuesta lo mismo, pero hay más cosas distintas que comprar (y más paquetes que se usan a medias). Con presupuesto (`menu_presupuesto`), se cambia variedad por precio.
 
 **Dashboard y app.**
 
