@@ -110,7 +110,8 @@ import { cucharadita } from './menu-semana';
           </p>
           <div class="menu-extra">
             <ng-container *ngIf="m.dieta as dt">
-              <p><b>🥗 {{ dt.nombre }}</b> · {{ dt.enfasis_nombre }}</p>
+              <p><b>🥗 {{ dt.nombre }}</b> · {{ dt.enfasis_nombre }}<ng-container
+                *ngIf="dt.estrategia_nombre"> · 💪 {{ dt.estrategia_nombre }}</ng-container></p>
               <p *ngFor="let r of dt.cumple" [class.mal]="r.ok === false">
                 {{ r.ok === null ? '–' : (r.ok ? '✓' : '✗') }} {{ r.regla }}: {{ r.valor }}
                 <small *ngIf="r.nota">{{ r.nota }}</small>

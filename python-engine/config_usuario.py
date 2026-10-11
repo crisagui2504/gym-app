@@ -46,6 +46,7 @@ DEFAULT_CONFIG: dict = {
     "menu_dieta": "mexicana",   # mexicana | dash | mediterranea
     "menu_sodio_max": 2300,     # solo DASH: 2300 o 1500 mg
     "menu_enfasis": "equilibrado",  # equilibrado | proteina | carbohidratos
+    "menu_estrategia": "auto",  # auto (segun tu enfoque) | musculo | saciedad | ninguna
 }
 
 

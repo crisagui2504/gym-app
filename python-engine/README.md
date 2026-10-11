@@ -26,7 +26,7 @@ copy .env.example .env      # API_BASE_URL, API_TOKEN, MES_INICIO, VAPID_PRIVADA
 | Área | Módulos |
 |---|---|
 | Plan de entreno | `ejercicios_db.py` (98 ejercicios) · `enfoques.py` (5 enfoques, 4 splits) · `generador.py` · `planificar.py` (motor semanal) · `entrenador.py` (modelo de fuerza) · `feedback.py` (encuesta, dolor, bienestar, preferencias) · `volumen.py` · `config_usuario.py` |
-| Nutrición | `nutricion.py` (metas, calorías adaptativas, kcal por tipo de día, revisión semanal) · `alimentos_mx.py` (69 alimentos, precios, sodio) · `recetas_mx.py` (174 recetas: ~50 por tiempo) · `menu.py` (menú semanal barato; dietas mexicana, DASH y mediterránea; énfasis en proteína o carbohidratos) |
+| Nutrición | `nutricion.py` (metas, calorías adaptativas, kcal por tipo de día, revisión semanal) · `alimentos_mx.py` (69 alimentos, precios, sodio) · `recetas_mx.py` (180 recetas: ~50 por tiempo) · `menu.py` (menú semanal barato; dietas mexicana, DASH y mediterránea; énfasis en proteína o carbohidratos; estrategia para músculo o pérdida de grasa) |
 | Servidor y datos | `respaldo_semanal.py` / `motor_semanal.py` (la semana sin pisar lo ya subido) · `exportar_local.py` (CSV + respaldos) · `avisos.py` / `recordatorio.py` (push) · `dashboard.py` (11 pestañas + modo demo) |
 | Demo y app | `simulador.py` (atleta virtual) · `demo_motor.py` · `exportar_demo.py` · `exportar_catalogo.py` |
 

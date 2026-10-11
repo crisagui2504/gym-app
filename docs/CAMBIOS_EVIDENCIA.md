@@ -2620,6 +2620,66 @@ Comparado con la versión anterior (mismo perfil y semana): antes $358, 22 recet
 - PHP sin errores de sintaxis (`php -l`). Las 6 suites pasan y `npx ng build` compila.
 - App en demo a 375 px: 👎 cambia la comida en el momento, "Cambiar" pasa por las opciones 2→3→4 sin volver a la marcada y no hay scroll horizontal.
 
+## CF. Estrategias para ganar músculo, recomposición o perder grasa (2026-10-10)
+
+**Antes que nada.** Para el músculo y la grasa, lo que más pesa es el **total** de kcal y de proteína, y eso ya lo pone tu enfoque:
+
+- proteína de 1.6 a 2.5 g/kg;
+- superávit, mantenimiento o déficit según el enfoque;
+- calorías adaptativas.
+
+No hay una "dieta" que gane por sí sola. Lo que se agregó son las dos estrategias con más respaldo para acomodar el día. Se combinan con cualquier dieta (DASH, mediterránea…) y énfasis.
+
+**Proteína repartida (ganar músculo y recomposición).**
+
+- ≥ 0.4 g/kg de proteína en desayuno, comida y cena, más una colación con ≥ 0.24 g/kg (tope 20 g): 4 tomas al día.
+- **Evidencia:**
+  - Schoenfeld y Aragon (2018, JISSN): ~0.4 g/kg por comida en al menos 4 comidas para maximizar la síntesis de músculo. Ellos mismos dicen que el total del día manda y el reparto es secundario.
+  - Moore et al. (2015): ~0.24 g/kg por toma en adultos jóvenes.
+  - El tope de 20 g para la colación es la dosis clásica en la que la síntesis se aplana con proteína rápida.
+- **Con 73 kg:** ≥ 29 g por comida y una colación de ≥ 18 g.
+- **Nota:** "Si cenas temprano, come la colación antes de dormir."
+
+**Saciedad (perder grasa).**
+
+- La misma proteína por comida: es el macro que más llena y cuida el músculo en déficit.
+- Fibra ≥ 14 g por cada 1,000 kcal: en POUNDS Lost, el aumento de fibra fue el mejor predictor de la pérdida de peso y de la adherencia. Es una asociación, no prueba causa.
+- ≥ 500 g de verdura y fruta, que llenan con pocas kcal.
+- Grasa ≤ 30 % de las kcal: Helms, Aragon y Fitschen (2014) recomiendan 15-30 % en definición.
+
+**Automática.** Por defecto (`menu_estrategia: "auto"`), definición usa saciedad y recomposición, volumen, fuerza y powerbuilding usan proteína repartida. Se cambia en el dashboard ("Estrategia para tu objetivo") o se apaga con "Ninguna".
+
+**Encontrado al probar.**
+
+- **Colaciones:** casi ninguna llegaba a 18 g de proteína (la de huevo 12.6 g, la de requesón 11.8 g). Proteína repartida fallaba toda la semana. Se agregaron 6 colaciones de diario:
+  - tostadas de atún (28 g);
+  - soya a la mexicana (20 g);
+  - yogur griego con fresas (20 g);
+  - licuado de leche descremada, avena y cacahuate (19 g);
+  - tres huevos cocidos (19 g);
+  - tostadas de requesón (19 g).
+- **95 kg o más:** la colación pedía 23 g y solo la de atún llegaba. Se puso el tope de 20 g.
+- **Costo:** DASH + proteína repartida cuesta más que DASH solo (~$475 contra ~$410 a la semana con 73 kg). Llegar a 29 g en cada comida obliga a más pechuga, atún y lácteos. Si el presupuesto aprieta, "Ninguna" o el tope de presupuesto lo bajan.
+
+**Lo que no se agregó, y por qué.**
+
+- **Ayuno o ventana de comidas:** en Liu et al. (2022, NEJM) no dio más pérdida de peso que la misma restricción de calorías. Además choca con las 4 tomas de proteína.
+- **Keto:** no pierde más grasa a largo plazo y le quita carbohidratos al entreno.
+- **Ciclado de carbohidratos:** las kcal ya cambian según el tipo de día (fase 3). No hay evidencia de que ciclar más ayude a la composición corporal.
+
+**Verificación.**
+
+- `tests/test_menu.py` (57 pruebas), lo nuevo:
+  - "auto" según el enfoque;
+  - con proteína repartida, cada comida ≥ 0.4 g/kg y la colación ≥ 0.24 g/kg los 7 días, sin avisos;
+  - "Cambiar" también llega a la proteína por comida;
+  - las kcal no se mueven;
+  - saciedad cumple fibra, verdura y grasa;
+  - DASH o mediterránea + proteína repartida cumplen todas sus reglas a la vez;
+  - el barrido de 108 perfiles (ya con estrategia) nunca se queda sin menú.
+- Las 6 suites pasan y `npx ng build` compila.
+- Dashboard en demo: el selector nuevo y la línea "🥗 DASH · Equilibrado · 💪 Proteína repartida", sin ✗.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

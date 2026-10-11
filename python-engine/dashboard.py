@@ -1235,6 +1235,9 @@ _EXCLUIR_OPC = [("carnes", "Carnes (pollo, res, cerdo)"), ("pescado", "Pescado y
 # Tipo de dieta (menu_dieta + menu_sodio_max) y enfasis (menu_enfasis) del menu
 _DIETA_OPC = [("mexicana", "Mexicana equilibrada (Plato del Bien Comer)"), ("dash", "DASH (presión arterial) · sodio ≤ 2,300 mg"),
               ("dash1500", "DASH bajo en sodio · ≤ 1,500 mg"), ("mediterranea", "Mediterránea")]
+_ESTRATEGIA_OPC = [("auto", "Automática según tu enfoque"),
+                   ("musculo", "Proteína repartida: ganar músculo o recomposición"),
+                   ("saciedad", "Saciedad: perder grasa sin pasar hambre"), ("ninguna", "Ninguna")]
 _ENFASIS_OPC = [("equilibrado", "Equilibrado"), ("proteina", "Más proteína (tope de tu rango)"),
                 ("carbohidratos", "Más carbohidratos (días de mucho entreno o deporte)")]
 
@@ -1273,6 +1276,7 @@ def _menu_actual(forzar: bool = False):
                 and (m.get("dieta") or {}).get("id") == mnu.dieta_de(cfg)[0]
                 and (m.get("dieta") or {}).get("nombre") == mnu.dieta_de(cfg)[1]["nombre"]
                 and (m.get("dieta") or {}).get("enfasis") == (cfg.get("menu_enfasis") or "equilibrado")
+                and (m.get("dieta") or {}).get("estrategia") == mnu.estrategia_de(cfg)[0]
                 and m.get("no_me_gusta") == {"recetas": sorted(mnu.no_me_gusta()[0]),
                                              "alimentos": sorted(mnu.no_me_gusta()[1])}
                 and (m.get("presupuesto") or {}).get("tope") == (round(float(cfg["menu_presupuesto"]))
@@ -1376,7 +1380,8 @@ def _resumen_dieta(m: dict) -> list:
     d = m.get("dieta")
     if not d:
         return []
-    out = [html.P(f"🥗 {d['nombre']} · {d.get('enfasis_nombre', 'Equilibrado')}",
+    out = [html.P(f"🥗 {d['nombre']} · {d.get('enfasis_nombre', 'Equilibrado')}"
+                  + (f" · 💪 {d['estrategia_nombre']}" if d.get("estrategia_nombre") else ""),
                   style={"color": ACCENT, "fontSize": "13px", "fontWeight": "700", "margin": "8px 0 0"})]
     for r in d.get("cumple") or []:
         marca = "–" if r["ok"] is None else ("✓" if r["ok"] else "✗")
@@ -1462,6 +1467,10 @@ def _tab_menu_children() -> html.Div:
                       dcc.Dropdown(id="menu-enfasis", clearable=False, searchable=False, className="dash-dropdown",
                                    style=_DD_STYLE, options=[{"label": t, "value": v} for v, t in _ENFASIS_OPC],
                                    value=cfg.get("menu_enfasis") or "equilibrado")]),
+            html.Div([html.Label("Estrategia para tu objetivo", style=_LABEL_STYLE),
+                      dcc.Dropdown(id="menu-estrategia", clearable=False, searchable=False, className="dash-dropdown",
+                                   style=_DD_STYLE, options=[{"label": t, "value": v} for v, t in _ESTRATEGIA_OPC],
+                                   value=cfg.get("menu_estrategia") or "auto")]),
         ], className="menu-dieta-ctl", style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(240px, 1fr))",
                                               "gap": "10px", "marginTop": "14px"}),
         html.Div([
@@ -2203,10 +2212,11 @@ def _aplicar_kcal(n_clicks, delta):
     State("menu-enfasis", "value"),
     State("menu-no-recetas", "value"),
     State("menu-no-alimentos", "value"),
+    State("menu-estrategia", "value"),
     prevent_initial_call=True,
 )
 def _generar_menu_cb(n_clicks, excluir, supl, presupuesto=None, adultos=1, ninos=0, dieta=None, enfasis=None,
-                     no_recetas=None, no_alimentos=None):
+                     no_recetas=None, no_alimentos=None, estrategia=None):
     """Otro menu (otra semilla) con lo que no comes. En demo no se guarda nada."""
     import random
     import menu as mnu
@@ -2221,7 +2231,8 @@ def _generar_menu_cb(n_clicks, excluir, supl, presupuesto=None, adultos=1, ninos
              "menu_adultos": entero(adultos, 1, 10, 1), "menu_ninos": entero(ninos, 0, 10, 0),
              "menu_dieta": "dash" if dieta == "dash1500" else (dieta if dieta in mnu.DIETAS else "mexicana"),
              "menu_sodio_max": 1500 if dieta == "dash1500" else 2300,
-             "menu_enfasis": enfasis if enfasis in mnu.ENFASIS else "equilibrado"}
+             "menu_enfasis": enfasis if enfasis in mnu.ENFASIS else "equilibrado",
+             "menu_estrategia": estrategia if estrategia in (*mnu.ESTRATEGIAS, "auto") else "auto"}
     if not _es_demo():
         guardar_config(extra)
         # lo que marcaste aqui manda; lo marcado en la app ya viene en la lista

@@ -74,6 +74,33 @@ DIETAS = {
 }
 ENFASIS = {"equilibrado": "Equilibrado", "proteina": "Más proteína", "carbohidratos": "Más carbohidratos"}
 
+# Estrategias segun tu objetivo (se combinan con cualquier dieta y enfasis).
+# Lo que mas pesa es el TOTAL de proteina y de kcal (eso ya lo pone tu enfoque);
+# esto acomoda el dia para sacarle mas provecho:
+#   musculo  (ganar musculo / recomposicion): >= 0.4 g/kg de proteina en desayuno,
+#            comida y cena, y una colacion con >= 0.24 g/kg = 4 tomas al dia
+#            (Schoenfeld y Aragon 2018, JISSN; Moore 2015: 0.24 g/kg por toma).
+#   saciedad (perder grasa): la misma proteina por comida (la que mas llena y
+#            cuida el musculo en deficit), fibra >= 14 g por 1,000 kcal (en POUNDS
+#            Lost la fibra predijo la perdida de peso), >= 500 g de verdura y fruta
+#            y grasa <= 30 % de las kcal (Helms 2014: 15-30 % en definicion).
+ESTRATEGIAS = {
+    "ninguna": {"nombre": "", "prot_comida": 0.0, "prot_colacion": 0.0, "fibra_1000": 0, "verdfruta": 0,
+                "grasa_pct": None},
+    "musculo": {"nombre": "Proteína repartida (músculo)", "prot_comida": 0.4, "prot_colacion": 0.24,
+                "fibra_1000": 0, "verdfruta": 0, "grasa_pct": None},
+    "saciedad": {"nombre": "Saciedad (pérdida de grasa)", "prot_comida": 0.4, "prot_colacion": 0.0,
+                 "fibra_1000": 14, "verdfruta": 500, "grasa_pct": 0.30},
+}
+
+
+def estrategia_de(cfg: dict) -> tuple[str, dict]:
+    """La estrategia elegida; "auto" (la de fabrica) sale de tu enfoque."""
+    e = cfg.get("menu_estrategia") or "auto"
+    if e == "auto":
+        e = "saciedad" if cfg.get("enfoque") == "definicion" else "musculo"
+    return (e, ESTRATEGIAS[e]) if e in ESTRATEGIAS else ("ninguna", ESTRATEGIAS["ninguna"])
+
 
 def dieta_de(cfg: dict) -> tuple[str, dict]:
     clave = cfg.get("menu_dieta") if cfg.get("menu_dieta") in DIETAS else "mexicana"
@@ -261,8 +288,9 @@ def factor_hogar(cfg: dict) -> float:
 
 
 def _vector(r: Receta | None, precios: dict[str, float]) -> np.ndarray:
-    """kcal, prot, carb, costo, sodio, sat, verdfruta(g), lacteos(porciones), huevo(g), roja, pescado, nuez."""
-    v = np.zeros(12)
+    """kcal, prot, carb, costo, sodio, sat, verdfruta(g), lacteos(porciones), huevo(g), roja, pescado, nuez,
+    fibra, grasa."""
+    v = np.zeros(14)
     if r is None:
         return v
     for aid, g in r.ingredientes:
@@ -274,6 +302,8 @@ def _vector(r: Receta | None, precios: dict[str, float]) -> np.ndarray:
         v[9] = max(v[9], 1.0 if aid in CARNE_ROJA else 0.0)
         v[10] = max(v[10], 1.0 if aid in PESCADO else 0.0)
         v[11] = max(v[11], 1.0 if aid in NUECES else 0.0)
+        v[12] += a.fibra * g / 100
+        v[13] += a.grasa * g / 100
     return v
 
 
@@ -294,6 +324,10 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
     enf, peso = nutricion._enfoque(cfg), nutricion._peso(cfg)
     C_obj = enf.carb_g_kg[1] * peso if enfasis == "carbohidratos" else 0.0
     clave_dieta, dieta = dieta_de(cfg)
+    clave_est, est = estrategia_de(cfg)
+    # la colacion: 0.24 g/kg con tope de 20 g (la dosis clasica en la que la sintesis
+    # de musculo se aplana; mas que eso en una colacion ya no es practico)
+    P_comida, P_colacion = est["prot_comida"] * peso, min(est["prot_colacion"] * peso, 20.0)
     por_dia = nutricion.kcal_por_dia(cfg)
     precios = precios or alx.precios()
     fuera = excluidos(cfg)
@@ -332,6 +366,12 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
                 col = 1 if enfasis == "proteina" else 2
                 fijas += [r for r in sorted(libres, key=lambda r: -vec[r.id][col] / max(vec[r.id][0], 1))
                           if r not in fijas][:4]
+            if P_comida:        # que entren las que llegan a la proteina por comida
+                fijas += [r for r in sorted(libres, key=lambda r: -vec[r.id][1] / max(vec[r.id][0], 1))
+                          if r not in fijas][:3]
+            if est["fibra_1000"]:
+                fijas += [r for r in sorted(libres, key=lambda r: -vec[r.id][12] / max(vec[r.id][0], 1))
+                          if r not in fijas][:3]
             resto = [r for r in libres if r not in fijas]
             return fijas + rng.sample(resto, max(0, POR_TIEMPO_DIA - len(fijas)))
 
@@ -346,6 +386,15 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
             return base[..., None, None] * esc[None, None, None, :, None] + VS[:, col][None, None, None, None, :]
 
         kcal, prot, carb, costo = suma(0), suma(1), suma(2), suma(3)
+        fibra, grasa = suma(12), suma(13)
+        # proteina de cada comida fuerte (con su porcion) y de la colacion
+        prot_ok = np.ones(1, bool)
+        if P_comida:
+            prot_ok = ((VD[:, 1][:, None, None, None, None] * esc[None, None, None, :, None] >= P_comida * 0.97)
+                       & (VC[:, 1][None, :, None, None, None] * esc[None, None, None, :, None] >= P_comida * 0.97)
+                       & (VN[:, 1][None, None, :, None, None] * esc[None, None, None, :, None] >= P_comida * 0.97))
+        if P_colacion:
+            prot_ok = prot_ok & (VS[:, 1][None, None, None, None, :] >= P_colacion * 0.97)
         sodio, sat, verdfruta, lacteos, huevos = suma(4), suma(5), suma(6), suma(7), suma(8)
 
         def pen(lista):
@@ -392,6 +441,17 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
         fuente_n = np.array([_fuente(r) for r in N])
         misma_fuente = (fuente_c[:, None] == fuente_n[None, :])[None, :, :, None, None]
 
+        def est_ok(kc, fib, gra, vf):
+            """La estrategia completa (solo en las etapas con la dieta completa)."""
+            ok = True
+            if est["fibra_1000"]:
+                ok = ok & (fib * 1000 >= est["fibra_1000"] * kc)
+            if est["verdfruta"]:
+                ok = ok & (vf >= est["verdfruta"])
+            if est["grasa_pct"]:
+                ok = ok & (gra * 9 <= est["grasa_pct"] * kc)
+            return ok
+
         def dieta_ok(nivel, sod, sa, kc, vf, lac, pescado):
             """nivel 2: la dieta completa (verdura ideal, lacteos, pescado del dia);
             1: lo basico (sodio, grasa saturada, verdura minima); 0: nada."""
@@ -427,6 +487,8 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
                 pre &= carb >= C_obj * 0.95
             if con_dieta:
                 pre &= dieta_ok(con_dieta, sodio * 0.97, sat * 0.97, kcal, verdfruta * 1.03, lacteos * 1.05, pez)
+            if con_dieta == 2:
+                pre &= prot_ok & est_ok(kcal, fibra * 1.03, grasa * 0.97, verdfruta * 1.03)
             obj = objetivo if con_prot else (-prot + costo * 0.05 + castigo * 0.1 + desvio * 0.005)
             obj = np.where(pre, obj, np.inf)
             n_ok = int(np.isfinite(obj).sum())
@@ -442,14 +504,19 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
                 if SN[sn_i]:
                     cand.insert(2, _servir(SN[sn_i], 1.0, precios))
                 tot = {k_: sum(c[k_] for c in cand)
-                       for k_ in ("kcal", "prot", "carb", "sodio", "sat", "verdfruta", "lacteos")}
+                       for k_ in ("kcal", "prot", "carb", "sodio", "sat", "verdfruta", "lacteos", "fibra", "grasa")}
+                fuertes = [c["prot"] for c in cand if c["tiempo"] != "colacion"]
+                col = [c["prot"] for c in cand if c["tiempo"] == "colacion"]
+                est_real = (min(fuertes) >= P_comida - 0.5 and (not P_colacion or (col and col[0] >= P_colacion - 0.5))
+                            and bool(est_ok(tot["kcal"], tot["fibra"] * 1.02, tot["grasa"], tot["verdfruta"] * 1.03)))
                 huevo_real = sum(x["g"] for c in cand for x in c["ingredientes"] if x["id"] == "huevo")
                 if (abs(tot["kcal"] - K) <= K * tol and huevo_real <= MAX_HUEVO_DIA
                         and (not con_prot or tot["prot"] >= P)
                         and (not (con_enfasis and C_obj) or tot["carb"] >= C_obj)
                         and (not con_dieta or bool(dieta_ok(con_dieta, tot["sodio"], tot["sat"], tot["kcal"],
                                                             tot["verdfruta"] * 1.03, tot["lacteos"] * 1.05,
-                                                            vec[C[c_i].id][10] + vec[N[n_i].id][10])))):
+                                                            vec[C[c_i].id][10] + vec[N[n_i].id][10])))
+                        and (con_dieta != 2 or est_real)):
                     elegido = (d_i, c_i, n_i, sn_i, cand, s)
                     break
             if elegido:
@@ -458,6 +525,8 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
                     sueltos.append("el énfasis en " + ("proteína" if enfasis == "proteina" else "carbohidratos"))
                 if clave_dieta != "mexicana" and not con_dieta:
                     sueltos.append("alguna regla de la dieta " + dieta["nombre"].split(" (")[0])
+                if clave_est != "ninguna" and con_dieta != 2:
+                    sueltos.append("la estrategia " + est["nombre"].split(" (")[0].lower())
                 if not con_prot:
                     sueltos.append("tu proteína mínima (suma una porción del botón Proteína)")
                 if not con_variedad:
@@ -474,10 +543,12 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
         for c in elegidas:
             otra = recetas_dia["cena" if c["tiempo"] == "comida" else "comida"] if c["tiempo"] in ("comida", "cena") else None
             sodio_libre = (dieta["sodio_alimentos"] - (sodio_dia - c["sodio"])) if dieta["sodio_alimentos"] else None
+            minimo = P_colacion if c["tiempo"] == "colacion" else P_comida
             c["alternativas"] = _alternativas(c, grupos[c["tiempo"]], 1.0 if c["tiempo"] == "colacion" else s_dia,
                                               precios, _fuente(otra) if otra else None,
                                               MAX_HUEVO_DIA - huevo_dia, sodio_libre=sodio_libre,
-                                              sin_roja=dieta["roja_max"] is not None and semana["roja"] >= dieta["roja_max"])
+                                              sin_roja=dieta["roja_max"] is not None and semana["roja"] >= dieta["roja_max"],
+                                              prot_min=minimo if c["prot"] >= minimo else 0.0)
         for r in recetas_dia.values():
             if r:
                 usos[r.id] = usos.get(r.id, 0) + 1
@@ -497,6 +568,8 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
                      "calcio": round(tot["calcio"]), "sodio": round(tot["sodio"]), "sat": round(tot["sat"], 1),
                      "verdfruta": round(tot["verdfruta"]), "lacteos": round(tot["lacteos"], 1),
                      "costo": round(tot["costo"], 2),
+                     "prot_comidas": [round(c["prot"]) for c in elegidas if c["tiempo"] != "colacion"],
+                     "prot_colacion": next((round(c["prot"]) for c in elegidas if c["tiempo"] == "colacion"), None),
                      "sal_g": (round(max(0.0, (dieta["sodio_max"] - tot["sodio"]) / SAL_G_MG), 1)
                                if dieta["sodio_max"] else None)})
 
@@ -512,7 +585,9 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
                  "enfoque": meta["enfoque"], "peso": meta["peso"],
                  "kcal_por_tipo": nutricion.resumen_por_tipo(cfg)},
         "dieta": {"id": clave_dieta, "nombre": dieta["nombre"], "enfasis": enfasis, "enfasis_nombre": ENFASIS[enfasis],
-                  "cumple": cumplimiento_dieta(dias, dieta, semana, fuera)},
+                  "estrategia": clave_est, "estrategia_nombre": est["nombre"],
+                  "cumple": cumplimiento_dieta(dias, dieta, semana, fuera)
+                  + cumplimiento_estrategia(dias, est, P_comida, P_colacion)},
         "dias": dias,
         "lista": lista,
         "costo_semana": costo_sem,
@@ -532,6 +607,32 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
         "nota": "Cantidades en crudo (frijol, lentejas, arroz y avena en seco). Precios de referencia: "
                 "Profeco 2026 donde hay dato; el resto estimado. Corrígelos con lo que pagas.",
     }
+
+
+def cumplimiento_estrategia(dias: list[dict], est: dict, p_comida: float, p_colacion: float) -> list[dict]:
+    """Las reglas de la estrategia contra lo que trae el menu."""
+    reglas = []
+    if p_comida:
+        v = min(min(d["prot_comidas"]) for d in dias)
+        reglas.append({"regla": f"Proteína en desayuno, comida y cena ≥ {p_comida:.0f} g (0.4 g/kg)",
+                       "valor": f"mín. {v} g", "ok": v >= p_comida - 1})
+    if p_colacion:
+        n = sum(1 for d in dias if (d["prot_colacion"] or 0) >= p_colacion - 1)
+        reglas.append({"regla": f"4.ª toma de proteína: colación ≥ {p_colacion:.0f} g", "valor": f"{n} de 7 días",
+                       "ok": n == 7, "nota": "Si cenas temprano, cómela antes de dormir."})
+    if est["fibra_1000"]:
+        v = sum(d["fibra"] for d in dias) / max(1, sum(d["kcal"] for d in dias)) * 1000
+        reglas.append({"regla": f"Fibra ≥ {est['fibra_1000']} g por cada 1,000 kcal", "valor": f"{v:.0f} g",
+                       "ok": v >= est["fibra_1000"] - 0.3})
+    if est["verdfruta"]:
+        v = sum(d["verdfruta"] for d in dias) / 7
+        reglas.append({"regla": f"Verduras y frutas ≥ {est['verdfruta']} g al día (llenan con pocas kcal)",
+                       "valor": f"{v:.0f} g", "ok": v >= est["verdfruta"] * 0.97})
+    if est["grasa_pct"]:
+        v = sum(d["grasa"] * 9 for d in dias) / max(1, sum(d["kcal"] for d in dias)) * 100
+        reglas.append({"regla": f"Grasa ≤ {est['grasa_pct'] * 100:.0f} % de las kcal", "valor": f"{v:.0f} %",
+                       "ok": v <= est["grasa_pct"] * 100 + 0.5})
+    return reglas
 
 
 def cumplimiento_dieta(dias: list[dict], dieta: dict, semana: dict, fuera: set[str] = frozenset()) -> list[dict]:
@@ -572,7 +673,7 @@ def cumplimiento_dieta(dias: list[dict], dieta: dict, semana: dict, fuera: set[s
 
 def _alternativas(elegida: dict, opciones: list[Receta], escala: float, precios: dict[str, float],
                   fuente_prohibida: str | None, huevo_libre: float, n: int = 3,
-                  sodio_libre: float | None = None, sin_roja: bool = False) -> list[dict]:
+                  sodio_libre: float | None = None, sin_roja: bool = False, prot_min: float = 0.0) -> list[dict]:
     """Hasta `n` recetas del mismo tiempo, parecidas a la elegida: kcal a +/-12 %
     (colaciones +/-40 %), al menos 85 % de su proteina, sin repetir la proteina
     de la otra comida fuerte ni pasarse de huevo. Las mas baratas primero."""
@@ -591,7 +692,8 @@ def _alternativas(elegida: dict, opciones: list[Receta], escala: float, precios:
         for e in escalas:
             m = _servir(r, e, precios)
             huevo = sum(i["g"] for i in m["ingredientes"] if i["id"] == "huevo")
-            if (abs(m["kcal"] - k0) <= k0 * tol and m["prot"] >= p0 * min_prot and huevo - huevo0 <= huevo_libre
+            if (abs(m["kcal"] - k0) <= k0 * tol and m["prot"] >= max(p0 * min_prot, prot_min - 0.5)
+                    and huevo - huevo0 <= huevo_libre
                     and (sodio_libre is None or m["sodio"] <= sodio_libre)):
                 if mejor is None or abs(m["kcal"] - k0) < abs(mejor["kcal"] - k0):
                     mejor = m

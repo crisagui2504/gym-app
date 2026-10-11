@@ -128,6 +128,7 @@ export interface MenuSemana {
   no_me_gusta?: { recetas: string[]; alimentos: string[] };
   /** Tipo de dieta (mexicana | dash | mediterranea), enfasis y cada regla contra lo que trae el menu. */
   dieta?: { id: string; nombre: string; enfasis: string; enfasis_nombre: string;
+            estrategia?: string; estrategia_nombre?: string;
             cumple: { regla: string; valor: string; ok: boolean | null; nota?: string }[] };
 }
 

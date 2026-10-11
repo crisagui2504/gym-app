@@ -224,7 +224,7 @@ Las seis corren en el CI antes de cada despliegue. Si una falla, no se sube nada
 | Suite | Qué comprueba |
 |---|---|
 | `test_motor.py` | Las reglas del motor, una por una (54 secciones) |
-| `test_menu.py` | Menú de ~50 opciones por tiempo: dietas DASH y mediterránea, más proteína o carbohidratos |
+| `test_menu.py` | Menú de ~50 opciones por tiempo: dietas DASH y mediterránea, más proteína o carbohidratos, estrategias para músculo o pérdida de grasa |
 | `test_funcional.py` | Dashboard, helpers, aislamiento del modo demo y su API |
 | `test_plan_qa.py` | Calidad del plan generado (35 criterios) |
 | `test_barrido.py` | 13 440 semanas: todas las combinaciones sin violar ningún tope |

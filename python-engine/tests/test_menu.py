@@ -52,8 +52,11 @@ check("los grupos excluibles cubren lo nuevo (tilapia, camaron, claras, requeson
 
 print("\n== Mexicana (la de siempre) ==")
 m0 = mnu.generar_menu(BASE, LUN)
-check("sin dieta elegida: mexicana y equilibrado",
-      m0["dieta"]["id"] == "mexicana" and m0["dieta"]["enfasis"] == "equilibrado" and m0["dieta"]["cumple"] == [])
+check("sin dieta elegida: mexicana, equilibrado y (por ser recomposicion) proteina repartida",
+      m0["dieta"]["id"] == "mexicana" and m0["dieta"]["enfasis"] == "equilibrado"
+      and m0["dieta"]["estrategia"] == "musculo")
+_sin = mnu.generar_menu({**BASE, "menu_estrategia": "ninguna"}, LUN)
+check("sin estrategia ni dieta: no hay reglas que cumplir", _sin["dieta"]["cumple"] == [])
 check("cada dia trae sodio, grasa saturada y verdura/fruta",
       all({"sodio", "sat", "verdfruta"} <= set(d) for d in m0["dias"]))
 check("la semana trae sodio y % de grasa saturada", {"sodio", "sat_pct"} <= set(m0["nutrientes"]))
@@ -129,6 +132,35 @@ check("las kcal no cambian con el enfasis (+/-10 %)",
 mix = mnu.generar_menu({**BASE, "menu_dieta": "dash", "menu_enfasis": "proteina"}, LUN)
 check("DASH + mas proteina: las dos cosas a la vez",
       all(r["ok"] for r in mix["dieta"]["cumple"]) and mix["prot_prom"] >= meta["proteina_max"] - 3)
+
+print("\n== Estrategias por objetivo ==")
+check("automatica: definicion -> saciedad; recomposicion, volumen y fuerza -> musculo",
+      mnu.estrategia_de({"enfoque": "definicion"})[0] == "saciedad"
+      and all(mnu.estrategia_de({"enfoque": e})[0] == "musculo" for e in ("recomposicion", "volumen", "fuerza")))
+p_c = 0.4 * 73
+check("musculo: desayuno, comida y cena >= 0.4 g/kg cada dia",
+      all(min(d["prot_comidas"]) >= p_c - 1 for d in m0["dias"]) and not m0["avisos"],
+      str([d["prot_comidas"] for d in m0["dias"]]))
+check("musculo: 4 tomas (colacion >= 0.24 g/kg, max 20 g) los 7 dias",
+      all((d["prot_colacion"] or 0) >= min(0.24 * 73, 20) - 1 for d in m0["dias"]))
+check("musculo: Cambiar tambien ofrece comidas que llegan a la proteina",
+      all(a["prot"] >= p_c - 1 for d in m0["dias"] for c in d["comidas"] if c["tiempo"] != "colacion"
+          for a in c.get("alternativas", [])))
+check("la estrategia no mueve las kcal (+/-10 %)",
+      all(abs(d["kcal"] - d["kcal_meta"]) <= d["kcal_meta"] * 0.10 for d in m0["dias"]))
+sac = mnu.generar_menu({"enfoque": "definicion", "peso_corporal": 80}, LUN)
+check("saciedad (definicion): todas sus reglas se cumplen",
+      sac["dieta"]["estrategia"] == "saciedad" and all(r["ok"] for r in sac["dieta"]["cumple"]),
+      str([(r["regla"], r["valor"]) for r in sac["dieta"]["cumple"]]))
+check("saciedad: fibra >= 14 g/1,000 kcal, verdura >= 500 g y grasa <= 30 %",
+      sum(d["fibra"] for d in sac["dias"]) * 1000 >= 14 * sum(d["kcal"] for d in sac["dias"])
+      and sum(d["verdfruta"] for d in sac["dias"]) / 7 >= 485
+      and sum(d["grasa"] * 9 for d in sac["dias"]) <= 0.305 * sum(d["kcal"] for d in sac["dias"]))
+for _dieta in ("dash", "mediterranea"):
+    _m = mnu.generar_menu({**BASE, "menu_dieta": _dieta}, LUN)
+    check(f"{_dieta} + proteina repartida: todas las reglas a la vez",
+          all(r["ok"] for r in _m["dieta"]["cumple"]),
+          str([(r["regla"], r["valor"]) for r in _m["dieta"]["cumple"] if not r["ok"]]))
 
 print("\n== Lista del super: reusar ingredientes (como Mealime) ==")
 _antes = mnu.NUEVO_INGREDIENTE

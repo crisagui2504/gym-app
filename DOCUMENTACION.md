@@ -68,6 +68,7 @@ Documentos relacionados:
 - **Menú semanal más barato** con comida mexicana (~50 opciones por tiempo), con:
   - tipo de dieta: mexicana (Plato del Bien Comer), **DASH** (sodio ≤ 2,300 o 1,500 mg) o **mediterránea**;
   - énfasis: equilibrado, más proteína o más carbohidratos;
+  - estrategia por objetivo: proteína repartida (músculo y recomposición) o saciedad (pérdida de grasa); por defecto, la de tu enfoque;
   - alternativas por comida;
   - cocina por adelantado;
   - lista del súper;
@@ -317,7 +318,7 @@ No se versionan:
 |---|---|
 | `nutricion.py` | Metas (proteína y kcal), tendencia de peso, calorías adaptativas (`evaluar`), kcal por tipo de día (MET del Compendium), adherencia de 7 días, resumen semanal para el push, y subida y descarga con la API. |
 | `alimentos_mx.py` | 69 alimentos: nutrimentos, fibra, hierro, calcio, grasa saturada, sodio, precios (Profeco o estimado), unidades legibles. Tus precios van en `precios_alimentos.json`. |
-| `recetas_mx.py` | 174 recetas mexicanas: 50 desayunos, 51 comidas, 50 cenas y 23 colaciones, con porciones base. |
+| `recetas_mx.py` | 180 recetas mexicanas: 50 desayunos, 51 comidas, 50 cenas y 29 colaciones (6 con ≥ 18 g de proteína), con porciones base. |
 | `menu.py` | Generador del menú semanal (sección 7.1). |
 
 ### Servidor, datos y demo
@@ -343,6 +344,7 @@ No se versionan:
    - como máximo 4 huevos al día.
    - **Sal en DASH:** el límite de sodio es de todo el día, y la mayor parte viene de la sal. A los alimentos les toca el límite menos la sal de cocinar: ≤ 1,500 mg con 2 g de sal (⅓ de cucharadita) para 2,300, y ≤ 1,200 mg con 0.75 g para 1,500. Cada día dice cuánta sal cabe (`sal_g`).
    - **Reusar ingredientes (como Mealime):** $5 virtuales por cada ingrediente que aún no está en la lista de la semana. La lista baja ~19 % (34 → 28 cosas en promedio) con la misma variedad.
+   - **Estrategia (`menu_estrategia`, "auto" por defecto):** "músculo" pide ≥ 0.4 g/kg de proteína en desayuno, comida y cena y una colación con ≥ 0.24 g/kg (tope 20 g): 4 tomas. "Saciedad" pide la misma proteína por comida, fibra ≥ 14 g/1,000 kcal, ≥ 500 g de verdura y fruta y grasa ≤ 30 %. "auto": definición → saciedad; el resto → músculo. Se combina con cualquier dieta y énfasis; "Cambiar" respeta la proteína por comida.
    - **No me gusta:** las recetas y alimentos marcados (app 👎, dashboard) no salen ni en el menú ni en "Cambiar". Copia local en `no_me_gusta.json`; `generar_y_publicar` la actualiza desde MySQL antes de generar.
 4. **Etapas de respaldo:** dieta completa con énfasis → más holgura → dieta básica (sodio, saturada, verdura mínima) → sin énfasis → sin dieta → sin proteína → sin variedad; nunca el huevo. Cada cosa que se suelta se avisa. Con exclusiones fuertes hay menú en vez de error.
 5. **Presupuesto (`menu_presupuesto`):** si no cabe, baja la variedad en 3 pasos. Si aun así no cabe, avisa lo mínimo posible.
@@ -453,7 +455,7 @@ Cada push a `main` que toque `app/`, `infinityfree/`, `python-engine/` o `instan
    | Suite | Qué comprueba |
    |---|---|
    | `test_motor.py` | Reglas del motor, nutrición, menú, calorías por día, presupuesto, peso corporal (54 secciones). |
-   | `test_menu.py` | Menú de 50 opciones: reglas DASH (con la sal de cocinar) y mediterránea, énfasis, variedad, lista corta, "no me gusta", barrido de 108 perfiles. |
+   | `test_menu.py` | Menú de 50 opciones: reglas DASH (con la sal de cocinar) y mediterránea, énfasis, estrategias (músculo, saciedad), variedad, lista corta, "no me gusta", barrido de 108 perfiles. |
    | `test_funcional.py` | Dashboard y helpers, aislamiento del modo demo y su API, menú en demo, **selectores CSS duplicados** en `app/src/styles.css`. |
    | `test_plan_qa.py` | 35 criterios de calidad del plan. |
    | `test_barrido.py` | 13 440 semanas sin violar topes. |
