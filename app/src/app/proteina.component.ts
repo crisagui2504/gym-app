@@ -104,9 +104,21 @@ import type { MenuComida, MenuDia } from './rutina-api.service';
         <ng-container *ngIf="nut.menu() as m">
           <p class="menu-res">
             <b>\${{ m.costo_semana | number: '1.0-0' }}</b> a la semana · ~\${{ m.costo_dia | number: '1.0-0' }} al día<br>
-            {{ m.kcal_prom | number: '1.0-0' }} kcal y {{ m.prot_prom }} g de proteína al día en promedio
+            {{ m.kcal_prom | number: '1.0-0' }} kcal, {{ m.prot_prom }} g de proteína<ng-container
+              *ngIf="m.carb_prom"> y {{ m.carb_prom }} g de carbohidratos</ng-container> al día en promedio
           </p>
           <div class="menu-extra">
+            <ng-container *ngIf="m.dieta as dt">
+              <p><b>🥗 {{ dt.nombre }}</b> · {{ dt.enfasis_nombre }}</p>
+              <p *ngFor="let r of dt.cumple" [class.mal]="r.ok === false">
+                {{ r.ok === null ? '–' : (r.ok ? '✓' : '✗') }} {{ r.regla }}: {{ r.valor }}
+                <small *ngIf="r.nota">{{ r.nota }}</small>
+              </p>
+              <p *ngIf="dt.id !== 'mexicana' && m.nutrientes?.sodio">
+                <small>Sodio ~{{ m.nutrientes?.sodio | number: '1.0-0' }} mg/día sin la sal de mesa: cocina con poca
+                  sal y sazona con limón, ajo, chile y hierbas.</small>
+              </p>
+            </ng-container>
             <p *ngIf="m.hogar && m.hogar.factor !== 1">
               🏠 Lista y cocina para {{ m.hogar.adultos }} adulto{{ m.hogar.adultos !== 1 ? 's' : '' }}<ng-container
                 *ngIf="m.hogar.ninos"> y {{ m.hogar.ninos }} niño{{ m.hogar.ninos !== 1 ? 's' : '' }}</ng-container>

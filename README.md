@@ -134,7 +134,7 @@ Sirve para enseñar el sistema sin tocar tus datos. Hay un acceso oculto tanto e
 | | `gymtracker-recordatorio`: aviso push | Cada hora (avisa a la hora de tu config) |
 | | `gymtracker-dashboard`: gunicorn detrás de Caddy (HTTPS) | Siempre |
 | **Tu PC** | Respaldo del motor (tarea programada) | Domingo 23:30 o al encender |
-| **GitHub Actions** (`.github/workflows/desplegar.yml`) | Corre las 5 suites de pruebas, compila la app y la sube a InfinityFree por FTPS | En cada push a `main` que toque `app/`, `infinityfree/` o `python-engine/` |
+| **GitHub Actions** (`.github/workflows/desplegar.yml`) | Corre las 6 suites de pruebas, compila la app y la sube a InfinityFree por FTPS | En cada push a `main` que toque `app/`, `infinityfree/` o `python-engine/` |
 
 **Actualizar la VM** después de un cambio en el motor o el dashboard:
 
@@ -174,7 +174,7 @@ gym/
 │   ├── dashboard.py          dashboard + API de la demo
 │   ├── avisos.py / recordatorio.py   notificaciones push
 │   ├── respaldo_semanal.py   genera la semana solo si falta (VM, PC o a mano)
-│   └── tests/                5 suites de pruebas
+│   └── tests/                6 suites de pruebas
 ├── servidor/                 instalación de la VM (systemd, Caddy) y copias de otras personas
 ├── instancias/               lista de personas con su propia copia (docs/NUEVO_USUARIO.md)
 ├── docs/                     evidencia científica, informe, tesis
@@ -219,11 +219,12 @@ python exportar_demo.py       # app/src/app/demo.generado.ts
 
 ## Pruebas
 
-Las cinco corren en el CI antes de cada despliegue. Si una falla, no se sube nada.
+Las seis corren en el CI antes de cada despliegue. Si una falla, no se sube nada.
 
 | Suite | Qué comprueba |
 |---|---|
-| `test_motor.py` | Las reglas del motor, una por una (48 secciones) |
+| `test_motor.py` | Las reglas del motor, una por una (54 secciones) |
+| `test_menu.py` | Menú de ~50 opciones por tiempo: dietas DASH y mediterránea, más proteína o carbohidratos |
 | `test_funcional.py` | Dashboard, helpers, aislamiento del modo demo y su API |
 | `test_plan_qa.py` | Calidad del plan generado (35 criterios) |
 | `test_barrido.py` | 13 440 semanas: todas las combinaciones sin violar ningún tope |

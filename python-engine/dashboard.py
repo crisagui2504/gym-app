@@ -1230,8 +1230,18 @@ def _resumen_enfoque(cfg: dict) -> html.Div:
 # Menú semanal barato (menu.py): rico, sano y barato con comida mexicana
 # ─────────────────────────────────────────────────────────────────────────────
 _ETIQ_TIEMPO = {"desayuno": "Desayuno", "comida": "Comida", "colacion": "Colación", "cena": "Cena"}
-_EXCLUIR_OPC = [("carnes", "Carnes (pollo, res, cerdo)"), ("pescado", "Pescado (atún, sardina)"),
+_EXCLUIR_OPC = [("carnes", "Carnes (pollo, res, cerdo)"), ("pescado", "Pescado y mariscos"),
                 ("lacteos", "Lácteos"), ("huevo", "Huevo")]
+# Tipo de dieta (menu_dieta + menu_sodio_max) y enfasis (menu_enfasis) del menu
+_DIETA_OPC = [("mexicana", "Mexicana equilibrada (Plato del Bien Comer)"), ("dash", "DASH (presión arterial) · sodio ≤ 2,300 mg"),
+              ("dash1500", "DASH bajo en sodio · ≤ 1,500 mg"), ("mediterranea", "Mediterránea")]
+_ENFASIS_OPC = [("equilibrado", "Equilibrado"), ("proteina", "Más proteína (tope de tu rango)"),
+                ("carbohidratos", "Más carbohidratos (días de mucho entreno o deporte)")]
+
+
+def _dieta_valor(cfg: dict) -> str:
+    d = cfg.get("menu_dieta") or "mexicana"
+    return "dash1500" if d == "dash" and int(cfg.get("menu_sodio_max") or 2300) <= 1500 else d
 
 
 def _menu_cfg() -> dict:
@@ -1260,6 +1270,9 @@ def _menu_actual(forzar: bool = False):
                 and m.get("meta", {}).get("kcal") == meta["kcal"]
                 and m.get("meta", {}).get("proteina_min") == meta["proteina_min"]
                 and (m.get("hogar") or {}).get("factor", 1) == mnu.factor_hogar(cfg)
+                and (m.get("dieta") or {}).get("id") == mnu.dieta_de(cfg)[0]
+                and (m.get("dieta") or {}).get("nombre") == mnu.dieta_de(cfg)[1]["nombre"]
+                and (m.get("dieta") or {}).get("enfasis") == (cfg.get("menu_enfasis") or "equilibrado")
                 and (m.get("presupuesto") or {}).get("tope") == (round(float(cfg["menu_presupuesto"]))
                                                                   if cfg.get("menu_presupuesto") else None)):
             return m
@@ -1282,9 +1295,11 @@ def _menu_vista(m) -> html.Div:
         html.Div([html.Span(f"${m['costo_semana']:,.0f} a la semana",
                             style={"fontWeight": "800", "fontSize": "20px", "color": ACCENT}),
                   html.Span(f"  ·  ~${m['costo_dia']:,.0f} al día", style={"color": MUTED, "fontSize": "13px"})]),
-        html.P(f"Promedio: {m['kcal_prom']:,} kcal y {m['prot_prom']} g de proteína al día "
+        html.P(f"Promedio: {m['kcal_prom']:,} kcal, {m['prot_prom']} g de proteína"
+               + (f" y {m['carb_prom']} g de carbohidratos" if m.get("carb_prom") else "") + " al día "
                f"(tu meta: {meta['kcal']:,} kcal y {meta['proteina_min']}-{meta['proteina_max']} g).",
                style={"color": TEXT, "fontSize": "13px", "margin": "8px 0 0"}),
+        *_resumen_dieta(m),
         *_resumen_hogar_y_nutrientes(m),
         *([html.P("Las kcal cambian según el día: " + " · ".join(
             f"{tipo} ~{k:,}" for tipo, k in meta["kcal_por_tipo"].items()) + ".",
@@ -1351,6 +1366,24 @@ def _menu_vista(m) -> html.Div:
     ])
 
 
+def _resumen_dieta(m: dict) -> list:
+    d = m.get("dieta")
+    if not d:
+        return []
+    out = [html.P(f"🥗 {d['nombre']} · {d.get('enfasis_nombre', 'Equilibrado')}",
+                  style={"color": ACCENT, "fontSize": "13px", "fontWeight": "700", "margin": "8px 0 0"})]
+    for r in d.get("cumple") or []:
+        marca = "–" if r["ok"] is None else ("✓" if r["ok"] else "✗")
+        out.append(html.P(f"{marca} {r['regla']}: {r['valor']}" + (f" ({r['nota']})" if r.get("nota") else ""),
+                          style={"color": WARN if r["ok"] is False else MUTED, "fontSize": "12px", "margin": "2px 0 0"}))
+    n = m.get("nutrientes") or {}
+    if "sodio" in n and d["id"] != "mexicana":
+        out.append(html.P(f"Sodio promedio {n['sodio']:,.0f} mg/día sin la sal de mesa: cocina con poca sal "
+                          "y sazona con limón, ajo, chile y hierbas.",
+                          style={"color": MUTED, "fontSize": "11px", "margin": "2px 0 0"}))
+    return out
+
+
 def _resumen_hogar_y_nutrientes(m: dict) -> list:
     out = []
     hogar = m.get("hogar") or {}
@@ -1400,8 +1433,9 @@ def _tab_menu_children() -> html.Div:
         style_data_conditional=[{"if": {"column_id": "precio"}, "fontWeight": "700", "color": ACCENT}],
     )
     controles = _card([
-        html.Div("Comida mexicana de diario que llega a tus calorías y a tu proteína al menor costo. "
-                 "Si algo no te gusta o no lo comes, quítalo y genera otro.",
+        html.Div("Comida mexicana de diario (≈ 50 opciones por tiempo) que llega a tus calorías y a tu proteína "
+                 "al menor costo, con el tipo de dieta que sigas. Si algo no te gusta o no lo comes, quítalo y "
+                 "genera otro.",
                  style={"color": MUTED, "fontSize": "13px", "marginBottom": "12px"}),
         html.Label("No como", style=_LABEL_STYLE),
         dcc.Checklist(id="menu-excluir", options=[{"label": f" {t}", "value": v} for v, t in _EXCLUIR_OPC],
@@ -1410,6 +1444,17 @@ def _tab_menu_children() -> html.Div:
                                           "flexWrap": "wrap", "gap": "8px 4px"},
                       labelStyle={"color": TEXT, "marginRight": "16px", "display": "inline-flex",
                                   "alignItems": "center", "gap": "5px"}),
+        html.Div([
+            html.Div([html.Label("Tipo de dieta", style=_LABEL_STYLE),
+                      dcc.Dropdown(id="menu-dieta", clearable=False, searchable=False, className="dash-dropdown",
+                                   style=_DD_STYLE, options=[{"label": t, "value": v} for v, t in _DIETA_OPC],
+                                   value=_dieta_valor(cfg))]),
+            html.Div([html.Label("Énfasis", style=_LABEL_STYLE),
+                      dcc.Dropdown(id="menu-enfasis", clearable=False, searchable=False, className="dash-dropdown",
+                                   style=_DD_STYLE, options=[{"label": t, "value": v} for v, t in _ENFASIS_OPC],
+                                   value=cfg.get("menu_enfasis") or "equilibrado")]),
+        ], className="menu-dieta-ctl", style={"display": "grid", "gridTemplateColumns": "repeat(auto-fit, minmax(240px, 1fr))",
+                                              "gap": "10px", "marginTop": "14px"}),
         dcc.Checklist(id="menu-supl", options=[{"label": " Permitir proteína en polvo (solo si con comida no llego)",
                                                 "value": "si"}],
                       value=["si"] if cfg.get("menu_suplementos") else [],
@@ -2128,9 +2173,11 @@ def _aplicar_kcal(n_clicks, delta):
     State("menu-presupuesto", "value"),
     State("menu-adultos", "value"),
     State("menu-ninos", "value"),
+    State("menu-dieta", "value"),
+    State("menu-enfasis", "value"),
     prevent_initial_call=True,
 )
-def _generar_menu_cb(n_clicks, excluir, supl, presupuesto=None, adultos=1, ninos=0):
+def _generar_menu_cb(n_clicks, excluir, supl, presupuesto=None, adultos=1, ninos=0, dieta=None, enfasis=None):
     """Otro menu (otra semilla) con lo que no comes. En demo no se guarda nada."""
     import random
     import menu as mnu
@@ -2142,7 +2189,10 @@ def _generar_menu_cb(n_clicks, excluir, supl, presupuesto=None, adultos=1, ninos
             return defecto
     extra = {"alimentos_excluidos": excluir or [], "menu_suplementos": bool(supl),
              "menu_presupuesto": entero(presupuesto, 50, 20000, None) if presupuesto else None,
-             "menu_adultos": entero(adultos, 1, 10, 1), "menu_ninos": entero(ninos, 0, 10, 0)}
+             "menu_adultos": entero(adultos, 1, 10, 1), "menu_ninos": entero(ninos, 0, 10, 0),
+             "menu_dieta": "dash" if dieta == "dash1500" else (dieta if dieta in mnu.DIETAS else "mexicana"),
+             "menu_sodio_max": 1500 if dieta == "dash1500" else 2300,
+             "menu_enfasis": enfasis if enfasis in mnu.ENFASIS else "equilibrado"}
     if not _es_demo():
         guardar_config(extra)
     try:

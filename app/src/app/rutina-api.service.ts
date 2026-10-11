@@ -119,7 +119,12 @@ export interface MenuSemana {
   hogar?: { adultos: number; ninos: number; factor: number };
   presupuesto?: { tope: number; costo: number; cabe: boolean; menos_variedad: boolean };
   nutrientes?: { fibra: number; hierro: number; calcio: number; fibra_min: number; fibra_rec: number;
-                 hierro_h: number; hierro_m: number; calcio_ref: number; consejos: string[] };
+                 hierro_h: number; hierro_m: number; calcio_ref: number; consejos: string[];
+                 sodio?: number; sat_pct?: number; verdfruta?: number };
+  carb_prom?: number;
+  /** Tipo de dieta (mexicana | dash | mediterranea), enfasis y cada regla contra lo que trae el menu. */
+  dieta?: { id: string; nombre: string; enfasis: string; enfasis_nombre: string;
+            cumple: { regla: string; valor: string; ok: boolean | null; nota?: string }[] };
 }
 
 @Injectable({ providedIn: 'root' })

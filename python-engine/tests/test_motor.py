@@ -1309,7 +1309,8 @@ check("cantidades legibles", alx.cantidad_legible(alx.ALIMENTOS["huevo"], 150) =
       and alx.cantidad_legible(alx.ALIMENTOS["frijol"], 66).startswith("66 g de frijol en seco (≈ 1 taza"))
 try:
     mnu.generar_menu({"enfoque": "volumen", "peso_corporal": 70,
-                      "alimentos_excluidos": ["carnes", "pescado", "huevo", "lacteos", "frijol", "lentejas", "soya"]}, _lun)
+                      "alimentos_excluidos": ["carnes", "pescado", "huevo", "lacteos", "frijol", "lentejas", "soya",
+                                              "garbanzo", "habas", "tofu"]}, _lun)
     _err = False
 except ValueError:
     _err = True

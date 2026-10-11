@@ -36,12 +36,16 @@ DEFAULT_CONFIG: dict = {
     "kcal_ajuste": 0,
     "kcal_ajuste_fecha": None,
     # Menu semanal (menu.py): lo que no comes (ids de alimentos_mx o grupos:
-    # "carnes", "pescado", "lacteos", "huevo") y si se permite proteina en polvo.
+    # "carnes", "pescado", "lacteos", "huevo"), si se permite proteina en polvo,
+    # el tipo de dieta y si se carga a proteina o a carbohidratos.
     "alimentos_excluidos": [],
     "menu_suplementos": False,
     "menu_presupuesto": None,   # $ por semana para todo el hogar (None = sin tope)
     "menu_adultos": 1,          # para cuantos cocinas (contandote)
     "menu_ninos": 0,
+    "menu_dieta": "mexicana",   # mexicana | dash | mediterranea
+    "menu_sodio_max": 2300,     # solo DASH: 2300 o 1500 mg
+    "menu_enfasis": "equilibrado",  # equilibrado | proteina | carbohidratos
 }
 
 

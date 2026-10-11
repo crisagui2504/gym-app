@@ -2464,6 +2464,109 @@ Comparadas con MacroFactor, MyFitnessPal, Cronometer, Fitia, Eat This Much y Mea
   - app real (bundle nuevo `main-5A3MEAC2.js`, sin anotar nada): bloque con "Con 8 pesajes más se ve tu tendencia" y `get_peso.php` 200;
   - en las dos siguen funcionando la rutina del día, la barra `.seg`, Guardar, Historial, Semana y Comida (Proteína y Menú), sin scroll horizontal.
 
+## CD. Menú de ~50 opciones por tiempo, dietas DASH y mediterránea, más proteína o carbohidratos (2026-10-10)
+
+**Pedido.**
+
+- Unas 50 opciones de desayuno, 50 de comida y 50 de cena.
+- Poder cargar el menú a proteína o a carbohidratos.
+- Tipos de dieta, en especial **DASH**, que es la que sigues.
+
+**Catálogo.**
+
+- `alimentos_mx.py`: de 35 a **69 alimentos**. Los precios de los nuevos son estimados (corrígelos en el dashboard). Nuevos:
+  - leguminosas: garbanzo, habas y tofu;
+  - origen animal: claras, res magra, tilapia, camarón, leche descremada, yogur griego y requesón;
+  - cereales: arroz y pasta integrales, pan integral, amaranto, camote y elote;
+  - 14 verduras y frutas;
+  - grasas: nuez, almendra, chía y aceite de oliva.
+- Todos traen **grasa saturada y sodio** por 100 g, aproximados de USDA FoodData Central. El sodio es el del alimento, sin la sal que se agrega al cocinar.
+- `recetas_mx.py`: de 48 a **174 recetas**: 50 desayunos, 51 comidas, 50 cenas y 23 colaciones. Van de 210 a 781 kcal y de 10 a 50 g de proteína por plato, para que haya combinaciones en todo el rango de calorías.
+
+**Tipos de dieta** (`menu_dieta`):
+
+| Dieta | Cambia ingredientes | Reglas que el generador respeta |
+|---|---|---|
+| Mexicana (Plato del Bien Comer) | — | Las de siempre (kcal, proteína, variedad) |
+| **DASH** (NHLBI) | leche → descremada, arroz y pasta → integrales, res → magra, pollo → pechuga, queso fresco → panela | Sodio ≤ 2,300 mg/día (o **1,500** con `menu_sodio_max`); grasa saturada ≤ 7 % de las kcal; ≥ 600 g de verdura y fruta (≈ 4-5 + 4-5 porciones); 2-3 lácteos bajos en grasa; carne roja ≤ 2 veces/semana |
+| Mediterránea (pirámide de la Fundación Dieta Mediterránea, PREDIMED) | aceite → de oliva, res → magra | Grasa saturada ≤ 9 %; ≥ 500 g de verdura y fruta; pescado o mariscos ≥ 2 veces/semana; carne roja ≤ 1 vez/semana |
+
+- **DASH:** las porciones y los límites de sodio son los del plan de 2,000 kcal del NHLBI:
+  - granos 6-8, verduras 4-5, frutas 4-5 y lácteos bajos en grasa 2-3 al día;
+  - carnes ≤ 6 oz al día;
+  - nueces y leguminosas 4-5 a la semana.
+- El 7 % de grasa saturada es un criterio conservador; las Guías Alimentarias de EE. UU. piden < 10 %.
+- Si excluiste lácteos, la regla de lácteos se marca "los excluiste" (no como falla). Se sugiere cubrir el calcio con tofu, sardina, chía, almendra o tortilla.
+
+**Énfasis** (`menu_enfasis`):
+
+- "Más proteína" pide el tope del rango de proteína de tu enfoque, no solo el mínimo.
+- "Más carbohidratos" pide el tope del rango de carbohidratos del enfoque (g/kg × peso), para semanas de mucho entreno o deporte.
+- Las kcal del día no cambian: lo que sube de un macro baja de otro.
+
+**Cómo lo arma** (`menu.py`).
+
+- **Selección del día.** Con ~50 recetas por tiempo, probar todo serían ~18 millones de combinaciones al día, así que cada día entran 18 por tiempo (~1 s por menú):
+  - las 5 más baratas por kcal;
+  - las 3 con más kcal y las 2 con más proteína, para que alcance a 3,500+ kcal;
+  - las 4 que mejor cumplen la dieta;
+  - las 4 con más proteína o carbos, si hay énfasis;
+  - el resto al azar.
+- **Etapas:** dieta completa con énfasis → dieta básica (sodio, saturada, verdura mínima) → sin énfasis → sin dieta → sin proteína → sin variedad. Lo que se suelta se avisa.
+- **Pescado de la mediterránea:** se reparte en la semana (martes y viernes, o cuando ya no alcanzan los días).
+- **"Cambiar":** las alternativas respetan el sodio que le queda al día y el tope de carne roja.
+- **Variedad:** cada comida y cena sale como mucho una vez a la semana, y cada desayuno dos veces. Un poco de azar por receta hace que cada semana sea distinta.
+
+**Encontrado al probar.**
+
+- **Costos ×100.** Mi primer vector de costos multiplicaba el precio ×100. El costo aplastaba la variedad y las reglas de la dieta:
+  - DASH no llegaba a los lácteos;
+  - la mediterránea salía con 0 pescados;
+  - otra semilla daba el mismo menú.
+
+  Ya está corregido.
+- **Sin menú para 95-110 kg.** Con 3,600+ kcal no había combinación posible:
+  - se agregaron porciones de 2.25× y 2.5×;
+  - las recetas más llenadoras siempre entran a las 18 del día.
+
+  En un barrido de 225 perfiles, ninguno se quedó sin menú.
+
+**Resultado** (recomposición, 73 kg):
+
+| | $/semana | Recetas distintas | Sodio máx./día | Saturada | Verdura+fruta |
+|---|---|---|---|---|---|
+| Mexicana | ~$350 | 21 | — | 5 % | ~410 g |
+| DASH | ~$405 | 24 | < 1,700 mg | 4 % | ~630 g |
+| Mediterránea | ~$375 | 24 | — | 5 % | ~570 g |
+
+La variedad cuesta ~15 % más que el menú anterior, que repetía las 14 recetas más baratas. Con presupuesto (`menu_presupuesto`), se vuelve a cambiar variedad por precio.
+
+**Dashboard y app.**
+
+- La pestaña Menú tiene "Tipo de dieta" (mexicana, DASH 2,300, DASH 1,500, mediterránea) y "Énfasis".
+- El resumen y la app muestran:
+  - la dieta;
+  - cada regla con ✓/✗;
+  - los carbohidratos del día;
+  - el sodio sin sal de mesa.
+
+**Verificación.**
+
+- `tests/test_menu.py` (nuevo, en el CI, 33 pruebas):
+  - 50 opciones por tiempo;
+  - cada regla de DASH y DASH 1,500, también en las alternativas;
+  - mediterránea con pescado y aceite de oliva;
+  - sin lácteos o sin pescado, no se inventan;
+  - más proteína y más carbohidratos sin mover las kcal;
+  - otra semilla = otro menú;
+  - barrido de 108 perfiles sin quedarse sin menú.
+- `test_motor`: "si excluyes todo" ahora también excluye garbanzo, habas y tofu.
+- Las 6 suites pasan y `npx ng build` compila.
+- Dashboard a 375 px en demo, sin tocar tu configuración:
+  - los dos menús desplegables se leen completos;
+  - "DASH" genera un menú con todas las reglas en ✓;
+  - no hay scroll horizontal.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

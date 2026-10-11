@@ -51,6 +51,8 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Motor
         run: python tests/test_motor.py
+      - name: Menu (50 opciones, DASH, mediterranea, enfasis)
+        run: python tests/test_menu.py
       - name: Dashboard y helpers
         run: python tests/test_funcional.py
       - name: Calidad del plan

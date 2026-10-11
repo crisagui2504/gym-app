@@ -65,7 +65,9 @@ Documentos relacionados:
 
 - **Metas:** proteína en g/kg según el enfoque (1.6–2.5 g/kg) y kcal desde los macros del enfoque más los ajustes que aceptaste.
 - **Calorías adaptativas:** se ajustan según la pendiente del peso de 21 días, de ±100 a ±300 kcal, con 14 días de espera entre ajustes. Se reparten por tipo de día (pesas, deporte, cardio, descanso) con el mismo total semanal.
-- **Menú semanal más barato** con comida mexicana, con:
+- **Menú semanal más barato** con comida mexicana (~50 opciones por tiempo), con:
+  - tipo de dieta: mexicana (Plato del Bien Comer), **DASH** (sodio ≤ 2,300 o 1,500 mg) o **mediterránea**;
+  - énfasis: equilibrado, más proteína o más carbohidratos;
   - alternativas por comida;
   - cocina por adelantado;
   - lista del súper;
@@ -92,7 +94,7 @@ Documentos relacionados:
                 │ el motor resuelve el antibot __test (AES)  │ FTPS en cada push
 ┌───────────────┴────────────── VM de Azure ──────┐   ┌──────┴────────────────────┐
 │ gymtracker-motor   domingo 22:00 (México)       │   │ GitHub Actions            │
-│ gymtracker-datos   cada 3 h (historial, etc.)   │   │ 5 suites de pruebas →     │
+│ gymtracker-datos   cada 3 h (historial, etc.)   │   │ 6 suites de pruebas →     │
 │ gymtracker-recordatorio  cada hora (push 6 pm)  │   │ ng build → deploy/ → FTPS │
 │ gymtracker-dashboard  gunicorn + Caddy (HTTPS)  │   └───────────────────────────┘
 │   + API pública de la demo (/demo/api/…)        │
@@ -256,7 +258,7 @@ gym/
 │   └── api/                     endpoints (sección 8); config.php NO se versiona
 ├── python-engine/               motor, nutrición, menú, dashboard (sección 7)
 │   ├── assets/dashboard.css     estilos (incluye la vista de celular)
-│   └── tests/                   5 suites (sección 10)
+│   └── tests/                   6 suites (sección 10)
 ├── servidor/                    instalación de la VM (systemd, Caddy), copias de otras personas, armar_deploy.sh
 ├── instancias/instancias.json   personas con su propia copia (docs/NUEVO_USUARIO.md)
 ├── docs/                        evidencia científica, informe, tesis, guía de nuevo usuario
@@ -314,8 +316,8 @@ No se versionan:
 | Módulo | Qué hace |
 |---|---|
 | `nutricion.py` | Metas (proteína y kcal), tendencia de peso, calorías adaptativas (`evaluar`), kcal por tipo de día (MET del Compendium), adherencia de 7 días, resumen semanal para el push, y subida y descarga con la API. |
-| `alimentos_mx.py` | 35 alimentos: nutrimentos, fibra, hierro, calcio, precios (Profeco o estimado), unidades legibles. Tus precios van en `precios_alimentos.json`. |
-| `recetas_mx.py` | 48 recetas mexicanas por tiempo de comida, con porciones base. |
+| `alimentos_mx.py` | 69 alimentos: nutrimentos, fibra, hierro, calcio, grasa saturada, sodio, precios (Profeco o estimado), unidades legibles. Tus precios van en `precios_alimentos.json`. |
+| `recetas_mx.py` | 174 recetas mexicanas: 50 desayunos, 51 comidas, 50 cenas y 23 colaciones, con porciones base. |
 | `menu.py` | Generador del menú semanal (sección 7.1). |
 
 ### Servidor, datos y demo
@@ -330,14 +332,16 @@ No se versionan:
 
 ### 7.1 Cómo se arma el menú (`menu.py`)
 
-1. **Combinaciones:** para cada día prueba desayuno × comida × cena × porción (0.75–2×) × colación, unas 70 mil, con numpy.
+1. **Combinaciones:** de las ~50 recetas de cada tiempo, cada día entran 18: las 5 más baratas por kcal, las 3 con más kcal y las 2 con más proteína, las 4 que mejor cumplen la dieta, las 4 con más proteína o carbos si hay énfasis, y el resto al azar. Prueba desayuno × comida × cena × porción (0.75–2.5×) × colación, ~1.1 millones, con numpy (~1 s el menú).
+   - **Dieta:** cambia ingredientes (DASH: leche descremada, arroz y pasta integrales, res magra, pechuga, panela; mediterránea: aceite de oliva, res magra) y pone reglas. DASH: sodio ≤ 2,300/1,500 mg al día, grasa saturada ≤ 7 % de las kcal, ≥ 600 g de verdura y fruta, 2-3 lácteos y carne roja ≤ 2/semana. Mediterránea: saturada ≤ 9 %, ≥ 500 g de verdura y fruta, pescado ≥ 2/semana y carne roja ≤ 1/semana. `menu["dieta"]["cumple"]` compara cada regla con lo que trae el menú.
+   - **Énfasis:** "más proteína" pide el tope del rango de proteína del enfoque; "más carbohidratos" el tope del rango de carbos (g/kg × peso). Las kcal no cambian.
 2. **Elección:** se queda con la **más barata** que queda a ±5 % de las kcal del día y llega a la proteína mínima. Revisa los 600 mejores candidatos con las cantidades ya redondeadas (huevos y tortillas enteros).
 3. **Variedad:**
    - $9 virtuales por cada repetición;
    - tope de usos por receta;
    - comida y cena sin la misma proteína;
    - como máximo 4 huevos al día.
-4. **Etapas de respaldo:** más holgura, luego sin proteína (con aviso), y al final relajando la variedad, nunca el huevo. Con exclusiones fuertes hay menú en vez de error.
+4. **Etapas de respaldo:** dieta completa con énfasis → más holgura → dieta básica (sodio, saturada, verdura mínima) → sin énfasis → sin dieta → sin proteína → sin variedad; nunca el huevo. Cada cosa que se suelta se avisa. Con exclusiones fuertes hay menú en vez de error.
 5. **Presupuesto (`menu_presupuesto`):** si no cabe, baja la variedad en 3 pasos. Si aun así no cabe, avisa lo mínimo posible.
 6. **Hogar:** la lista y la cocina se multiplican por adultos + 0.6 × niños.
 7. **El JSON resultante** (~70 KB) incluye:
@@ -345,7 +349,8 @@ No se versionan:
    - lista del súper;
    - cocina por adelantado (domingo y miércoles);
    - ficha de cada alimento, para que la app rehaga las cuentas;
-   - promedios de fibra, hierro y calcio con sus referencias;
+   - promedios de fibra, hierro, calcio, sodio, % de grasa saturada y verdura/fruta;
+   - la dieta, el énfasis y el cumplimiento de cada regla;
    - avisos.
 
 ---
@@ -437,11 +442,12 @@ Todas están también en `infinityfree/schema.sql`.
 
 Cada push a `main` que toque `app/`, `infinityfree/`, `python-engine/` o `instancias/instancias.json` sigue estos pasos:
 
-1. **Pruebas (5 suites).** Si una falla, no se sube nada.
+1. **Pruebas (6 suites).** Si una falla, no se sube nada.
 
    | Suite | Qué comprueba |
    |---|---|
-   | `test_motor.py` | Reglas del motor, nutrición, menú, calorías por día, presupuesto (53 secciones). |
+   | `test_motor.py` | Reglas del motor, nutrición, menú, calorías por día, presupuesto, peso corporal (54 secciones). |
+   | `test_menu.py` | Menú de 50 opciones: reglas DASH y mediterránea, énfasis, variedad, barrido de 108 perfiles. |
    | `test_funcional.py` | Dashboard y helpers, aislamiento del modo demo y su API, menú en demo, **selectores CSS duplicados** en `app/src/styles.css`. |
    | `test_plan_qa.py` | 35 criterios de calidad del plan. |
    | `test_barrido.py` | 13 440 semanas sin violar topes. |
@@ -460,7 +466,7 @@ La VM no la actualiza el CI: `cd ~/gym && git pull && bash servidor/instalar_vm.
 
 **Revisión tras cada cambio:**
 
-- las 5 suites en verde;
+- las 6 suites en verde;
 - el despliegue en verde;
 - la página en vivo carga el bundle nuevo (comparar `main-*.js` con `index.html` del servidor);
 - revisar en el navegador a 375 px la rutina, la barra de progreso, Guardar, Historial, Semana y Comida, y el dashboard.
