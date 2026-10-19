@@ -1179,6 +1179,10 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   // ----- Proteina del dia -----
+  /** Panel Comida (proteina, peso, menu) oculto mientras se termina: quiza pase a
+   *  ser una app aparte. El codigo y los datos siguen; poner true lo vuelve a mostrar. */
+  readonly comidaVisible = false;
+
   toggleProteina(): void {
     this.mostrarProteina.update((v) => !v);
     if (this.mostrarProteina()) {

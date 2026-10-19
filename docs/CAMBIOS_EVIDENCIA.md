@@ -2757,6 +2757,22 @@ Con "repetir al día siguiente ×2" y "mover = 2" quedan bien los tres casos: el
 - La rutina, la barra `.seg` (18) y Guardar siguen funcionando.
 - `test_funcional` sin selectores CSS duplicados; `npx ng build` compila.
 
+## CI. Panel Comida oculto en la app (2026-10-19)
+
+**Pedido.** Esconder la parte de Comida de la app mientras la terminas; quizá pase a ser una app aparte.
+
+**Cambio.**
+
+- `comidaVisible = false` en `app.component.ts` quita el botón "Comida" de la barra de abajo y el panel (proteína, peso de hoy, menú).
+- Nada se borra: el código, los datos en MySQL, el dashboard (pestañas Peso corporal y Menú) y el motor siguen igual. Para volver a mostrarlo basta poner `true`.
+- Ojo: "⚖️ Peso de hoy" vivía dentro de ese panel. Mientras esté oculto, el peso se anota en el dashboard.
+
+**Verificación.** `npx ng build` compila y `test_funcional` pasa. Demo a 375 px:
+
+- la barra queda con Historial, Semana, Tema y Guardar;
+- "Mi semana" y la rutina, con la barra `.seg` (18), siguen funcionando;
+- no hay scroll horizontal.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
