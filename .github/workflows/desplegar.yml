@@ -81,6 +81,11 @@ jobs:
         run: |
           npm ci
           npx ng build
+      - name: Acomodo de la semana (recuperacion muscular)
+        working-directory: app
+        run: |
+          npx esbuild tests/semana-plan.test.ts --bundle --platform=node --log-level=warning --outfile=tests/.semana.js
+          node tests/.semana.js
       - name: Armar deploy/ (igual que el .bat, sin config.php)
         run: bash servidor/armar_deploy.sh
       - name: Subir a InfinityFree (FTPS)

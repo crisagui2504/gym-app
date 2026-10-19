@@ -457,6 +457,35 @@ button:disabled {
   font-weight: 700;
 }
 
+.week-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+  max-width: 55%;
+}
+
+.week-aqui {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  color: var(--text);
+}
+
+.week-aviso {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--danger);
+}
+
+.week-day.week-pasado {
+  opacity: 0.55;
+}
+
+.week-day.week-elegido {
+  outline: 2px dashed var(--accent);
+}
+
 .week-rest-tag {
   flex-shrink: 0;
   padding: 4px 10px;

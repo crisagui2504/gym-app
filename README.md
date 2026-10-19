@@ -229,6 +229,7 @@ Las seis corren en el CI antes de cada despliegue. Si una falla, no se sube nada
 | `test_plan_qa.py` | Calidad del plan generado (35 criterios) |
 | `test_barrido.py` | 13 440 semanas: todas las combinaciones sin violar ningún tope |
 | `test_simulacion.py` | El motor como entrenador: 9 perfiles de atleta virtual progresan con cargas realistas |
+| `app/tests/semana-plan.test.ts` | Mover días en la app: lo demás se acomoda para que cada músculo descanse (corre en el CI después de compilar) |
 
 ```powershell
 cd python-engine

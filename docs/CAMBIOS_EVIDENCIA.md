@@ -2680,6 +2680,61 @@ No hay una "dieta" que gane por sí sola. Lo que se agregó son las dos estrateg
 - Las 6 suites pasan y `npx ng build` compila.
 - Dashboard en demo: el selector nuevo y la línea "🥗 DASH · Equilibrado · 💪 Proteína repartida", sin ✗.
 
+## CG. "Mi semana": mover cualquier día y acomodar lo demás por recuperación (2026-10-19)
+
+**Problema (reportado con captura, lunes 19 oct).**
+
+- **Sin cambio directo:** querías cambiar el básquet de mañana a hoy y entrenar mañana, y la app no tenía forma.
+- **Los demás días quedaban mal acomodados:** terminaste con torso el miércoles y el jueves seguidos.
+
+**Causas.**
+
+1. "Descansar aquí" solo intercambiaba con *el* día de descanso, que buscaba por nombre ("descanso"). Tu semana no tiene descanso: son 5 días de gym y 2 de básquet. Así que caía al valor por defecto, la sesión 4, que era el básquet del jueves. Cada toque intercambiaba con donde estuviera ese básquet, y tres toques dejaron básquet lunes y martes, Torso A el miércoles y Torso C el jueves.
+2. No había ninguna regla de recuperación, y los días de deporte no se podían mover a propósito.
+
+**Cambio.**
+
+- **"Mover" en cualquier día de hoy en adelante**, incluidos básquet y descanso: tocas "Mover" y luego "Aquí" en el destino. Hoy tiene además "⇄ Con mañana". Los días pasados no se mueven.
+- **Lo demás se acomoda solo** (`semana-plan.ts`):
+  - Cada sesión tiene su carga por músculo: series del ejercicio, el músculo principal ×1 y los secundarios ×0.5 (`musculosDe`). El básquet cuenta como gemelos 4, cuádriceps 3 y glúteos 2, igual que el mapa de recuperación.
+  - Dos sesiones "chocan" si repiten un músculo antes de que se recupere: 72 h los grandes (pecho, dorsales, cuádriceps, isquios, glúteos, lumbar) y 48 h los demás, con caída lineal. Repetir al día siguiente pesa el doble.
+  - Se prueban **todos** los órdenes posibles de los días de gym que siguen (como mucho 5! = 120) y se queda el que menos choca.
+  - **Qué no se toca:** días pasados, hoy (salvo que lo muevas tú), lo que ya moviste a mano y el deporte (salvo que lo muevas tú).
+  - Mover una sesión "cuesta" 2, para que solo cambie lo que de verdad ayuda. El lunes siguiente cuenta a la mitad.
+- **⚠️ por día** cuando un músculo se repite con menos de 48 h, por ejemplo "Dorsales y Hombros sin 48 h de descanso". Lo que tú eliges manda, pero el mensaje lo avisa.
+- **"Restaurar"** vuelve al plan del motor.
+
+**Tu caso** (semana real del 19 oct). "⇄ Con mañana" el lunes deja la semana así:
+
+| Lun | Mar | Mié | Jue | Vie | Sáb | Dom |
+|---|---|---|---|---|---|---|
+| Básquet | Torso A | Pierna Bombeo | Básquet | Torso Bombeo | Pierna A | Torso C |
+
+Sin torso ni pierna dos días seguidos. El choque baja de 50.7 (solo intercambiar) a 28.8.
+
+**Ajustes encontrados al probar.**
+
+- **El aviso salía a 48–72 h:** con 3 días de torso en 7 días a veces no se puede dar más. Ahora el aviso sale solo con menos de 48 h; el acomodo igual prefiere 72 h cuando se puede.
+- **"No mover" pesaba demasiado poco** (0.3): movía cosas por detalles (intercambiaba Pierna A y Pierna Bombeo por las pantorrillas después del básquet, una mejora de 3).
+- **"No mover" también llegó a pesar demasiado** (1.0 sin el doble del día siguiente): prefería dejar torso viernes y sábado seguidos con tal de mover menos.
+
+Con "repetir al día siguiente ×2" y "mover = 2" quedan bien los tres casos: el plan del motor no se toca, tu caso se arregla y la semana rota de la captura también.
+
+**Verificación.**
+
+- `app/tests/semana-plan.test.ts` (18 pruebas, en el CI después de compilar):
+  - tu caso: no toca lo que pediste ni el básquet del jueves, sin torso ni pierna seguidos, sin pecho ni dorsales con menos de 48 h, misma semana reordenada;
+  - la semana de la captura avisa el jueves y se arregla;
+  - el plan del motor no se mueve;
+  - nunca toca días pasados ni fijos.
+- `npx ng build` compila. `test_funcional` sin selectores CSS duplicados.
+- App en demo a 375 px:
+  - "⇄ Con mañana" pone básquet hoy y Torso A mañana, y acomoda Pierna A al miércoles y Torso Bombeo al viernes;
+  - mover a mano Torso Bombeo al miércoles muestra "⚠️ Dorsales y Hombros sin 48 h" y el mensaje lo avisa;
+  - "Restaurar" vuelve al plan;
+  - la rutina de hoy, la barra `.seg` (18) y Guardar siguen funcionando;
+  - sin scroll horizontal.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

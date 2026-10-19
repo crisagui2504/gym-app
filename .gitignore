@@ -52,3 +52,4 @@ instancias/*/
 # Credenciales del servidor (MySQL + token): viven SOLO en htdocs/api/ de InfinityFree
 # y en este PC. Ni git ni el CI las suben (servidor/armar_deploy.sh las excluye).
 infinityfree/api/config.php
+app/tests/.semana.js

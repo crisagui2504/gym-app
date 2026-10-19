@@ -282,7 +282,7 @@ No se versionan:
 
 | Archivo | Qué hace |
 |---|---|
-| `app.component.ts/.html` | Pantalla principal. Incluye: rutina del día por tarjetas, series, RPE objetivo, cronómetro, "¿Cómo te sientes hoy?" y encuesta, cambio de ejercicio ("Máquina ocupada" / "Usar siempre"), mover el descanso, historial, resumen al guardar, racha, tema, avisos push y la banda del modo demo. Guarda el entreno en curso y lo restaura si la app se cierra. |
+| `app.component.ts/.html` | Pantalla principal. Incluye: rutina del día por tarjetas, series, RPE objetivo, cronómetro, "¿Cómo te sientes hoy?" y encuesta, cambio de ejercicio ("Máquina ocupada" / "Usar siempre"), mover días de la semana ("Mover" / "⇄ Con mañana", lo demás se acomoda por recuperación), historial, resumen al guardar, racha, tema, avisos push y la banda del modo demo. Guarda el entreno en curso y lo restaura si la app se cierra. |
 | `rutina-api.service.ts` | Cliente HTTP de la API (sección 8). Interfaces de rutina, historial, encuesta, nutrición y menú. |
 | `almacen.ts` | Almacén durable en IndexedDB, con localStorage como respaldo y memoria en demo: entreno en curso, colas de envío, proteína del día. |
 | `entreno-data.ts` | Conocimiento del front: qué campos lleva cada ejercicio (`medidaDe`), músculos, alternativas, descansos y calentamiento. |
@@ -290,6 +290,7 @@ No se versionan:
 | `muscle-map.component.ts` | Mapa muscular en SVG. |
 | `acentos.ts` | Pipe que pone acentos a los nombres que vienen del motor. |
 | `nutricion.ts` | `NutricionService`. Proteína del día por porciones (17 de casa y 20 de "Comí fuera"), meta del motor, creatina con racha, "Lo comí" del menú, menú de la semana, elección de comidas y "ya tengo en casa", peso de hoy (y cintura) con su tendencia. Guardado offline con reenvío. |
+| `semana-plan.ts` | Funciones puras del acomodo de la semana: carga por músculo de cada sesión (series; el básquet = gemelos, cuádriceps y glúteos), choque de recuperación (72 h músculos grandes, 48 h los demás, doble si es al día siguiente), y `acomodar`, que prueba todos los órdenes de los días de gym libres y se queda con el que menos choca. Pruebas en `app/tests/semana-plan.test.ts`. |
 | `menu-semana.ts` | Funciones puras que rehacen en el teléfono la lista del súper (por hogar) y la cocina por adelantado según las comidas elegidas, y el texto para compartir la lista. |
 | `proteina.component.ts` | Panel **Comida** con dos vistas: Proteína (barra, porciones, creatina, comí fuera) y Menú (resumen, días, cambiar, lo comí, cocina, lista). |
 | `demo.ts` / `demo.generado.ts` | Modo demo (5 toques al logo o `?demo=1`). Usa una API falsa que pide escenarios al motor de la VM y tiene un respaldo empaquetado. Almacén en memoria: nada real se lee ni se escribe. |
@@ -460,6 +461,7 @@ Cada push a `main` que toque `app/`, `infinityfree/`, `python-engine/` o `instan
    | `test_plan_qa.py` | 35 criterios de calidad del plan. |
    | `test_barrido.py` | 13 440 semanas sin violar topes. |
    | `test_simulacion.py` | 9 atletas virtuales progresan con cargas realistas. |
+   | `app/tests/semana-plan.test.ts` | Acomodo de la semana con la semana real del 19 oct 2026: nunca torso ni pierna dos días seguidos, no toca días pasados ni el deporte, no mueve nada si el plan ya estaba bien. Corre con esbuild + Node después de compilar. |
 
 2. **Build y armado:** `ng build` y `servidor/armar_deploy.sh`, que arma `deploy/` sin `config.php`.
 3. **Subida por FTPS** a `htdocs/` de InfinityFree.

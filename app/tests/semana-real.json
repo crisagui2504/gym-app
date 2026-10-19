@@ -1,0 +1,224 @@
+[
+ {
+  "nombre": "Torso A - Fuerza",
+  "bloque": "A - Fuerza maxima",
+  "filas": [
+   {
+    "ejercicio": "Press Militar Mancuernas (Sentado)",
+    "series_objetivo": "1.0"
+   },
+   {
+    "ejercicio": "Press Militar Mancuernas (Sentado)",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Remo con Mancuerna a 1 Mano",
+    "series_objetivo": "1.0"
+   },
+   {
+    "ejercicio": "Remo con Mancuerna a 1 Mano",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Press de Banca con Barra",
+    "series_objetivo": "3.0"
+   },
+   {
+    "ejercicio": "Jalon al Pecho Agarre Amplio",
+    "series_objetivo": "3.0"
+   },
+   {
+    "ejercicio": "Curl Martillo con Mancuernas",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Extension Triceps sobre Cabeza",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Elevaciones Laterales Mancuernas",
+    "series_objetivo": "2.0"
+   }
+  ]
+ },
+ {
+  "nombre": "Basquetbol",
+  "bloque": "Deporte",
+  "filas": [
+   {
+    "ejercicio": "Basquetbol",
+    "series_objetivo": "0.0"
+   }
+  ]
+ },
+ {
+  "nombre": "Torso Bombeo",
+  "bloque": "A - Fuerza maxima",
+  "filas": [
+   {
+    "ejercicio": "Remo con Barra Agarre Prono",
+    "series_objetivo": "1.0"
+   },
+   {
+    "ejercicio": "Remo con Barra Agarre Prono",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Press Arnold con Mancuernas",
+    "series_objetivo": "1.0"
+   },
+   {
+    "ejercicio": "Press Arnold con Mancuernas",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Press de Banca con Barra",
+    "series_objetivo": "3.0"
+   },
+   {
+    "ejercicio": "Jalon al Pecho Agarre Amplio",
+    "series_objetivo": "3.0"
+   },
+   {
+    "ejercicio": "Curl con Barra EZ",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Extension Triceps Polea Cuerda",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Pec Deck Invertido",
+    "series_objetivo": "2.0"
+   }
+  ]
+ },
+ {
+  "nombre": "Basquetbol",
+  "bloque": "Deporte",
+  "filas": [
+   {
+    "ejercicio": "Basquetbol",
+    "series_objetivo": "0.0"
+   }
+  ]
+ },
+ {
+  "nombre": "Pierna A - Fuerza",
+  "bloque": "A - Fuerza maxima",
+  "filas": [
+   {
+    "ejercicio": "Sentadilla Libre con Barra",
+    "series_objetivo": "1.0"
+   },
+   {
+    "ejercicio": "Sentadilla Libre con Barra",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Hip Thrust con Barra",
+    "series_objetivo": "1.0"
+   },
+   {
+    "ejercicio": "Hip Thrust con Barra",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Prensa de Piernas 45 grados",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Curl de Isquios Sentado (Maquina)",
+    "series_objetivo": "3.0"
+   },
+   {
+    "ejercicio": "Aduccion de Cadera en Maquina",
+    "series_objetivo": "3.0"
+   },
+   {
+    "ejercicio": "Elevaciones de Pantorrilla De Pie",
+    "series_objetivo": "3.0"
+   }
+  ]
+ },
+ {
+  "nombre": "Torso C - Pecho/Dorsal",
+  "bloque": "A - Fuerza maxima",
+  "filas": [
+   {
+    "ejercicio": "Press Militar con Barra",
+    "series_objetivo": "1.0"
+   },
+   {
+    "ejercicio": "Press Militar con Barra",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Dominadas (Asistida)",
+    "series_objetivo": "1.0"
+   },
+   {
+    "ejercicio": "Dominadas (Asistida)",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Press Inclinado con Mancuernas",
+    "series_objetivo": "3.0"
+   },
+   {
+    "ejercicio": "Remo con Mancuerna a 1 Mano",
+    "series_objetivo": "3.0"
+   },
+   {
+    "ejercicio": "Curl con Mancuernas",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Press Cerrado con Barra",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Face Pull Polea Alta",
+    "series_objetivo": "2.0"
+   }
+  ]
+ },
+ {
+  "nombre": "Pierna Bombeo",
+  "bloque": "A - Fuerza maxima",
+  "filas": [
+   {
+    "ejercicio": "Peso Muerto Rumano con Barra",
+    "series_objetivo": "1.0"
+   },
+   {
+    "ejercicio": "Peso Muerto Rumano con Barra",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Prensa de Piernas 45 grados",
+    "series_objetivo": "1.0"
+   },
+   {
+    "ejercicio": "Prensa de Piernas 45 grados",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Sentadilla Libre con Barra",
+    "series_objetivo": "3.0"
+   },
+   {
+    "ejercicio": "Curl Nordico",
+    "series_objetivo": "2.0"
+   },
+   {
+    "ejercicio": "Patada de Gluteo en Maquina",
+    "series_objetivo": "3.0"
+   },
+   {
+    "ejercicio": "Abduccion de Cadera en Polea",
+    "series_objetivo": "2.0"
+   }
+  ]
+ }
+]

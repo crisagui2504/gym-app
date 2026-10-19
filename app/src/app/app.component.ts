@@ -9,6 +9,7 @@ import * as almacen from './almacen';
 import { DemoApiService, ES_DEMO, entrarDemo, salirDemo } from './demo';
 import { NutricionService } from './nutricion';
 import { ProteinaComponent } from './proteina.component';
+import { Carga as CargaMuscular, acomodar, cargaDeSesion, nombresMusculos, sinRecuperar } from './semana-plan';
 import { environment } from '../environments/environment';
 import {
   ajusteIntraSesion,
@@ -219,13 +220,19 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly cargandoHistorial = signal(false);
   readonly historial = signal<Array<{ fecha: string; items: Array<{ ejercicio: string; mejor: string }> }>>([]);
 
-  // ----- Reprogramar la semana (mover el dia de descanso) -----
+  // ----- Reprogramar la semana (mover dias; lo demas se acomoda por recuperacion) -----
   readonly diasLabel = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  private readonly diasLargo = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
   readonly mostrarSemana = signal(false);
   readonly cargandoSemana = signal(false);
-  readonly semana = signal<{ cal: number; sesion: number; nombre: string; descanso: boolean; deporte: boolean; hoy: boolean }[]>([]);
+  readonly semana = signal<{ cal: number; sesion: number; nombre: string; descanso: boolean; deporte: boolean; hoy: boolean;
+                             pasado: boolean; aviso: string }[]>([]);
+  /** Dia que elegiste mover (esperando a que toques a donde va). */
+  readonly moviendo = signal<number | null>(null);
   private nombresSesion: string[] = [];
   private bloquesSesion: string[] = [];
+  /** Series por musculo de cada sesion del plan (para acomodar por recuperacion). */
+  private cargasSesion: CargaMuscular[] = [];
   readonly esDiaDescanso = computed(() => /descanso/i.test(this.nombreDia()));
   /** Dia de DEPORTE (basquet, futbol...): no es gym ni descanso. Se detecta por
    *  el bloque, no por el nombre — el nombre lo pone el usuario en su config.
@@ -628,6 +635,7 @@ export class AppComponent implements OnInit, OnDestroy {
         next: (arr) => {
           this.nombresSesion = arr.map((r) => (r.rutina[0]?.nombre_dia ?? '—'));
           this.bloquesSesion = arr.map((r) => (r.rutina[0]?.bloque ?? ''));
+          this.cargasSesion = arr.map((r, i) => cargaDeSesion(r.rutina, /deporte/i.test(this.bloquesSesion[i])));
           this.reconstruirSemana();
           this.cargandoSemana.set(false);
         },
@@ -643,65 +651,80 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private reconstruirSemana(): void {
     const hoy = this.weekdayHoy();
+    const orden = [1, 2, 3, 4, 5, 6, 7].map((cal) => this.sesionDe(cal));
     this.semana.set(
-      [1, 2, 3, 4, 5, 6, 7].map((cal) => {
-        const s = this.sesionDe(cal);
+      orden.map((s, i) => {
+        const cal = i + 1;
         const nombre = this.nombresSesion[s - 1] ?? '—';
+        const cansados = this.cargasSesion.length ? sinRecuperar(orden, this.cargasSesion, cal) : [];
         return {
           cal, sesion: s, nombre,
           descanso: /descanso/i.test(nombre),
-          // los dias de deporte son un compromiso fijo (basquet a una hora), no
-          // una sesion movible: no se pueden intercambiar con el descanso
           deporte: /deporte/i.test(this.bloquesSesion[s - 1] ?? ''),
-          hoy: cal === hoy
+          hoy: cal === hoy,
+          pasado: cal < hoy,
+          aviso: cansados.length ? `${nombresMusculos(cansados)} sin 48 h de descanso` : ''
         };
       })
     );
   }
 
-  private sesionDescanso(): number {
-    const i = this.nombresSesion.findIndex((n) => /descanso/i.test(n));
-    return i >= 0 ? i + 1 : 4;
+  private fijosKey(): string {
+    return 'horario-fijos-' + fechaLocal(this.mondayActual());
   }
 
-  /** Pone el descanso en este dia calendario, intercambiando con el dia de descanso actual. */
-  descansarEn(cal: number): void {
-    // Un dia de deporte no se intercambia: el basquet es a una hora fija en el
-    // mundo real, no una sesion que se pueda correr de dia.
-    if (this.semana().find((d) => d.cal === cal)?.deporte) {
-      this.mensaje.set('Ese día es de deporte, no se puede mover. Elige un día de gym.');
-      return;
+  /** Intercambia dos dias (gym, deporte o descanso) y acomoda los dias de gym que
+   *  siguen para que el mismo musculo no se repita sin recuperarse. No se tocan los
+   *  dias pasados, hoy (si no lo moviste tu), los de deporte ni los que ya moviste. */
+  moverDia(a: number, b: number): void {
+    this.moviendo.set(null);
+    if (a === b) return;
+    const hoy = this.weekdayHoy();
+    if (a < hoy || b < hoy) return;                    // lo que ya paso no se mueve
+    const orden = [1, 2, 3, 4, 5, 6, 7].map((cal) => this.sesionDe(cal));
+    [orden[a - 1], orden[b - 1]] = [orden[b - 1], orden[a - 1]];
+    let tuyos: number[] = [];
+    try {
+      tuyos = JSON.parse(localStorage.getItem(this.fijosKey()) || '[]');
+    } catch {
+      tuyos = [];
     }
-    const m = this.cargarOverrideMap();
+    tuyos = [...new Set([...tuyos, a, b])];
+    const fijos = new Set([1, 2, 3, 4, 5, 6, 7].filter((cal) =>
+      cal <= hoy || tuyos.includes(cal) || /deporte/i.test(this.bloquesSesion[orden[cal - 1] - 1] ?? '')));
+    const r = this.cargasSesion.length
+      ? acomodar(orden, this.cargasSesion, fijos, this.cargasSesion[0])
+      : { orden, movidos: [] };
     const full: Record<number, number> = {};
-    for (let d = 1; d <= 7; d++) full[d] = m[d] ?? d;
-
-    const rest = this.sesionDescanso();
-    let oldRestCal = 0;
-    for (let d = 1; d <= 7; d++) {
-      if (full[d] === rest) {
-        oldRestCal = d;
-        break;
-      }
+    r.orden.forEach((s, i) => (full[i + 1] = s));
+    try {
+      localStorage.setItem(this.overrideKey(), JSON.stringify(full));
+      localStorage.setItem(this.fijosKey(), JSON.stringify(tuyos));
+    } catch {
+      /* sin espacio: solo esta vez */
     }
-    if (!oldRestCal || oldRestCal === cal) return;
-
-    const tmp = full[cal];
-    full[cal] = full[oldRestCal];
-    full[oldRestCal] = tmp;
-
-    localStorage.setItem(this.overrideKey(), JSON.stringify(full));
     this.reconstruirSemana();
-    this.cargarSesion(this.sesionDe(this.weekdayHoy())); // recarga hoy si cambio
+    this.cargarSesion(this.sesionDe(hoy)); // recarga hoy si cambio
 
-    // feedback claro de lo que paso
-    const diaDesc = this.diasLabel[cal - 1];
-    const sesionMovida = this.nombresSesion[tmp - 1] ?? 'su entreno';
-    const diaQueRecibe = this.diasLabel[oldRestCal - 1];
-    this.mensaje.set(`Descanso movido al ${diaDesc}. ${sesionMovida} pasa al ${diaQueRecibe}.`);
+    const nom = (s: number) => this.nombresSesion[s - 1] ?? 'su entreno';
+    let txt = `${nom(r.orden[a - 1])} pasa al ${this.diasLargo[a - 1]} y ${nom(r.orden[b - 1])} al ${this.diasLargo[b - 1]}.`;
+    if (r.movidos.length) {
+      txt += ' Para que cada músculo descanse, también acomodé: '
+        + r.movidos.map((m) => `${nom(m.sesion)} → ${this.diasLargo[m.a - 1]}`).join(', ') + '.';
+    }
+    // lo que tu elegiste manda, pero si deja un musculo sin 48 h se dice
+    const ojo = this.semana().filter((d) => d.aviso && !d.pasado);
+    if (ojo.length) {
+      txt += ' Ojo: ' + ojo.map((d) => `el ${this.diasLargo[d.cal - 1]} quedan ${d.aviso}`).join('; ') + '.';
+    } else if (!r.movidos.length) {
+      txt += ' Lo demás ya quedaba bien para recuperarte.';
+    }
+    this.mensaje.set(txt);
   }
 
   restaurarSemana(): void {
+    this.moviendo.set(null);
+    localStorage.removeItem(this.fijosKey());
     localStorage.removeItem(this.overrideKey());
     this.reconstruirSemana();
     this.cargarSesion(this.sesionDe(this.weekdayHoy()));

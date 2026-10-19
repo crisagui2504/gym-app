@@ -175,22 +175,32 @@
       </div>
     </section>
 
-    <!-- ===== MI SEMANA (mover el dia de descanso) ===== -->
+    <!-- ===== MI SEMANA (mover dias; lo demas se acomoda por recuperacion) ===== -->
     <section class="week panel" *ngIf="mostrarSemana()">
       <div class="week-head">
         <strong>Mi semana</strong>
         <button class="week-reset" type="button" (click)="restaurarSemana()">Restaurar</button>
       </div>
-      <p class="week-hint">Toca <b>“Descansar aquí”</b> en el día que quieras descansar. Su entreno se mueve al día de descanso actual.</p>
+      <p class="week-hint" *ngIf="moviendo() === null">Toca <b>Mover</b> en un día y luego el día al que lo quieres pasar. Los días de gym que siguen se acomodan solos para que cada músculo descanse 48-72 h.</p>
+      <p class="week-hint" *ngIf="moviendo() as m">¿A qué día pasas <b>{{ diasLabel[m - 1] }}</b>? Toca <b>Aquí</b> en ese día.</p>
       <p class="status" *ngIf="cargandoSemana()">Cargando semana...</p>
       <div class="week-grid" *ngIf="!cargandoSemana()">
-        <div class="week-day" *ngFor="let d of semana()" [class.descanso]="d.descanso" [class.hoy]="d.hoy">
+        <div class="week-day" *ngFor="let d of semana()" [class.descanso]="d.descanso" [class.hoy]="d.hoy"
+             [class.week-pasado]="d.pasado" [class.week-elegido]="moviendo() === d.cal">
           <div class="week-day-info">
             <span class="week-dia">{{ diasLabel[d.cal - 1] }}<span class="week-hoy" *ngIf="d.hoy"> · hoy</span></span>
             <span class="week-sesion">{{ (d.descanso ? '🛌 Descanso' : (d.deporte ? '🏀 ' + d.nombre : d.nombre)) | acentos }}</span>
+            <span class="week-aviso" *ngIf="d.aviso && !d.pasado">⚠️ {{ d.aviso }}</span>
           </div>
-          <button class="rest-here-btn" type="button" *ngIf="!d.descanso && !d.deporte" (click)="descansarEn(d.cal)">Descansar aquí</button>
-          <span class="week-rest-tag" *ngIf="d.descanso">Descanso</span>
+          <div class="week-acciones" *ngIf="!d.pasado">
+            <ng-container *ngIf="moviendo() === null">
+              <button class="rest-here-btn" type="button" *ngIf="d.hoy && d.cal < 7" (click)="moverDia(d.cal, d.cal + 1)">⇄ Con mañana</button>
+              <button class="rest-here-btn" type="button" (click)="moviendo.set(d.cal)">Mover</button>
+            </ng-container>
+            <button class="rest-here-btn" type="button" *ngIf="moviendo() === d.cal" (click)="moviendo.set(null)">Cancelar</button>
+            <button class="rest-here-btn week-aqui" type="button" *ngIf="moviendo() !== null && moviendo() !== d.cal"
+                    (click)="moverDia(moviendo()!, d.cal)">Aquí</button>
+          </div>
         </div>
       </div>
     </section>

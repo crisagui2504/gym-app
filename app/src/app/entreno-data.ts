@@ -565,7 +565,8 @@ export function textoDiscos(c: Carga): string {
 // fatiga) y esa fatiga se desvanece en linea recta en 48 h (musculos chicos) o
 // 72 h (grandes), que es el rango en que la sintesis proteica y el dano vuelven
 // a la base tras una sesion dura. ~6 series duras = musculo "agotado".
-const GRANDES: MuscleId[] = ['pecho', 'dorsales', 'cuadriceps', 'isquios', 'gluteos', 'lumbar'];
+/** Musculos grandes: tardan ~72 h en recuperarse; los demas ~48 h. */
+export const GRANDES: MuscleId[] = ['pecho', 'dorsales', 'cuadriceps', 'isquios', 'gluteos', 'lumbar'];
 const SERIES_AGOTADO = 6;
 
 export interface SerieReciente {
