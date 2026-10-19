@@ -2735,6 +2735,28 @@ Con "repetir al día siguiente ×2" y "mover = 2" quedan bien los tres casos: el
   - la rutina de hoy, la barra `.seg` (18) y Guardar siguen funcionando;
   - sin scroll horizontal.
 
+## CH. Actualizar la app instalada en inicio (2026-10-19)
+
+**Problema.** La app abierta desde el ícono de inicio (iPhone) no tiene barra ni botón de recargar. iOS no la vuelve a cargar al regresar a ella: la *reanuda*. Por eso, después de un despliegue seguías viendo la versión vieja, con "Descansar aquí" cuando ya estaba "Mover".
+
+**Cambio** (`app.component`):
+
+- **Jalar hacia abajo para actualizar.** Solo cuando la app está instalada; en Safari ya existe el de Safari.
+  - Solo se activa si empiezas arriba del todo (scroll en 0), jalando recto hacia abajo, y no en campos, sliders ni ventanas (encuesta, resumen).
+  - Hace falta un jalón largo (~140 px de dedo; el indicador baja con resistencia) para que no pase por accidente. Un jalón corto solo muestra "Jala para actualizar" y se suelta sin hacer nada.
+  - Antes de recargar guarda el entreno en curso, que se restaura solo.
+- **Aviso "✨ Versión nueva · Actualizar".** Al abrir la app y al volver a ella (máx. 1 vez por minuto) compara el `main-*.js` cargado con el de `index.html` del servidor. Si son distintos, sale una pastilla chica arriba que recarga al tocarla. Si InfinityFree contesta con su página antibot, no hay `main-*.js` y no avisa.
+- No ocupa lugar fijo: los dos solo aparecen cuando hacen falta.
+
+**Verificación** (demo a 375 px, simulando el modo instalado y el dedo con eventos táctiles):
+
+- Jalón de 60 px: indicador "Jala para actualizar" y no recarga al soltar.
+- A media página (scroll 400): no se activa.
+- Jalón de 200 px: "Suelta para actualizar" y al soltar recarga.
+- La pastilla de versión nueva cabe en una línea (30 px, centrada) y recarga al tocarla.
+- La rutina, la barra `.seg` (18) y Guardar siguen funcionando.
+- `test_funcional` sin selectores CSS duplicados; `npx ng build` compila.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

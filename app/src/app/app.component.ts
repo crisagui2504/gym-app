@@ -353,12 +353,85 @@ export class AppComponent implements OnInit, OnDestroy {
     window.scrollTo(x, y);
   }
 
+  // ----- Actualizar la app (instalada en inicio no tiene boton de recargar) -----
+  // iOS no recarga una app de inicio al volver a ella: la "reanuda". Por eso:
+  //  1) jalar hacia abajo desde arriba recarga (solo instalada; en Safari ya existe),
+  //     con un tiron largo (~140 px de dedo) para que no pase por accidente;
+  //  2) al volver a la app se revisa si hay version nueva y sale un aviso chico.
+  readonly jalando = signal(0);              // px que baja el indicador (con resistencia)
+  readonly actualizando = signal(false);
+  readonly versionNueva = signal(false);
+  readonly UMBRAL_JALAR = 70;
+  private readonly instalada = typeof window !== 'undefined'
+    && (window.matchMedia?.('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true);
+  private inicioJalon: { x: number; y: number } | null = null;
+  private ultimaRevision = 0;
+
+  private readonly onTouchStart = (e: TouchEvent) => {
+    this.inicioJalon = null;
+    if (!this.instalada || this.actualizando() || e.touches.length !== 1 || window.scrollY > 0) return;
+    const t = e.target instanceof Element ? e.target : null;
+    // ni en campos, ni en sliders, ni dentro de una ventana (encuesta, resumen...)
+    if (t?.closest('input, textarea, select, [contenteditable], .enc-modal, .res-modal, [role="dialog"]')) return;
+    this.inicioJalon = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+
+  private readonly onTouchMove = (e: TouchEvent) => {
+    if (!this.inicioJalon) return;
+    const dy = e.touches[0].clientY - this.inicioJalon.y;
+    const dx = Math.abs(e.touches[0].clientX - this.inicioJalon.x);
+    if (dy <= 0 || dx > dy || window.scrollY > 0) {
+      this.inicioJalon = null;
+      this.jalando.set(0);
+      return;
+    }
+    this.jalando.set(Math.min(dy * 0.5, 90));
+  };
+
+  private readonly onTouchEnd = () => {
+    if (!this.inicioJalon) return;
+    this.inicioJalon = null;
+    if (this.jalando() >= this.UMBRAL_JALAR) this.actualizarApp();
+    else this.jalando.set(0);
+  };
+
+  /** Recarga con la version mas nueva (el entreno en curso se guarda antes y se restaura). */
+  async actualizarApp(): Promise<void> {
+    if (this.actualizando()) return;
+    this.actualizando.set(true);
+    this.guardarEnCurso(true);
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration();
+      await reg?.update();
+    } catch {
+      /* sin red o sin service worker: igual se recarga */
+    }
+    location.reload();
+  }
+
+  /** ¿El servidor ya tiene otra version? Compara el bundle cargado con el de index.html. */
+  private async revisarVersion(): Promise<void> {
+    if (Date.now() - this.ultimaRevision < 60_000) return;
+    this.ultimaRevision = Date.now();
+    const actual = [...document.scripts].map((s) => s.src.match(/main-[A-Za-z0-9]+\.js/)?.[0]).find(Boolean);
+    if (!actual) return;                                   // ng serve: sin hash, nada que comparar
+    try {
+      const html = await fetch('index.html', { cache: 'no-store', credentials: 'include' }).then((r) => r.text());
+      const servidor = html.match(/main-[A-Za-z0-9]+\.js/)?.[0];
+      // si InfinityFree contesta con su pagina antibot no hay main-*.js: no se avisa
+      if (servidor && servidor !== actual) this.versionNueva.set(true);
+    } catch {
+      /* sin red */
+    }
+  }
+
   private readonly onVisibilidad = () => {
     if (document.hidden) {
       // el sistema puede matar la app en segundo plano: se guarda YA
       this.guardarEnCurso(true);
       return;
     }
+    void this.revisarVersion();
     if (this.finAt > 0) this.tick();
     // el sistema suelta el wake lock al salir de la app: se vuelve a pedir
     if (this.entrenoEnCurso()) this.fijarPantalla();
@@ -371,6 +444,11 @@ export class AppComponent implements OnInit, OnDestroy {
 
     this.restaurarTimer();
     document.addEventListener('visibilitychange', this.onVisibilidad);
+    window.addEventListener('touchstart', this.onTouchStart, { passive: true });
+    window.addEventListener('touchmove', this.onTouchMove, { passive: true });
+    window.addEventListener('touchend', this.onTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', this.onTouchEnd, { passive: true });
+    setTimeout(() => void this.revisarVersion(), 5000);
 
     // readiness del dia (persiste si recargas la app en el gym)
     const r = localStorage.getItem('readiness-' + this.fecha);
@@ -741,6 +819,10 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.relojSesion) clearInterval(this.relojSesion);
     if (this.intervalo) clearInterval(this.intervalo);
     document.removeEventListener('visibilitychange', this.onVisibilidad);
+    window.removeEventListener('touchstart', this.onTouchStart);
+    window.removeEventListener('touchmove', this.onTouchMove);
+    window.removeEventListener('touchend', this.onTouchEnd);
+    window.removeEventListener('touchcancel', this.onTouchEnd);
     window.removeEventListener('online', this.onOnline);
   }
 

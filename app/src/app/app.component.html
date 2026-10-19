@@ -1,4 +1,14 @@
 <main class="app-shell">
+  <!-- jalar para actualizar (solo instalada en inicio) y aviso de version nueva -->
+  <div class="ptr" *ngIf="jalando() > 0 || actualizando()" aria-live="polite"
+       [style.transform]="'translate(-50%, ' + (actualizando() ? UMBRAL_JALAR : jalando()) + 'px)'"
+       [class.ptr-listo]="jalando() >= UMBRAL_JALAR || actualizando()">
+    <span class="ptr-icono" [style.transform]="'rotate(' + jalando() * 4 + 'deg)'">⟳</span>
+    {{ actualizando() ? 'Actualizando…' : (jalando() >= UMBRAL_JALAR ? 'Suelta para actualizar' : 'Jala para actualizar') }}
+  </div>
+  <button type="button" class="version-nueva" *ngIf="versionNueva() && !actualizando()" (click)="actualizarApp()">
+    ✨ Versión nueva · Actualizar
+  </button>
   <div class="shell">
     <header class="topbar">
       <div class="ring-wrap" *ngIf="!cargando() && progreso().total > 0 && !esDiaDescanso() && !esDiaDeporte()"

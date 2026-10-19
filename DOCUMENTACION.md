@@ -282,7 +282,7 @@ No se versionan:
 
 | Archivo | Qué hace |
 |---|---|
-| `app.component.ts/.html` | Pantalla principal. Incluye: rutina del día por tarjetas, series, RPE objetivo, cronómetro, "¿Cómo te sientes hoy?" y encuesta, cambio de ejercicio ("Máquina ocupada" / "Usar siempre"), mover días de la semana ("Mover" / "⇄ Con mañana", lo demás se acomoda por recuperación), historial, resumen al guardar, racha, tema, avisos push y la banda del modo demo. Guarda el entreno en curso y lo restaura si la app se cierra. |
+| `app.component.ts/.html` | Pantalla principal. Incluye: rutina del día por tarjetas, series, RPE objetivo, cronómetro, "¿Cómo te sientes hoy?" y encuesta, cambio de ejercicio ("Máquina ocupada" / "Usar siempre"), mover días de la semana ("Mover" / "⇄ Con mañana", lo demás se acomoda por recuperación), historial, resumen al guardar, racha, tema, avisos push, la banda del modo demo, "jalar para actualizar" (instalada en inicio) y el aviso de versión nueva. Guarda el entreno en curso y lo restaura si la app se cierra. |
 | `rutina-api.service.ts` | Cliente HTTP de la API (sección 8). Interfaces de rutina, historial, encuesta, nutrición y menú. |
 | `almacen.ts` | Almacén durable en IndexedDB, con localStorage como respaldo y memoria en demo: entreno en curso, colas de envío, proteína del día. |
 | `entreno-data.ts` | Conocimiento del front: qué campos lleva cada ejercicio (`medidaDe`), músculos, alternativas, descansos y calentamiento. |

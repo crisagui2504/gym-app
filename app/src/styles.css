@@ -457,6 +457,54 @@ button:disabled {
   font-weight: 700;
 }
 
+/* ── Actualizar la app: jalar hacia abajo y aviso de version nueva ─────────── */
+.ptr {
+  position: fixed;
+  white-space: nowrap;
+  top: calc(env(safe-area-inset-top, 0px) + 4px);
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.ptr.ptr-listo {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.ptr-icono {
+  display: inline-block;
+  font-size: 14px;
+}
+
+.version-nueva {
+  position: fixed;
+  white-space: nowrap;
+  top: calc(env(safe-area-inset-top, 0px) + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--card);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
 .week-acciones {
   display: flex;
   flex-wrap: wrap;
