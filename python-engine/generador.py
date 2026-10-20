@@ -362,7 +362,7 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
         orden += 1
         filas.append(Fila(dia_sem, dia.nombre, "A - Fuerza maxima", orden, ej.nombre,
                           "Back-off", 2, b.reps_backoff[0], b.reps_backoff[1],
-                          DESC["back_off"], None, "80% del Top Set."))
+                          DESC["back_off"], None, "Mas ligero que el Top Set: el peso sale de tu fuerza estimada para el rango."))
         orden += 1
 
     # ── BLOQUE B — Volumen (RIR 2-3; fallo solo en S3-S4) ───────────────────
@@ -511,6 +511,15 @@ def _dia_pesas(dia: DiaPlan, dia_sem: int, enf: Enfoque, prioridades: list[str],
             filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
                               "Tradicional", b.series_c, reps_lo, reps_hi, DESC["aislamiento"],
                               ej.peso_base, nota_h))
+        elif ej.nombre == "Curl Nordico":
+            # Excentrico casi maximo: el protocolo con evidencia (Petersen 2011,
+            # van der Horst 2015) es de pocas reps lentas y bien controladas. Con el
+            # rango generico de aislamiento (12-15) y rest-pause era irreal y, con
+            # los isquios fatigados, justo el escenario de una distension.
+            filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
+                              "Tradicional", b.series_c, 3, 6, 120, None,
+                              "Excentrico: baja en 3-5 s lo mas lento que puedas y ayudate con las "
+                              "manos para subir. Nunca al fallo. Cuando hagas 6 controladas, baja mas lento."))
         elif patron == db.AISL_BICEPS and tiene_tri:
             filas.append(Fila(dia_sem, dia.nombre, "C - Aislamiento", orden, ej.nombre,
                               "Superserie", b.series_c, reps_lo, reps_hi, DESC["superserie"],

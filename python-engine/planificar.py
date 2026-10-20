@@ -92,6 +92,49 @@ def semana_mesociclo(objetivo: date, inicio: date) -> int:
     return (max(0, delta) // 7) % 5 + 1
 
 
+# Una semana "cuenta" para avanzar el ciclo si hiciste al menos la mitad de las
+# sesiones de gym del plan (minimo 2). La sobrecarga progresiva se gana con
+# entrenos hechos, no con el calendario: sin esto, tras 3 semanas de examenes
+# con 1 sesion cada una, el motor pedia la S4 "pico: supera tus Top Sets".
+FRACCION_SEMANA_HECHA = 0.5
+
+
+def dias_gym_plan(cfg: dict | None = None) -> int:
+    """Sesiones de pesas por semana del split de la config."""
+    from enfoques import SPLITS
+    if cfg is None:
+        from config_usuario import cargar_config
+        cfg = cargar_config()
+    split = SPLITS.get(cfg.get("split", ""))
+    return len(split.dias_pesas) if split else 4
+
+
+def semana_por_entrenos(historial: pd.DataFrame, objetivo: date, inicio: date,
+                        dias_gym: int) -> tuple[int, list[tuple[date, int]]]:
+    """Semana del ciclo (1-5) contando solo las semanas que de verdad entrenaste.
+
+    Recorre las semanas desde `inicio` hasta la anterior a `objetivo`: el ciclo
+    avanza si esa semana hubo >= max(2, mitad de dias_gym) dias de gym; si no, se
+    repite la misma semana. La descarga (S5) avanza siempre: descansar ES su
+    objetivo. Devuelve (semana, [(lunes, sesiones) de las semanas que no contaron])."""
+    if historial is None or historial.empty or objetivo <= inicio:
+        return semana_mesociclo(objetivo, inicio), []
+    fechas = {d.date() for d in pd.to_datetime(historial["fecha_entreno"]).dropna()}
+    import math
+    minimo = max(2, math.ceil(dias_gym * FRACCION_SEMANA_HECHA))
+    lunes = inicio - timedelta(days=inicio.weekday())
+    fin = objetivo - timedelta(days=objetivo.weekday())
+    pos, no_contaron = 0, []
+    while lunes < fin:
+        n = sum(1 for f in fechas if lunes <= f < lunes + timedelta(days=7))
+        if pos % 5 == 4 or n >= minimo:
+            pos += 1
+        else:
+            no_contaron.append((lunes, n))
+        lunes += timedelta(days=7)
+    return pos % 5 + 1, no_contaron
+
+
 # ---- Utilidades de historial ----
 def _norm(s: str) -> str:
     return str(s).strip().lower()
@@ -151,6 +194,9 @@ def sanear_historial(df: pd.DataFrame) -> pd.DataFrame:
         except Exception:
             pass
         df = df[~df["ejercicio"].astype(str).str.strip().str.lower().isin(pseudo)]
+        # y cualquier fila del bloque "Deporte" (el CSV lo trae), aunque la config ya no tenga ese deporte
+        if "bloque" in df:
+            df = df[~df["bloque"].astype(str).str.strip().str.lower().eq("deporte")]
     if "peso_kg" in df:
         df = df[~(pd.to_numeric(df["peso_kg"], errors="coerce") < 0)]
     if "rpe" in df:
@@ -402,6 +448,16 @@ def cargable(ejercicio: str, peso: float | None) -> float | None:
     return max(barra, round(int(peso / 2.5 + 1e-9) * 2.5, 2))
 
 
+def cargable_arriba(ejercicio: str, peso: float) -> float | None:
+    """La mancuerna (de la lista del gym) mas ligera que no baja de `peso`, x2 si
+    es con las dos manos. None si no es mancuerna con lista o no hay una mayor."""
+    if not peso or peso <= 0 or not _es_mancuerna(ejercicio) or not _mancuernas():
+        return None
+    manos = _manos(ejercicio)
+    arriba = [m for m in _mancuernas() if m >= peso / manos - 1e-6]
+    return round(arriba[0] * manos, 2) if arriba else None
+
+
 def cargable_abajo(ejercicio: str, peso: float) -> float:
     """La carga CARGABLE mas alta que no pasa de `peso` (para el modelo: mejor
     quedarse corto que fallar). Mancuernas: de la lista del gym; barra: multiplo
@@ -508,7 +564,9 @@ def paso_carga(ejercicio: str, peso: float | None = None) -> float:
         manos = _manos(ejercicio)
         lista = _mancuernas()
         if lista:
-            actual = (cargable(ejercicio, peso) or 0) / manos if peso else 0.0
+            # desde lo que REALMENTE usaste (no redondeado a la mancuerna mas
+            # cercana): con 12 kg registrados la siguiente es 12.5, no 15 (+25%)
+            actual = (peso or 0.0) / manos
             arriba = [m for m in lista if m > actual + 1e-6]
             if arriba:
                 return round(manos * (arriba[0] - actual), 2)
@@ -785,7 +843,9 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
             _res = modelo.carga(f.ejercicio, f.reps_max, rpe_objetivo(f.tecnica, semana_prog),
                                 _ult, paso_carga(f.ejercicio, _ult or peso), minimo=barra_de(f.ejercicio) or 0.0,
                                 bajada_max=_ent.BAJADA_MAX_FALLO if _grave else _ent.BAJADA_MAX,
-                                abajo=lambda x, _e=f.ejercicio: cargable_abajo(_e, x))
+                                abajo=lambda x, _e=f.ejercicio: cargable_abajo(_e, x),
+                                arriba=lambda x, _e=f.ejercicio: cargable_arriba(_e, x),
+                                reps_min=f.reps_min)
             if _res:
                 # El modelo nunca CONTRADICE a la doble progresion:
                 #  - subida GANADA (tope del rango a RPE razonable): al menos un
@@ -810,6 +870,13 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                     peso = _res[0]
                 if _es(f.tecnica, "top set"):
                     top_del_dia[(f.dia, _norm(f.ejercicio))] = peso
+                elif _es(f.tecnica, "back-off", "back off"):
+                    # el back-off lleva MAS reps que el Top Set: nunca puede pesar mas
+                    # (la subida "ganada" de su propia doble progresion lo llevaba
+                    # al mismo peso que el Top Set: remo 15 kg en 6-8 y en 8-12)
+                    _ts = top_del_dia.get((f.dia, _norm(f.ejercicio)))
+                    if _ts and peso > _ts:
+                        peso = _ts
 
         # ── SERIE DE CALIBRACION ─────────────────────────────────────────────
         # Si el modelo no sabe tu fuerza aqui (ejercicio nuevo o la ultima vez te
@@ -913,8 +980,11 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
     return _recortar_duracion(filas, int(duracion_min))
 
 
-# Max de ejercicios (movimientos) de pesas por dia segun la duracion objetivo.
-_CAP_MOVIMIENTOS = {60: 5, 75: 6, 90: 8, 120: 11}
+# Tope duro de ejercicios (movimientos) de pesas por dia: cambiar de maquina
+# tambien cuesta. Lo que decide es el TIEMPO estimado (ver _minutos_dia).
+_CAP_MOVIMIENTOS = {60: 6, 75: 8, 90: 10, 120: 12}
+CALENTAMIENTO_MIN = 10       # general + series de aproximacion
+CAMBIO_MIN = 1.0             # preparar la siguiente maquina / barra
 
 
 def _es_bloque_pesas(bloque: str | None) -> bool:
@@ -923,46 +993,110 @@ def _es_bloque_pesas(bloque: str | None) -> bool:
     return (bloque or "")[:4] in ("A - ", "B - ", "C - ")
 
 
-def _recortar_duracion(filas: list[dict], duracion_min: int) -> list[dict]:
-    """Limita los ejercicios de pesas por dia (ya filtrados por semana).
-    Recorta el Bloque C desde el final hasta entrar en el tiempo.
-    La superserie biceps+triceps se recorta como unidad (ambos o ninguno):
-    si se quitara solo un miembro, el otro quedaria 'en superserie' sin pareja."""
-    cap = _CAP_MOVIMIENTOS.get(duracion_min, 8)
+def _minutos_serie(f: dict) -> float:
+    """Una serie = ~45 s de trabajo + su descanso (la misma cuenta del barrido)."""
+    return float(f.get("series_objetivo") or 0) * ((f.get("descanso_seg") or 90) + 45) / 60
+
+
+def _minutos_dia(fdia: list[dict], quitar: set[str]) -> float:
+    pesas = [f for f in fdia if _es_bloque_pesas(f["bloque"]) and f["ejercicio"] not in quitar]
+    movs = {f["ejercicio"] for f in pesas}
+    return sum(_minutos_serie(f) for f in pesas) + CALENTAMIENTO_MIN + CAMBIO_MIN * len(movs)
+
+
+def _recortar_duracion(filas: list[dict], duracion_min: int,
+                       prioridades: list[str] | None = None) -> list[dict]:
+    """Ajusta cada dia a la duracion objetivo quitando Bloque C (aislamiento).
+
+    Antes se cortaba "desde el final de la lista" con un tope de ejercicios, sin
+    mirar nada mas: con 75 min las elevaciones laterales extra de la prioridad
+    "hombros" quedaban al final y se cortaban TODAS las semanas, mientras
+    sobrevivian accesorios de grupos ya pasados de volumen. Ahora:
+      - se corta mientras el dia pase del tiempo estimado o del tope de ejercicios;
+      - se quita primero lo que MENOS aporta por minuto: el valor de cada serie
+        depende de cuanto volumen semanal lleva ya ese grupo frente a sus
+        landmarks (volumen.valor_marginal) y vale doble si es tu prioridad;
+      - la superserie se quita completa o nada, y la de brazos (biceps+triceps)
+        no se quita: suele ser el unico trabajo directo de brazos del dia."""
+    import volumen as vol
+    if prioridades is None:
+        from config_usuario import cargar_config
+        prioridades = cargar_config().get("prioridades") or []
+    pri = {g for p in prioridades for g in vol.PRIORIDAD_A_GRUPOS.get(p, [])}
+    cap = _CAP_MOVIMIENTOS.get(duracion_min, 10)
     por_dia: dict[int, list[dict]] = {}
     for f in filas:
         por_dia.setdefault(f["dia_semana"], []).append(f)
+    semana = vol.series_de_filas([f for f in filas if _es_bloque_pesas(f["bloque"]) and f["tecnica"]])
 
-    quitar: set[tuple[int, str]] = set()
+    # unidades que se pueden quitar: Bloque C; los miembros seguidos de una superserie van juntos
+    unidades: list[tuple[int, list[str]]] = []
     for dia, fdia in por_dia.items():
-        movs: list[str] = []
-        for f in fdia:
-            if _es_bloque_pesas(f["bloque"]) and f["ejercicio"] not in movs:
-                movs.append(f["ejercicio"])
-        if len(movs) <= cap:
-            continue
         es_super = {f["ejercicio"] for f in fdia if (f["tecnica"] or "") == "Superserie"}
-        c_movs = [m for m in movs
-                  if any(f["ejercicio"] == m and (f["bloque"] or "").startswith("C -") for f in fdia)]
-        # unidades de recorte: los miembros consecutivos de la superserie van juntos
-        unidades: list[list[str]] = []
-        for m in c_movs:
-            if m in es_super and unidades and unidades[-1][0] in es_super:
-                unidades[-1].append(m)
+        vistos: list[str] = []
+        for f in fdia:
+            if (f["bloque"] or "").startswith("C -") and f["ejercicio"] not in vistos:
+                vistos.append(f["ejercicio"])
+        actual: list[list[str]] = []
+        for m in vistos:
+            if m in es_super and actual and actual[-1][0] in es_super:
+                actual[-1].append(m)
             else:
-                unidades.append([m])
-        # la superserie bi+tri cuesta el tiempo de UN ejercicio (rondas de 60 s):
-        # cuenta como 1 para el cupo. Si contara como 2, el recorte de 60/75 min
-        # eliminaba el unico trabajo directo de brazos de la semana.
-        restantes = len(movs) - sum(len(u) - 1 for u in unidades)
-        for unidad in reversed(unidades):
-            if restantes <= cap:
-                break
-            for m in unidad:
-                quitar.add((dia, m))
-            restantes -= 1
+                actual.append([m])
+        for u in actual:
+            if not (len(u) > 1 and all(m in es_super for m in u)):   # la superserie de brazos se queda
+                unidades.append((dia, u))
 
-    return [f for f in filas if (f["dia_semana"], f["ejercicio"]) not in quitar]
+    def aporte(dia: int, unidad: list[str]) -> dict[str, float]:
+        out: dict[str, float] = {}
+        for f in por_dia[dia]:
+            if f["ejercicio"] in unidad and f["tecnica"]:
+                for g, v in vol.aporte_por_grupo(f["ejercicio"], float(f["series_objetivo"] or 0)).items():
+                    out[g] = out.get(g, 0.0) + v
+        return out
+
+    def valor_por_minuto(dia: int, unidad: list[str]) -> float:
+        ap = aporte(dia, unidad)
+        valor = sum(v * (2.0 if g in pri else 1.0) * vol.valor_marginal(g, semana[g] - v) for g, v in ap.items())
+        minutos = sum(_minutos_serie(f) for f in por_dia[dia] if f["ejercicio"] in unidad) + CAMBIO_MIN * len(unidad)
+        return valor / max(minutos, 0.5)
+
+    quitar: dict[int, set[str]] = {d: set() for d in por_dia}
+
+    def movimientos(dia: int) -> int:
+        es_super = {f["ejercicio"] for f in por_dia[dia] if (f["tecnica"] or "") == "Superserie"}
+        movs = {f["ejercicio"] for f in por_dia[dia] if _es_bloque_pesas(f["bloque"])} - quitar[dia]
+        # la superserie cuesta el tiempo de UN ejercicio (rondas de 60 s): cuenta 1 para el tope
+        return len(movs) - max(0, len(movs & es_super) - 1)
+
+    while True:
+        largos = {d for d in por_dia
+                  if _minutos_dia(por_dia[d], quitar[d]) > duracion_min or movimientos(d) > cap}
+        candidatas = [(d, u) for d, u in unidades if d in largos and not set(u) <= quitar[d]]
+        if not candidatas:
+            break
+        d, u = min(candidatas, key=lambda x: valor_por_minuto(*x))
+        for g, v in aporte(d, u).items():
+            semana[g] -= v
+        quitar[d].update(u)
+
+    # Y aunque sobre tiempo: un aislamiento que SOLO suma a grupos ya pasados de su
+    # MRV no se programa (fatiga sin estimulo extra). Pasaba con gluteo: hip thrust +
+    # patada + abduccion + aduccion ademas de sentadilla y peso muerto.
+    def solo_sobre_mrv(dia: int, unidad: list[str]) -> bool:
+        ap = aporte(dia, unidad)
+        return bool(ap) and all(semana[g] > vol.LANDMARKS[g][3] + 1e-9 for g in ap)
+
+    while True:
+        negativas = [(d, u) for d, u in unidades if not set(u) <= quitar[d] and solo_sobre_mrv(d, u)]
+        if not negativas:
+            break
+        d, u = min(negativas, key=lambda x: valor_por_minuto(*x))
+        for g, v in aporte(d, u).items():
+            semana[g] -= v
+        quitar[d].update(u)
+
+    return [f for f in filas if f["ejercicio"] not in quitar.get(f["dia_semana"], set())]
 
 
 def sincronizar_plan(sesion: requests.Session, base_url: str, token: str, semana_inicio: str, filas: list[dict]) -> None:
@@ -978,7 +1112,8 @@ def sincronizar_plan(sesion: requests.Session, base_url: str, token: str, semana
 
 
 def decidir_semana(historial: pd.DataFrame, objetivo: date, inicio: date,
-                   encuesta: pd.DataFrame | None = None) -> tuple[int, int, list[str]]:
+                   encuesta: pd.DataFrame | None = None,
+                   dias_gym: int | None = None) -> tuple[int, int, list[str]]:
     """Semana del mesociclo que toca de verdad, tras aplicar las reglas de seguridad.
 
     Devuelve (semana, fase_reingreso, avisos). Es la UNICA fuente de esta decision:
@@ -987,8 +1122,16 @@ def decidir_semana(historial: pd.DataFrame, objetivo: date, inicio: date,
     fatiga alta el dashboard mostraba un plan DISTINTO del que se subia al
     telefono. Cualquier regla nueva se anade aqui y la ven los dos."""
     historial = sanear_historial(historial)
-    semana = semana_mesociclo(objetivo, inicio)
     avisos: list[str] = []
+    # el ciclo avanza con semanas ENTRENADAS (ver semana_por_entrenos)
+    if dias_gym is None:
+        dias_gym = dias_gym_plan()
+    semana, no_contaron = semana_por_entrenos(historial, objetivo, inicio, dias_gym)
+    pasada = objetivo - timedelta(days=objetivo.weekday() + 7)
+    if no_contaron and no_contaron[-1][0] == pasada:
+        hechas = no_contaron[-1][1]
+        avisos.append(f"CICLO EN PAUSA: la semana pasada hiciste {hechas} de {dias_gym} sesiones de gym. "
+                      f"Repites la S{semana} en vez de avanzar: la progresion se gana entrenando.")
     # RAMPA de reingreso tras una pausa larga (no un acantilado del 33% al 100%)
     reingreso = fase_reingreso(historial, objetivo)
     if reingreso == 1:

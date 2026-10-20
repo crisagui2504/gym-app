@@ -1135,7 +1135,11 @@ pl._cfg = _cfg_real
 
 print("")
 print("== 47. Bienestar diario (energia y sueno) -> descarga ==")
-_hb = _h45([(f"2026-10-0{d}", "Press de Banca con Barra", "Tradicional", 1, 60, 10, 8) for d in (1, 3, 5)])
+# 3 dias de gym en cada semana desde el inicio: el ciclo avanza por semanas
+# ENTRENADAS (semana_por_entrenos), asi que para estar en la S4 hay que haberlas hecho
+_hb = _h45([(f, "Press de Banca con Barra", "Tradicional", 1, 60, 10, 8)
+            for f in ("2026-09-22", "2026-09-24", "2026-09-26", "2026-09-29", "2026-10-01", "2026-10-03",
+                      "2026-10-06", "2026-10-08", "2026-10-10")])
 def _bien(dias_malos):
     filas = [("2026-10-0" + str(d), "dia", "energia", None, 3, None, None) for d in range(5, 5 + dias_malos)]
     filas += [("2026-10-0" + str(d), "dia", "sueno", None, 1, None, None) for d in range(5, 9)]
@@ -1534,6 +1538,100 @@ _tit, _cuerpo = nut.resumen_semanal({"enfoque": "recomposicion", "peso_corporal"
                                     pd.DataFrame(columns=["fecha", "proteina_g"]), nut.tendencia_cintura(_cin), hoy=_hoy49)
 check("revision del domingo con cintura: detecta la recomposicion",
       nut.tendencia_cintura(_cin) < -0.2 and "recomposición en marcha" in _cuerpo.lower(), _cuerpo)
+
+print("")
+print("== 55. El ciclo avanza con semanas ENTRENADAS, no con el calendario ==")
+def _hist_dias(fechas):
+    return pd.DataFrame({"fecha_entreno": pd.to_datetime(list(fechas)),
+                         "ejercicio": ["Press de Banca con Barra"] * len(fechas),
+                         "peso_kg": [50.0] * len(fechas), "reps_hechas": [10] * len(fechas),
+                         "rpe": [8.0] * len(fechas), "tecnica": ["Tradicional"] * len(fechas)})
+_ini55 = date(2026, 9, 28)
+_tres = ["2026-09-28", "2026-09-30", "2026-10-02", "2026-10-05", "2026-10-07", "2026-10-09",
+         "2026-10-12", "2026-10-14", "2026-10-16"]
+check("3 semanas con 3 de 5 sesiones -> S4 (como el calendario)",
+      pl.semana_por_entrenos(_hist_dias(_tres), date(2026, 10, 19), _ini55, 5)[0] == 4)
+_examenes = ["2026-09-30", "2026-10-09"]          # 1 sesion en dos semanas y 0 en la tercera
+_s55, _nc55 = pl.semana_por_entrenos(_hist_dias(_examenes), date(2026, 10, 19), _ini55, 5)
+check("semanas de examenes (1, 1 y 0 sesiones) -> sigue en S1, no 'S4 pico'", _s55 == 1 and len(_nc55) == 3,
+      f"S{_s55} {_nc55}")
+_mixto = ["2026-09-28", "2026-09-30", "2026-10-02", "2026-10-07", "2026-10-12", "2026-10-14", "2026-10-16"]
+check("una semana floja en medio solo la repite: S1 ok, S2 no, S2 ok -> S3",
+      pl.semana_por_entrenos(_hist_dias(_mixto), date(2026, 10, 19), _ini55, 5)[0] == 3)
+_deload = [f"2026-{m}" for m in ("09-28", "09-30", "10-02", "10-05", "10-07", "10-09", "10-12", "10-14",
+                                    "10-16", "10-19", "10-21", "10-23")]
+check("la descarga (S5) avanza aunque esa semana descanses: S5 sin entrenar -> S1",
+      pl.semana_por_entrenos(_hist_dias(_deload), date(2026, 11, 2), _ini55, 5)[0] == 1)
+check("con 3 dias de gym en el plan basta con 2 sesiones (minimo 2)",
+      pl.semana_por_entrenos(_hist_dias(["2026-09-28", "2026-10-01"]), date(2026, 10, 5), _ini55, 3)[0] == 2)
+check("sin historial (usuario nuevo): manda el calendario",
+      pl.semana_por_entrenos(pd.DataFrame(), date(2026, 10, 19), _ini55, 5)[0] == pl.semana_mesociclo(date(2026, 10, 19), _ini55))
+_sem55, _, _av55 = pl.decidir_semana(_hist_dias(_examenes), date(2026, 10, 19), _ini55, dias_gym=5)
+check("decidir_semana avisa por que no avanza ('CICLO EN PAUSA', 0 de 5)",
+      _sem55 == 1 and any(a.startswith("CICLO EN PAUSA") and "0 de 5" in a for a in _av55), str(_av55))
+_basquet = _hist_dias(_examenes + ["2026-10-13", "2026-10-15"])
+_basquet["bloque"] = "A - Fuerza maxima"
+_basquet.loc[_basquet.index[-2:], ["ejercicio", "bloque"]] = ["Basquetbol", "Deporte"]
+check("el basquet y el 'Descanso Activo' no cuentan como sesiones de gym",
+      pl.decidir_semana(_basquet, date(2026, 10, 19), _ini55, dias_gym=5)[0] == 1)
+
+print("")
+print("== 56. El plan que sale cumple la ciencia (no solo las reglas) ==")
+import volumen as vol
+_cfg56 = {"enfoque": "recomposicion", "split": "upper_lower_5", "prioridades": ["hombros", "dorsales"],
+          "duracion_min": 75, "deporte": {"nombre": "Basquetbol", "dias": [2, 4], "minutos": 90}}
+_plan56 = generar_plan(_cfg56, ciclo=0)
+_h56 = df_historial([(lunes_pasado, "Press de Banca con Barra", "Tradicional", s, 40.0, 10, 8) for s in (1, 2, 3)])
+for _sem in (1, 2, 3, 4):
+    _f56 = pl.generar_filas(_h56, "2026-07-13", _sem, plan=_plan56, duracion_min=75)
+    _f56 = pl._recortar_duracion(_f56, 75, _cfg56["prioridades"])
+    _gym = [f for f in _f56 if pl._es_bloque_pesas(f["bloque"]) and f["tecnica"]]
+    _vol = vol.series_de_filas(_gym)
+    _bajo = [g for g in ("Hombro lateral", "Dorsal") if _vol[g] < vol.LANDMARKS[g][0]]
+    check(f"S{_sem}: tus prioridades (hombro lateral, dorsal) llegan al MEV",
+          not _bajo, str({g: round(_vol[g], 1) for g in ("Hombro lateral", "Dorsal")}))
+    _sobre = [g for g, v in _vol.items() if g != "Hombro frontal" and v > vol.LANDMARKS[g][3] + 0.5]
+    check(f"S{_sem}: ningun grupo pasa su MRV (salvo el frontal, que cargan todos los press)",
+          not _sobre, str({g: round(_vol[g], 1) for g in _sobre}))
+    _largos = {d: round(pl._minutos_dia([f for f in _f56 if f["dia_semana"] == d], set()))
+               for d in {f["dia_semana"] for f in _gym}}
+    check(f"S{_sem}: cada dia entra en 75 min (estimado)", all(m <= 75 for m in _largos.values()), str(_largos))
+_lat = [f for f in _gym if "Elevaciones Laterales" in f["ejercicio"]]
+check("prioridad hombros a 75 min: laterales 3+ dias a la semana (antes se recortaban siempre)",
+      len({f["dia_semana"] for f in _lat}) >= 3, str(sorted({f["dia_semana"] for f in _lat})))
+
+_cfg_real = pl._cfg
+pl._cfg = lambda: {"peso_corporal": 73, "mancuernas_kg": [1, 2.5, 5, 7.5, 10, 12.5, 15, 20, 25]}
+_hl = df_historial([(lunes_pasado, "Elevaciones Laterales Mancuernas", "Tradicional", s, 5.0, 12, 9) for s in (1, 2)]
+                   + [(lunes_pasado - timedelta(days=7), "Elevaciones Laterales Mancuernas", "Tradicional", s, 5.0, 12, 9)
+                      for s in (1, 2)])
+_pl56 = generar_plan({**_cfg56, "duracion_min": 120}, ciclo=0)
+_fl = [f for f in pl.generar_filas(_hl, "2026-07-13", 2, plan=_pl56, duracion_min=120)
+       if f["ejercicio"] == "Elevaciones Laterales Mancuernas" and f["peso_sugerido"]]
+check("laterales 5 kg x 12 @9 con mancuernas 1/2.5/5: siguen en 5 kg (antes bajaban a 2: -60%)",
+      bool(_fl) and all(f["peso_sugerido"] >= 5.0 for f in _fl), str([f["peso_sugerido"] for f in _fl]))
+check("subir de mancuerna: desde 12 kg registrados la siguiente es 12.5 (no 15)",
+      pl.paso_carga("Remo con Mancuerna a 1 Mano", 12.0) == 0.5, str(pl.paso_carga("Remo con Mancuerna a 1 Mano", 12.0)))
+check("cargable_arriba: la mancuerna que no baja del peso (x2 con dos manos)",
+      pl.cargable_arriba("Elevaciones Laterales Mancuernas", 4.8) == 5.0
+      and pl.cargable_arriba("Remo con Mancuerna a 1 Mano", 13.0) == 15.0
+      and pl.cargable_arriba("Press de Banca con Barra", 50) is None)
+_hr = df_historial([(lunes_pasado, "Remo con Mancuerna a 1 Mano", "Top Set", 1, 12.0, 12, 8),
+                    (lunes_pasado, "Remo con Mancuerna a 1 Mano", "Back-off", 1, 12.0, 12, 7),
+                    (lunes_pasado, "Remo con Mancuerna a 1 Mano", "Back-off", 2, 12.0, 12, 7)])
+_fr = pl.generar_filas(_hr, "2026-07-13", 2, plan=_pl56, duracion_min=120)
+_pares = {}
+for f in _fr:
+    if f["ejercicio"] == "Remo con Mancuerna a 1 Mano" and f["tecnica"] in ("Top Set", "Back-off") and f["peso_sugerido"]:
+        _pares.setdefault(f["dia_semana"], {})[f["tecnica"]] = f["peso_sugerido"]
+check("el back-off nunca pesa mas que el Top Set del dia",
+      _pares and all(v.get("Back-off", 0) <= v.get("Top Set", 999) for v in _pares.values()), str(_pares))
+pl._cfg = _cfg_real
+
+_nord = [f for f in generar_plan(_cfg56, ciclo=0) if f.ejercicio == "Curl Nordico"]
+check("curl nordico: 3-6 reps excentricas, sin rest-pause ni drop, 120 s",
+      bool(_nord) and all(f.reps_min == 3 and f.reps_max == 6 and f.tecnica == "Tradicional" and f.descanso == 120
+                          for f in _nord), str([(f.tecnica, f.reps_min, f.reps_max) for f in _nord]))
 
 print()
 if FALLOS:

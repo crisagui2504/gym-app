@@ -84,6 +84,60 @@ def series_por_grupo(df: pd.DataFrame, desde: date, hasta: date) -> dict[str, fl
     return {g: round(v, 1) for g, v in out.items()}
 
 
+# Que grupos cubre cada prioridad de la config. "hombros" es sobre todo el
+# deltoide LATERAL (y posterior): el frontal ya lo cubren todos los press.
+PRIORIDAD_A_GRUPOS: dict[str, list[str]] = {
+    "hombros": ["Hombro lateral", "Hombro posterior"],
+    "pecho": ["Pecho"],
+    "dorsales": ["Dorsal"],
+    "espalda": ["Dorsal", "Espalda alta"],
+    "cuadriceps": ["Cuádriceps"],
+    "gluteos": ["Glúteo"],
+    "isquios": ["Isquios"],
+    "biceps": ["Bíceps"],
+    "triceps": ["Tríceps"],
+    "brazos": ["Bíceps", "Tríceps"],
+}
+
+
+def aporte_por_grupo(ejercicio: str, series: float) -> dict[str, float]:
+    """Series efectivas por grupo que aporta un ejercicio (conteo fraccional)."""
+    est = _perfiles().get(db.nombre_canonico(str(ejercicio)).strip().lower())
+    if not est or not series:
+        return {}
+    out = {}
+    for g, subs in GRUPOS.items():
+        v = max((est.get(s, 0.0) for s in subs), default=0.0)
+        if v:
+            out[g] = v * float(series)
+    return out
+
+
+def series_de_filas(filas: list[dict]) -> dict[str, float]:
+    """Series efectivas por grupo de un PLAN (filas con ejercicio y series_objetivo)."""
+    out = {g: 0.0 for g in GRUPOS}
+    for f in filas:
+        for g, v in aporte_por_grupo(f.get("ejercicio", ""), float(f.get("series_objetivo") or 0)).items():
+            out[g] += v
+    return out
+
+
+def valor_marginal(grupo: str, series: float) -> float:
+    """Cuanto vale una serie mas de ese grupo con `series` a la semana: mucho bajo
+    el MEV, menos dentro del rango productivo, nada o negativo pasado el MRV
+    (dosis-respuesta con rendimientos decrecientes, Pelland et al. 2024)."""
+    mev, mav_lo, mav_hi, mrv = LANDMARKS[grupo]
+    if series < mev:
+        return 3.0
+    if series < mav_lo:
+        return 2.0
+    if series < mav_hi:
+        return 1.0
+    if series <= mrv:
+        return 0.3
+    return -1.0
+
+
 def zona(grupo: str, series: float) -> str:
     mev, mav_lo, mav_hi, mrv = LANDMARKS[grupo]
     if series > mrv:

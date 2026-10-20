@@ -101,6 +101,23 @@ def carga_para(e1rm_: float, reps: float, rpe: float, sesgo: float = SESGO_POR_D
     return e1rm_ * pct_1rm(reps + rir)
 
 
+def reps_con(e1rm_: float, carga: float, rpe: float, sesgo: float = SESGO_POR_DEFECTO) -> float:
+    """Reps que se haran con `carga` al RPE `rpe` (inversa de carga_para)."""
+    rir = max(0.0, 10 - rpe) + (sesgo if rpe < 10 else 0.0)
+    if carga <= 0 or e1rm_ <= 0:
+        return 0.0
+    lo, hi = 1.0, 80.0
+    if e1rm_ * pct_1rm(lo) < carga:
+        return 0.0
+    for _ in range(40):                      # pct_1rm baja con las reps: biseccion
+        mid = (lo + hi) / 2
+        if e1rm_ * pct_1rm(mid) >= carga:
+            lo = mid
+        else:
+            hi = mid
+    return max(0.0, lo - rir)
+
+
 @dataclass
 class Estado:
     """Lo que el modelo sabe de un ejercicio."""
@@ -227,7 +244,7 @@ class ModeloFuerza:
     # ── prescripcion ─────────────────────────────────────────────────────────
     def carga(self, ejercicio: str, reps_obj: int, rpe_obj: float, ultimo_peso: float | None,
               paso: float, minimo: float = 0.0, bajada_max: float = BAJADA_MAX,
-              abajo=None) -> tuple[float, str] | None:
+              abajo=None, arriba=None, reps_min: int | None = None) -> tuple[float, str] | None:
         """Carga sugerida para hacer `reps_obj` al RPE `rpe_obj`, limitada respecto
         a la ultima carga usada. None si el modelo no tiene datos (o el RPE no
         informa): entonces manda la doble progresion clasica."""
@@ -236,6 +253,7 @@ class ModeloFuerza:
             return None
         objetivo = carga_para(est.tendencia, reps_obj, rpe_obj, self.sesgo)
         motivo = f"e1RM ~{est.tendencia:.0f} kg"
+        techo = float("inf")
         if ultimo_peso and ultimo_peso > 0:
             facil = est.rir_ultima is not None and est.rir_ultima >= RIR_FACIL
             if facil:
@@ -263,6 +281,18 @@ class ModeloFuerza:
         def _abajo(x: float) -> float:
             return abajo(x) if abajo else max(minimo, math.floor(x / paso + 1e-9) * paso)
         peso = max(minimo, _abajo(objetivo))
+        # Con saltos GRANDES (mancuernas 1 -> 2.5 -> 5 kg) redondear siempre hacia
+        # abajo podia quitar 60%: laterales de 5 kg x 12 @9 pasaban a 2 kg (~30 reps).
+        # Entre la carga de abajo y la de arriba gana la que deja las reps dentro del
+        # rango (o mas cerca de el). La de arriba nunca pasa el limite de subida.
+        if arriba and reps_min:
+            sube = arriba(objetivo)
+            if sube and sube > peso + 1e-9 and sube <= max(techo, ultimo_peso or 0.0) + 1e-9:
+                def fuera(carga: float) -> float:
+                    r = reps_con(est.tendencia, carga, rpe_obj, self.sesgo)
+                    return 0.0 if reps_min <= r <= reps_obj else min(abs(r - reps_min), abs(r - reps_obj))
+                if fuera(sube) < fuera(peso):
+                    peso, motivo = sube, motivo + ", la mancuerna de arriba deja las reps en rango"
         # ...salvo que el redondeo rompa el limite de bajada (60 -> 50 es -17%):
         # entonces el siguiente cargable por debajo del ultimo, que siempre se
         # permite (con escalones grandes el limite dejaba el peso clavado para

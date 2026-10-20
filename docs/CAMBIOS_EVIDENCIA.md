@@ -2773,6 +2773,70 @@ Con "repetir al día siguiente ×2" y "mover = 2" quedan bien los tres casos: el
 - "Mi semana" y la rutina, con la barra `.seg` (18), siguen funcionando;
 - no hay scroll horizontal.
 
+## CJ. Auditoría científica del plan y correcciones del motor (2026-10-19)
+
+**Pedido.** Revisar si la rutina no solo *funciona*, sino si está en su máximo rendimiento según la ciencia del deporte.
+
+**Cómo se revisó.** Se tomó el plan real de la semana del 19 de octubre (subido a MySQL) y se midió con el propio modelo de volumen del motor (`volumen.py`):
+
+- **Volumen:** series fraccionales de Pelland et al. 2024 contra los landmarks MEV/MAV/MRV.
+- **Prescripción:** reps, RPE/RIR, descansos y selección de ejercicios.
+- **Historial real:** 189 series desde junio.
+
+**Lo que ya estaba bien:**
+
+- conteo fraccional del volumen;
+- RPE 8 en volumen y Top Set de 8 a 9; fallo total solo en máquina o polea (Refalo 2023);
+- descansos de 2 a 3 min en compuestos;
+- rangos de 6 a 20 reps;
+- descarga cada 5 semanas: mismo peso, 50 % del volumen, sin fallo (Bell 2023);
+- curl femoral sentado (Maeo 2021) y extensión de tríceps sobre la cabeza (Maeo 2023);
+- frecuencia de 2 a 3 veces por semana por músculo;
+- acomodo de la semana por recuperación.
+
+**Lo que estaba mal y se corrigió:**
+
+| # | Hallazgo | Corrección |
+|---|---|---|
+| 1 | El ciclo avanzaba por **calendario**. Con 1, 1 y 0 sesiones en 3 semanas (exámenes), el plan pedía la "S4 pico: supera tus Top Sets". | `semana_por_entrenos`: una semana solo avanza el ciclo si hiciste al menos la mitad de tus sesiones de gym (mínimo 2). La descarga avanza siempre. Aviso "CICLO EN PAUSA". Sin historial manda el calendario (usuario nuevo). Para ti esta semana pasa de **S4 a S1**. |
+| 2 | Con 75 min el recorte quitaba el Bloque C **desde el final de la lista**, con un tope de 6 ejercicios. Las laterales extra de la prioridad "hombros" se cortaban siempre. **Deltoide lateral: 6.5 series (bajo el MEV 8) siendo tu prioridad**, mientras glúteo iba a 17.2 (sobre su MRV 16). | Recorte por **tiempo estimado** (series × (descanso + 45 s) + 10 min + 1 min por cambio de máquina), con tope duro de 8 ejercicios a 75 min. Se quita primero lo que menos aporta **por minuto**: el valor de cada serie depende de cuánto volumen lleva ese grupo frente a sus landmarks, y vale doble si es prioridad. La superserie de brazos no se toca. Además, un aislamiento que solo suma a grupos que ya pasan su MRV no se programa. |
+| 3 | Mancuernas redondeadas **siempre hacia abajo**: laterales de 5 kg × 12 @9 pasaban a 2 kg (−60 %). | Entre la mancuerna de abajo y la de arriba gana la que deja las reps dentro del rango (`reps_con`, inversa del modelo). La de arriba nunca pasa el límite de subida. |
+| 4 | El escalón de subida partía de la mancuerna **más cercana** al peso registrado: con 12 kg registrados pasaba a 15 (+25 %). | `paso_carga` parte del peso que de verdad usaste: la siguiente es 12.5 (+4 %). |
+| 5 | Back-off igual al Top Set (remo 15 kg en 6-8 y en 8-12). | El back-off nunca pesa más que el Top Set del día. La nota "80 % del Top Set" estaba desactualizada: ahora dice que sale de la fuerza estimada. |
+| 6 | Curl nórdico como aislamiento de 12-15 con rest-pause. | 3-6 reps excéntricas, siempre "Tradicional", 120 s (Petersen 2011). |
+
+**Tu semana** (simulación con tu config y tu historial, S1):
+
+| Grupo | Antes | Ahora |
+|---|---|---|
+| Hombro lateral (prioridad) | 6.5 (bajo) | **14.5** |
+| Pecho | 10.8 | 14.8 |
+| Glúteo | 17.2 (sobre MRV) | 14.8 |
+| Abdomen | 0.8 | 2.8 |
+| Dorsal (prioridad) | 15.8 | 15.8 |
+
+**Queda pendiente (sin cambiar):**
+
+- **Deltoide frontal** en 14.5 (MRV 12): lo cargan 3 press verticales más 3 horizontales. Los landmarks de RP para el frontal son conservadores porque cualquier press lo trabaja.
+- **Deltoide posterior** en 5.5 (MEV 6).
+- **Pantorrilla** en 4.5: el básquet compensa en parte.
+- **Remo a 1 mano:** el historial tiene 27 kg (junio) y 12 kg (julio); uno de los dos está mal anotado.
+
+**Hallazgo de software (no se tocó):** la VM se apaga a veces (11 al 15 y 18 al 19 de octubre). El usuario lo hace a propósito para ahorrar recursos. El timer del motor es `Persistent`, así que la semana se genera al encenderla.
+
+**Verificación.**
+
+- `test_motor` §55 (8 pruebas) cubre el ciclo por semanas entrenadas: exámenes, semana floja en medio, descarga, plan de 3 días, usuario nuevo, aviso, y que el básquet o el descanso no cuentan.
+- `test_motor` §56 (18 pruebas) evalúa **el plan que sale, no solo las reglas**, con tu config (recomposición, upper/lower 5, prioridades hombros y dorsales, 75 min, básquet):
+  - S1 a S4: las prioridades llegan al MEV, ningún grupo pasa su MRV salvo el frontal, y cada día entra en 75 min;
+  - laterales 3 días o más;
+  - laterales siguen en 5 kg;
+  - el escalón de 12 a 12.5;
+  - el back-off no pasa al Top Set;
+  - el nórdico va a 3-6.
+- Se corrigió la prueba del deload por bienestar: suponía la S4 por calendario sin haber entrenado.
+- Las 6 suites pasan. El barrido de 13 440 semanas no reporta sesiones que excedan la duración pedida.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
