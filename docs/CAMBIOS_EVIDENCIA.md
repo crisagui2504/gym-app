@@ -2837,6 +2837,37 @@ Con "repetir al día siguiente ×2" y "mover = 2" quedan bien los tres casos: el
 - Se corrigió la prueba del deload por bienestar: suponía la S4 por calendario sin haber entrenado.
 - Las 6 suites pasan. El barrido de 13 440 semanas no reporta sesiones que excedan la duración pedida.
 
+## CK. "¿Terminar ya?" al guardar y actualizar sin duplicar (2026-11-02)
+
+**Problema (reportado con capturas).** Un toque sin querer en "Guardar entreno" a las 5 de 20 series:
+
+1. **Se subieron las 20 series**, incluidas las 15 que faltaban, con los valores sugeridos del plan como si se hubieran hecho (banca 32.5 × 12 cuando fue 30 × 12/12/9; cruce de poleas a 0 kg).
+2. **El botón quedó en "Guardado ✓"**: lo que se entrenó después no se subió, y la foto del entreno en curso dejó de guardarse, así que si la app se cerraba se perdía.
+
+Volver a guardar duplicaba series, porque el servidor solo insertaba.
+
+**Cambio.**
+
+- **API:** `guardar_entreno.php` acepta `reemplazar: true`. En la misma transacción borra las series de esa fecha y guarda las nuevas; también valida la fecha. La app siempre lo manda, así que volver a guardar o reenviar desde la cola sin conexión **actualiza, no duplica**.
+- **App: ventana de confirmación** al tocar el botón:
+  - "¿Terminar ya? Llevas X de Y series. Te faltan Z; solo se guardan las que marcaste con ✓", con "Seguir entrenando" como botón principal;
+  - con todo marcado: "¿Guardar el entreno?";
+  - sin nada marcado: "Aún no marcas ninguna serie".
+- **Solo se mandan las series marcadas.**
+- **Guardado a la mitad:**
+  - el entreno sigue (reloj, pantalla fija, foto en curso);
+  - si marcas más, el botón pasa a **"Actualizar (+N)"** y reemplaza lo guardado;
+  - el resumen y el fin de sesión solo llegan al guardar completo.
+
+**Datos del 2 de noviembre:** se corrigieron con las capturas del usuario (ver el mensaje de esa fecha).
+
+**Verificación** (demo a 375 px):
+
+- 3 series y Guardar: sale "¿Terminar ya? Llevas 3 de 20"; "Seguir entrenando" cierra sin guardar.
+- "Guardar así" sube solo las 3 marcadas.
+- Con 2 series más, el botón dice "ACTUALIZAR (+2)" y actualiza a 5 sin duplicar.
+- `php -l`, `test_funcional` y `ng build` pasan.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

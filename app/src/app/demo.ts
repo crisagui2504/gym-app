@@ -175,7 +175,7 @@ export class DemoApiService {
     );
   }
 
-  guardarEntreno(_fecha: string, items: SeriePayload[]): Observable<{ ok: boolean; inserted: number }> {
+  guardarEntreno(_fecha: string, items: SeriePayload[], _reemplazar = false): Observable<{ ok: boolean; inserted: number }> {
     return of({ ok: true, inserted: items.length }).pipe(delay(this.espera));
   }
 

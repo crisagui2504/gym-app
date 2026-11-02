@@ -120,6 +120,13 @@ export class AppComponent implements OnInit, OnDestroy {
   readonly pendientes = signal(0);
   readonly reintentando = signal(false);
   readonly yaGuardadoHoy = signal(false);
+  /** Series que se mandaron en el ultimo guardado de hoy: si marcas mas despues,
+   *  el boton pasa a "Actualizar entreno (+N)" (reemplaza, no duplica). */
+  readonly seriesGuardadas = signal(0);
+  readonly porActualizar = computed(() =>
+    this.yaGuardadoHoy() ? Math.max(0, this.progreso().hechas - this.seriesGuardadas()) : 0);
+  /** Ventana "¿terminar y guardar?" (antes un toque sin querer guardaba a la mitad). */
+  readonly confirmarGuardado = signal(false);
   readonly modoOffline = signal(false);
   private readonly onOnline = () => {
     void this.nutricion.reenviarPendiente();
@@ -463,6 +470,8 @@ export class AppComponent implements OnInit, OnDestroy {
 
     // guardado blindado: colas en IndexedDB y reintento automatico
     this.yaGuardadoHoy.set(localStorage.getItem('ultimoGuardado') === this.fecha);
+    const [fGuardado, nGuardado] = (localStorage.getItem('guardadoSeries') ?? '').split('|');
+    this.seriesGuardadas.set(fGuardado === this.fecha ? Number(nGuardado) || 0 : 0);
     window.addEventListener('online', this.onOnline);
     window.addEventListener('pagehide', this.onSalir);
     window.addEventListener('resize', this.onResizeVentana);
@@ -1683,21 +1692,26 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   // ----- Guardar (blindado: sin duplicados y sin perder entrenos) -----
+  /** El boton de abajo: primero pregunta (cuantas series llevas y cuantas faltan). */
+  pedirGuardar(): void {
+    if (this.guardando() || this.esDiaDescanso() || this.esDiaDeporte()) return;
+    this.confirmarGuardado.set(true);
+  }
+
   guardar(): void {
+    this.confirmarGuardado.set(false);
     if (this.guardando()) return; // anti doble-tap
     // Un dia de descanso o de deporte no tiene series que registrar. Antes el
     // boton seguia activo y guardaba el pseudo-ejercicio como sesion: en el
     // historial real aparecian "Descanso Activo" x4 y "Basquetbol" x1, que
     // contaban como dias entrenados para la deteccion de pausas.
     if (this.esDiaDescanso() || this.esDiaDeporte()) return;
-    if (this.yaGuardadoHoy() &&
-        !window.confirm('Ya guardaste este entreno hoy. ¿Enviarlo OTRA VEZ? Puede duplicar series en el historial.')) {
-      return;
-    }
+    // Solo las series MARCADAS. Antes se mandaban todas: guardar a la mitad subia
+    // las que faltaban con los valores del plan como si se hubieran hecho.
     const items: SeriePayload[] = [];
     for (const ej of this.ejercicios()) {
       const nota = ej.miNota.trim().slice(0, 200) || null;
-      ej.series.forEach((s, i) => {
+      ej.series.filter((s) => s.hecho).forEach((s, i) => {
         items.push({
           plan_id: s.planId,
           ejercicio: ej.ejercicio,
@@ -1717,17 +1731,33 @@ export class AppComponent implements OnInit, OnDestroy {
       /* noop */
     }
 
+    if (!items.length) return;
+    const completo = this.progreso().hechas >= this.progreso().total;
+    const actualizar = this.yaGuardadoHoy();
+
     this.guardando.set(true);
     this.mensaje.set('');
-    this.api.guardarEntreno(this.fecha, items).subscribe({
+    // reemplazar: siempre se mandan TODAS las hechas del dia, asi volver a guardar
+    // (o el reenvio de la cola) actualiza en vez de duplicar
+    this.api.guardarEntreno(this.fecha, items, true).subscribe({
       next: (res) => {
         this.registrarRacha();
-        this.marcarGuardadoHoy();
+        this.marcarGuardadoHoy(items.length);
+        const prs = this.detectarPrs(items);
+        if (!completo) {
+          // guardado a la mitad: sigue el entreno (reloj, pantalla y foto en curso)
+          this.guardando.set(false);
+          this.guardarEnCurso(true);
+          this.mensaje.set(`✓ Guardadas ${res.inserted} series. Sigue marcando: al terminar toca "Actualizar" abajo.`);
+          this.reenviarPendientes();
+          return;
+        }
         this.soltarPantalla();
         this.pararReloj();
         almacen.borrar('enCurso');
-        const prs = this.detectarPrs(items);
-        if (prs.length) {
+        if (actualizar && !prs.length) {
+          this.mensaje.set(`✓ Entreno actualizado: ${res.inserted} series.`);
+        } else if (prs.length) {
           this.celebrar();
           this.mensaje.set(`🎉 ¡PR en ${prs.join(', ')}! Entreno guardado: ${res.inserted} series. Racha: ${this.racha()} dias.`);
         } else {
@@ -1748,10 +1778,12 @@ export class AppComponent implements OnInit, OnDestroy {
     });
   }
 
-  private marcarGuardadoHoy(): void {
+  private marcarGuardadoHoy(series: number): void {
     this.yaGuardadoHoy.set(true);
+    this.seriesGuardadas.set(series);
     try {
       localStorage.setItem('ultimoGuardado', this.fecha);
+      localStorage.setItem('guardadoSeries', `${this.fecha}|${series}`);
     } catch {
       /* noop */
     }
@@ -1799,7 +1831,9 @@ export class AppComponent implements OnInit, OnDestroy {
     const hacer = () => {
       this.guardadoEnCursoProgramado = null;
       const cards = this.ejercicios();
-      if (!cards.length || this.yaGuardadoHoy() || !cards.some((e) => e.series.some((s) => s.hecho))) return;
+      // tras guardar a la mitad se sigue guardando la foto mientras haya series sin subir
+      if (!cards.length || (this.yaGuardadoHoy() && this.porActualizar() === 0)
+          || !cards.some((e) => e.series.some((s) => s.hecho))) return;
       const foto: EnCurso = {
         fecha: this.fecha,
         sesion: this.sesionMostrada,
@@ -1825,7 +1859,9 @@ export class AppComponent implements OnInit, OnDestroy {
       almacen.borrar('enCurso');          // de otro dia: ya no sirve
       return;
     }
-    if (foto.sesion !== this.sesionMostrada || this.yaGuardadoHoy()) return;
+    if (foto.sesion !== this.sesionMostrada) return;
+    const hechasFoto = foto.cards.reduce((a, c) => a + c.series.filter((s) => s.hecho).length, 0);
+    if (this.yaGuardadoHoy() && hechasFoto <= this.seriesGuardadas()) return;
     let restauradas = 0;
     for (const ej of this.ejercicios()) {
       const c = foto.cards.find((x) => x.plan === (ej.series[0]?.planId ?? -1));
@@ -1866,10 +1902,10 @@ export class AppComponent implements OnInit, OnDestroy {
     if (!cola.length || this.reintentando()) return;
     this.reintentando.set(true);
     const e = cola[0];
-    this.api.guardarEntreno(e.fecha, e.items).subscribe({
+    this.api.guardarEntreno(e.fecha, e.items, true).subscribe({
       next: (res) => {
         this.escribirCola(this.leerCola().filter((x) => x.fecha !== e.fecha));
-        if (e.fecha === this.fecha) this.marcarGuardadoHoy();
+        if (e.fecha === this.fecha) this.marcarGuardadoHoy(e.items.length);
         this.mensaje.set(`✓ Entreno pendiente del ${e.fecha} sincronizado (${res.inserted} series).`);
         this.reintentando.set(false);
         if (this.leerCola().length) this.reenviarPendientes();

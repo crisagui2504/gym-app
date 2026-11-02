@@ -12,10 +12,24 @@ if (!is_array($items) || count($items) === 0) {
     json_response(['ok' => false, 'error' => 'No hay series para guardar'], 400);
 }
 
+$fechaValida = DateTimeImmutable::createFromFormat('Y-m-d', (string) $fecha);
+if (!$fechaValida || $fechaValida->format('Y-m-d') !== $fecha) {
+    json_response(['ok' => false, 'error' => 'Fecha invalida'], 400);
+}
+
+// reemplazar: true -> el envio trae TODAS las series hechas del dia: se borran
+// las que ya habia de esa fecha y se guardan estas, en la misma transaccion.
+// Asi volver a guardar (o reenviar desde la cola sin conexion) ACTUALIZA el
+// entreno en vez de duplicar series. Sin el campo, se inserta como siempre.
+$reemplazar = !empty($data['reemplazar']);
+
 $pdo = db();
 $pdo->beginTransaction();
 
 try {
+    if ($reemplazar) {
+        $pdo->prepare('DELETE FROM registro_series WHERE fecha_entreno = ?')->execute([$fecha]);
+    }
     $stmt = $pdo->prepare(
         'INSERT INTO registro_series
         (plan_id, fecha_entreno, ejercicio, tecnica, numero_serie, peso_kg, repeticiones, rpe, notas)
@@ -49,7 +63,7 @@ try {
     }
 
     $pdo->commit();
-    json_response(['ok' => true, 'inserted' => $inserted]);
+    json_response(['ok' => true, 'inserted' => $inserted, 'reemplazado' => $reemplazar]);
 } catch (Throwable $e) {
     $pdo->rollBack();
     json_response(['ok' => false, 'error' => $e->getMessage()], 400);

@@ -234,10 +234,12 @@ export class RutinaApiService {
     );
   }
 
-  guardarEntreno(fecha: string, items: SeriePayload[]): Observable<{ ok: boolean; inserted: number }> {
+  /** Series hechas del dia. reemplazar=true: el envio trae TODAS las hechas de ese dia y
+   *  sustituye lo guardado (volver a guardar actualiza en vez de duplicar). */
+  guardarEntreno(fecha: string, items: SeriePayload[], reemplazar = false): Observable<{ ok: boolean; inserted: number }> {
     return this.http.post<{ ok: boolean; inserted: number }>(
       `${environment.apiBaseUrl}/guardar_entreno.php`,
-      { fecha_entreno: fecha, items },
+      reemplazar ? { fecha_entreno: fecha, items, reemplazar: true } : { fecha_entreno: fecha, items },
       { headers: this.headers }
     );
   }
