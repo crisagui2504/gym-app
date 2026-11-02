@@ -220,6 +220,16 @@ def adherencia(dfn: pd.DataFrame, meta_min: int, hoy: date | None = None, dias: 
             "dias_en_meta": int((d["proteina_g"] >= meta_min).sum()), "dias": dias, "creatina_dias": creatina}
 
 
+def consejo_calorias(ev: dict) -> str:
+    """Que hacer con las calorias, en una frase (aviso del domingo y check-in de la app)."""
+    return {"subir": f"sugerencia: {ev['kcal_delta']:+d} kcal/día (aplícalo en el check-in de Nutri)",
+            "bajar": f"sugerencia: {ev['kcal_delta']:+d} kcal/día (aplícalo en el check-in de Nutri)",
+            "en_rango": "calorías bien: no cambies nada",
+            "recomposicion": "recomposición en marcha: no cambies nada",
+            "esperando": f"espera {ev['dias_restantes']} día(s) para ver tu último ajuste",
+            "pocos_datos": "pésate más seguido para ajustar tus calorías"}[ev["estado"]]
+
+
 def resumen_semanal(cfg: dict, dfp: pd.DataFrame, dfn: pd.DataFrame, cintura_sem: float | None = None,
                     hoy: date | None = None) -> tuple[str, str]:
     """El aviso del domingo (como el check-in semanal de MacroFactor): proteina,
@@ -234,15 +244,80 @@ def resumen_semanal(cfg: dict, dfp: pd.DataFrame, dfn: pd.DataFrame, cintura_sem
         partes.append("Sin proteína registrada esta semana")
     if ev["tendencia"] is not None:
         partes.append(f"peso {round(ev['tendencia'], 2) + 0.0:+.2f} %/sem")      # + 0.0: nunca "-0.00"
-    consejo = {"subir": f"sugerencia: {ev['kcal_delta']:+d} kcal/día (aplícalo en el dashboard)",
-               "bajar": f"sugerencia: {ev['kcal_delta']:+d} kcal/día (aplícalo en el dashboard)",
-               "en_rango": "calorías bien: no cambies nada",
-               "recomposicion": "recomposición en marcha: no cambies nada",
-               "esperando": f"espera {ev['dias_restantes']} día(s) para ver tu último ajuste",
-               "pocos_datos": "pésate más seguido para ajustar tus calorías"}[ev["estado"]]
+    consejo = consejo_calorias(ev)
     if a["creatina_dias"]:
         partes.append(f"creatina {a['creatina_dias']}/7")
     return "🥗 Tu semana de nutrición", " · ".join(partes) + ". " + consejo[0].upper() + consejo[1:] + "."
+
+
+def checkin(cfg: dict, dfp: pd.DataFrame, dfn: pd.DataFrame, cintura_sem: float | None = None,
+            hoy: date | None = None) -> dict:
+    """El check-in semanal para la app (como MacroFactor): tendencia del peso contra
+    el objetivo de tu enfoque, la sugerencia de kcal y tu adherencia de 7 dias."""
+    hoy = hoy or date.today()
+    m = metas(cfg)
+    ev = evaluar(cfg, dfp, cintura_sem, hoy)
+    a = adherencia(dfn, m["proteina_min"], hoy)
+    lo, hi = ev["objetivo"]
+    return {
+        "fecha": hoy.isoformat(), "estado": ev["estado"], "kcal_delta": int(ev["kcal_delta"]),
+        "tendencia": None if ev["tendencia"] is None else round(float(ev["tendencia"]), 3),
+        "objetivo": [lo, hi], "dias_restantes": int(ev["dias_restantes"]), "enfoque": m["enfoque"],
+        "kcal": m["kcal"], "kcal_base": m["kcal_base"], "kcal_ajuste": m["kcal_ajuste"], "peso": m["peso"],
+        "cintura_sem": None if cintura_sem is None else round(float(cintura_sem), 2),
+        "proteina": {"promedio": None if a["promedio"] is None else round(a["promedio"], 1),
+                     "dias": a["dias_registrados"], "en_meta": a["dias_en_meta"], "meta": m["proteina_min"]},
+        "creatina_dias": a["creatina_dias"],
+        "consejo": consejo_calorias(ev),
+    }
+
+
+def aplicar_ajuste_kcal(delta: int, hoy: date | None = None) -> int:
+    """Acepta el ajuste sugerido (dashboard o check-in de la app): queda en tu
+    config y se reevalua en 2 semanas. Devuelve el ajuste total."""
+    from config_usuario import cargar_config, guardar_config
+    total = max(-1000, min(1000, int(cargar_config().get("kcal_ajuste") or 0) + int(delta)))
+    guardar_config({"kcal_ajuste": total, "kcal_ajuste_fecha": (hoy or date.today()).isoformat()})
+    return total
+
+
+def sincronizar_checkin(sesion, base_url: str, token: str, carpeta=AQUI, hoy: date | None = None) -> dict | None:
+    """Lo corre exportar_local (cada 3 h): si en la app tocaste "Aplicar" y la
+    sugerencia sigue siendo esa, pasa el ajuste a tu config y resube la meta; luego
+    sube la evaluacion de hoy. Un pedido viejo (la sugerencia ya cambio) se descarta.
+    None si el servidor no respondio."""
+    from config_usuario import cargar_config
+    hoy = hoy or date.today()
+    try:
+        r = sesion.get(f"{base_url}/get_checkin.php", headers={"X-API-Token": token}, timeout=30)
+        r.raise_for_status()
+        j = r.json()
+        if not j.get("ok"):
+            return None
+    except Exception as e:  # noqa: BLE001
+        print(f"Check-in no disponible ({e.__class__.__name__}).")
+        return None
+    carpeta = pathlib.Path(carpeta)
+    dfp, dfn = leer_peso_csv(carpeta / CSV_PESO), leer_nutricion_csv(carpeta)
+    ev = checkin(cargar_config(), dfp, dfn, tendencia_cintura(dfp), hoy)
+    pend = j.get("pendiente") or {}
+    limpiar = bool(pend.get("delta"))
+    if limpiar:
+        delta = int(pend["delta"])
+        if ev["estado"] in ("subir", "bajar") and delta == ev["kcal_delta"]:
+            aplicar_ajuste_kcal(delta, hoy)
+            subir_meta()
+            ev = checkin(cargar_config(), dfp, dfn, tendencia_cintura(dfp), hoy)     # ahora "esperando"
+            ev["aplicado"] = {"delta": delta, "fecha": hoy.isoformat()}
+        else:
+            ev["descartado"] = delta
+    try:
+        r = sesion.post(f"{base_url}/guardar_checkin.php", json={"evaluacion": ev, "aplicado": limpiar},
+                        headers={"X-API-Token": token}, timeout=30)
+        r.raise_for_status()
+    except Exception as e:  # noqa: BLE001
+        print(f"Check-in no subido ({e.__class__.__name__}).")
+    return ev
 
 
 # ── servidor ─────────────────────────────────────────────────────────────────

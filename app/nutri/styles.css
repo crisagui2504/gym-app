@@ -152,11 +152,11 @@ details > summary {
   bottom: calc(14px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   display: grid;
-  grid-template-columns: 1fr 1fr auto 1fr;
+  grid-template-columns: 1fr 1fr auto 1fr 1fr;
   align-items: center;
   gap: 4px;
-  width: min(400px, calc(100% - 32px));
-  padding: 8px 10px;
+  width: min(420px, calc(100% - 24px));
+  padding: 8px 8px;
   border-radius: 999px;
   background: var(--nu-ink);
   box-shadow: 0 12px 30px rgba(17, 20, 24, 0.25);
@@ -192,7 +192,7 @@ details > summary {
 .nu-nav .nu-nav-mas {
   width: 56px;
   height: 56px;
-  margin: -14px 6px 0;
+  margin: -14px 4px 0;
   justify-content: center;
   border-radius: 50%;
   background: var(--nu-lima);
@@ -1198,6 +1198,154 @@ details > summary {
   margin: 10px 0 0;
   font-size: 12px;
   color: var(--nu-muted);
+}
+
+/* ── Check-in ───────────────────────────────────────────────────────────── */
+.ci-hero {
+  margin-bottom: 12px;
+  padding: 18px;
+  border-radius: var(--nu-radio);
+  background: var(--nu-kcal);
+  color: var(--nu-kcal-ink);
+}
+
+.ci-hero.e-en_rango,
+.ci-hero.e-recomposicion {
+  background: var(--nu-prot);
+  color: var(--nu-prot-ink);
+}
+
+.ci-hero.e-pocos_datos,
+.ci-hero.e-esperando {
+  background: var(--nu-grasa);
+  color: var(--nu-grasa-ink);
+}
+
+.ci-hero small {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ci-hero h2 {
+  margin: 4px 0 6px;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--nu-ink);
+}
+
+.ci-hero p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.ci-rango {
+  position: relative;
+  height: 14px;
+  margin: 6px 0 4px;
+  border-radius: 14px;
+  background: var(--nu-card-2);
+}
+
+.ci-rango-meta {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 14px;
+  background: var(--nu-lima);
+}
+
+.ci-rango-tu {
+  position: absolute;
+  top: -5px;
+  width: 24px;
+  height: 24px;
+  margin-left: -12px;
+  border-radius: 50%;
+  border: 5px solid var(--nu-ink);
+  background: var(--nu-card);
+}
+
+.ci-adh {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ci-adh div {
+  padding: 12px;
+  border-radius: 18px;
+}
+
+.ci-adh .m-prot {
+  background: var(--nu-prot);
+}
+
+.ci-adh .m-kcal {
+  background: var(--nu-kcal);
+}
+
+.ci-adh .m-carb {
+  background: var(--nu-carb);
+}
+
+.ci-adh .m-grasa {
+  background: var(--nu-grasa);
+}
+
+.ci-adh b {
+  display: block;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.ci-adh span {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ci-delta {
+  display: block;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.ci-aplicar {
+  width: 100%;
+  margin-top: 12px;
+  padding: 15px;
+  border-radius: 999px;
+  background: var(--nu-ink);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.ci-pendiente {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: 18px;
+  background: var(--nu-lima-claro);
+  color: var(--nu-lima-osc);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ci-cancelar {
+  margin-top: 8px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: var(--nu-card-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ci-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #b3401f;
 }
 
 /* ── Menu (clases de proteina.component.ts, vista "menu") ───────────────── */

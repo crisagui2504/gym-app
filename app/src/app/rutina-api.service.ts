@@ -72,6 +72,33 @@ export interface NutricionResponse {
   dias: Array<{ fecha: string; proteina_g: number; porciones: Record<string, number> }>;
 }
 
+/** Check-in semanal que sube el motor (python-engine/nutricion.py checkin). */
+export interface Checkin {
+  fecha: string;
+  estado: 'pocos_datos' | 'esperando' | 'en_rango' | 'recomposicion' | 'subir' | 'bajar';
+  kcal_delta: number;
+  tendencia: number | null;          // % del peso por semana
+  objetivo: [number, number];        // % por semana que busca tu enfoque
+  dias_restantes: number;
+  enfoque: string;
+  kcal: number;
+  kcal_base: number;
+  kcal_ajuste: number;
+  peso: number;
+  cintura_sem: number | null;
+  proteina: { promedio: number | null; dias: number; en_meta: number; meta: number };
+  creatina_dias: number;
+  consejo: string;
+  aplicado?: { delta: number; fecha: string };
+  descartado?: number;
+}
+export interface CheckinResponse {
+  ok: boolean;
+  evaluacion: Checkin | null;
+  pendiente: { delta: number; pedido: string } | null;
+  actualizado_en: string | null;
+}
+
 /** Un pesaje por dia (infinityfree/api/peso_tabla.php); cintura opcional. */
 export interface Pesaje {
   fecha: string;
@@ -225,6 +252,16 @@ export class RutinaApiService {
   }
 
   /** Pesajes de los ultimos dias (del mas viejo al mas nuevo). */
+  /** Check-in de la semana (lo evalua el motor) y el ajuste pedido desde la app. */
+  getCheckin(): Observable<CheckinResponse> {
+    return this.http.get<CheckinResponse>(`${environment.apiBaseUrl}/get_checkin.php`, { headers: this.headers });
+  }
+
+  /** "Aplicar" la sugerencia de kcal (o {cancelar: true}); el motor la pasa a tu config. */
+  aplicarAjuste(body: { kcal_delta: number } | { cancelar: true }): Observable<{ ok: boolean }> {
+    return this.http.post<{ ok: boolean }>(`${environment.apiBaseUrl}/aplicar_ajuste.php`, body, { headers: this.headers });
+  }
+
   getPeso(dias = 60): Observable<{ ok: boolean; pesos: Pesaje[] }> {
     return this.http.get<{ ok: boolean; pesos: Pesaje[] }>(`${environment.apiBaseUrl}/get_peso.php?dias=${dias}`, { headers: this.headers });
   }

@@ -2193,9 +2193,7 @@ def _aplicar_kcal(n_clicks, delta):
     from dash import no_update
     if _es_demo() or not n_clicks or not delta:
         return no_update
-    actual = int(cargar_config().get("kcal_ajuste") or 0)
-    guardar_config({"kcal_ajuste": max(-1000, min(1000, actual + int(delta))),
-                    "kcal_ajuste_fecha": date.today().isoformat()})
+    nutricion.aplicar_ajuste_kcal(int(delta))
     nutricion.subir_meta_en_segundo_plano()
     return _panel_peso()
 

@@ -3,7 +3,7 @@ import { Observable, from, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { environment } from '../environments/environment';
 import { fechaLocal } from './entreno-data';
-import type { EjercicioPlan, FeedbackItem, HistorialResponse, MenuSemana, NutricionResponse, Pesaje, RutinaHoyResponse, SeriePayload } from './rutina-api.service';
+import type { CheckinResponse, EjercicioPlan, FeedbackItem, HistorialResponse, MenuSemana, NutricionResponse, Pesaje, RutinaHoyResponse, SeriePayload } from './rutina-api.service';
 
 /**
  * MODO DEMO (oculto): para ensenar la app sin tocar NADA real.
@@ -235,6 +235,27 @@ export class DemoApiService {
   /** En la demo el "no me gusta" vive solo en este telefono. */
   guardarNoMeGusta(_tipo: 'receta' | 'alimento', _id: string, _baja = false): Observable<{ ok: boolean }> {
     return of({ ok: true });
+  }
+
+  /** Check-in del atleta virtual: baja un poco rapido en recomposicion -> +150 kcal. Solo memoria. */
+  private pendienteDemo: number | null = null;
+
+  getCheckin(): Observable<CheckinResponse> {
+    return of<CheckinResponse>({
+      ok: true, actualizado_en: null,
+      pendiente: this.pendienteDemo ? { delta: this.pendienteDemo, pedido: new Date().toISOString() } : null,
+      evaluacion: {
+        fecha: fechaLocal(new Date()), estado: 'subir', kcal_delta: 150, tendencia: -0.62, objetivo: [-0.5, 0],
+        dias_restantes: 0, enfoque: 'recomposicion', kcal: 2480, kcal_base: 2480, kcal_ajuste: 0, peso: 75, cintura_sem: -0.3,
+        proteina: { promedio: 137, dias: 6, en_meta: 4, meta: 135 }, creatina_dias: 5,
+        consejo: 'sugerencia: +150 kcal/día (aplícalo en el check-in de Nutri)'
+      }
+    }).pipe(delay(this.espera));
+  }
+
+  aplicarAjuste(body: { kcal_delta: number } | { cancelar: true }): Observable<{ ok: boolean }> {
+    this.pendienteDemo = 'cancelar' in body ? null : body.kcal_delta;
+    return of({ ok: true }).pipe(delay(this.espera));
   }
 
   /** Pesajes del atleta virtual (bajando ~0.25 kg/sem) + lo que anotes en la demo, solo en memoria. */

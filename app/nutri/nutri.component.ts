@@ -7,15 +7,16 @@ import { AgregarComponent } from './agregar.component';
 import { BienvenidaComponent } from './bienvenida.component';
 import { HoyComponent } from './hoy.component';
 import { ProgresoComponent } from './progreso.component';
+import { CheckinComponent } from './checkin.component';
 import { tiempoPorHora } from './iconos';
 
-type Pestana = 'hoy' | 'menu' | 'progreso';
+type Pestana = 'hoy' | 'menu' | 'progreso' | 'checkin';
 
 /** App de nutricion (crisrodrigo.infinityfree.io): Hoy, Menu y Progreso, con el + al centro. */
 @Component({
   selector: 'app-nutri',
   standalone: true,
-  imports: [CommonModule, ProteinaComponent, ProgresoComponent, HoyComponent, AgregarComponent, BienvenidaComponent],
+  imports: [CommonModule, ProteinaComponent, ProgresoComponent, HoyComponent, AgregarComponent, BienvenidaComponent, CheckinComponent],
   template: `
     <app-bienvenida *ngIf="bienvenida()" (listo)="cerrarBienvenida()"></app-bienvenida>
 
@@ -38,6 +39,7 @@ type Pestana = 'hoy' | 'menu' | 'progreso';
         <app-hoy *ngIf="tab() === 'hoy'" (agregar)="abrirAgregar($event)"></app-hoy>
         <app-proteina *ngIf="tab() === 'menu'" fija="menu"></app-proteina>
         <app-progreso *ngIf="tab() === 'progreso'"></app-progreso>
+        <app-checkin *ngIf="tab() === 'checkin'"></app-checkin>
       </main>
 
       <nav class="nu-nav" aria-label="Secciones">
@@ -56,6 +58,10 @@ type Pestana = 'hoy' | 'menu' | 'progreso';
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
           <span>Progreso</span>
         </button>
+        <button type="button" [class.on]="tab() === 'checkin'" (click)="ir('checkin')" [attr.aria-current]="tab() === 'checkin' ? 'page' : null">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9zM7 5H5v16h14V5h-2M8.5 14l2.5 2.5 5-5"/></svg>
+          <span>Check-in</span>
+        </button>
       </nav>
 
       <app-agregar *ngIf="agregarEn() as t" [inicial]="t" (cerrar)="agregarEn.set(null)"></app-agregar>
@@ -65,7 +71,7 @@ type Pestana = 'hoy' | 'menu' | 'progreso';
 export class NutriComponent implements OnInit {
   readonly nut = inject(NutricionService);
   readonly esDemo = ES_DEMO;
-  readonly titulos: Record<Pestana, string> = { hoy: 'Tu día', menu: 'Menú de la semana', progreso: 'Cómo vas' };
+  readonly titulos: Record<Pestana, string> = { hoy: 'Tu día', menu: 'Menú de la semana', progreso: 'Cómo vas', checkin: 'Check-in' };
   readonly tab = signal<Pestana>(this.tabGuardada());
   readonly agregarEn = signal<string | null>(null);
   readonly bienvenida = signal(!this.leer('nu-bienvenida') && !ES_DEMO);
@@ -116,7 +122,7 @@ export class NutriComponent implements OnInit {
 
   private tabGuardada(): Pestana {
     const t = this.leer('nu-tab');
-    return t === 'menu' || t === 'progreso' ? t : 'hoy';
+    return t === 'menu' || t === 'progreso' || t === 'checkin' ? t : 'hoy';
   }
 
   private leer(k: string): string | null {

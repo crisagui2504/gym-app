@@ -18,7 +18,8 @@ API=(bootstrap.php
      nutricion_tabla.php guardar_proteina.php get_nutricion.php guardar_meta_nutricion.php
      menu_tabla.php guardar_menu.php get_menu.php
      no_me_gusta_tabla.php guardar_no_me_gusta.php get_no_me_gusta.php
-     peso_tabla.php guardar_peso.php get_peso.php)
+     peso_tabla.php guardar_peso.php get_peso.php
+     checkin_tabla.php get_checkin.php guardar_checkin.php aplicar_ajuste.php)
 for f in "${API[@]}"; do
     cp "infinityfree/api/$f" deploy-nutri/api/
 done

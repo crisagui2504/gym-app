@@ -157,3 +157,13 @@ CREATE TABLE IF NOT EXISTS menu_no_me_gusta (
   creado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (tipo, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Check-in semanal de nutricion (checkin_tabla.php): la evaluacion que sube el
+-- motor y el ajuste de kcal pedido desde la app (el motor lo aplica y lo limpia).
+CREATE TABLE IF NOT EXISTS nutricion_checkin (
+  id TINYINT UNSIGNED NOT NULL PRIMARY KEY,
+  evaluacion MEDIUMTEXT NULL,
+  aplicar_delta SMALLINT NULL,
+  aplicar_pedido TIMESTAMP NULL,
+  actualizado_en TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

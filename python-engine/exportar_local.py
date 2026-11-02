@@ -70,6 +70,11 @@ def main() -> None:
     nut.to_csv(destino.parent / nutricion.CSV_NUTRICION, index=False)
     print(f"{nutricion.CSV_NUTRICION} actualizado ({len(nut)} dias)")
     exportar_peso(sesion_n, base_n, token_n)
+    # check-in semanal de la app: aplica el "Aplicar" pendiente y sube la evaluacion
+    ev = nutricion.sincronizar_checkin(sesion_n, base_n, token_n, destino.parent)
+    if ev is not None:
+        extra = f" · ajuste {ev['aplicado']['delta']:+d} kcal aplicado" if ev.get("aplicado") else ""
+        print(f"check-in actualizado ({ev['estado']}{extra})")
 
 
 def exportar_peso(sesion, base_url: str, token: str, raiz: pathlib.Path = AQUI):

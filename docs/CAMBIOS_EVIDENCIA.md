@@ -2957,6 +2957,38 @@ Volver a guardar duplicaba series, porque el servidor solo insertaba.
 - Menú muestra "✓ Comido" en la comida marcada desde Hoy.
 - Sin scroll horizontal.
 
+## CO. Nutri, fase 4: check-in semanal con "Aplicar" desde la app (2026-11-02)
+
+**Como MacroFactor**, la app muestra cada semana cómo va tu peso contra el objetivo de tu enfoque y qué hacer con las calorías, y el ajuste se acepta con un botón. Antes eso solo se podía en el dashboard.
+
+- **Motor:**
+  - `nutricion.checkin()` arma la evaluación: estado, kcal sugeridas, tendencia, objetivo, cintura, adherencia de proteína y creatina, y el consejo;
+  - `sincronizar_checkin()` la corre `exportar_local` cada 3 h. Si en la app tocaste "Aplicar" y la sugerencia sigue siendo la misma, pasa el ajuste a tu config (`aplicar_ajuste_kcal`, la misma función que usa ahora el dashboard), resube la meta y deja la evaluación en "esperando". Un pedido viejo, cuya sugerencia ya cambió, se descarta.
+- **API** (sitio de nutrición):
+  - tabla `nutricion_checkin`, autocreada y en `schema.sql`;
+  - `get_checkin.php`;
+  - `guardar_checkin.php` (el motor);
+  - `aplicar_ajuste.php` (la app), que solo acepta **el ajuste que sugirió el motor**: la app no puede inventar otro (409 si ya no coincide), y `{cancelar: true}` retira el pedido.
+- **App, pestaña Check-in:**
+  - estado en grande;
+  - barra con tu tendencia contra el rango objetivo;
+  - tu semana: proteína promedio, kcal anotadas, días en meta y creatina;
+  - ajuste sugerido con su equivalencia en tortillas o arroz y "Aplicar" / "Cancelar";
+  - cómo funciona.
+- El aviso del domingo ahora dice "aplícalo en el check-in de Nutri".
+
+**Verificación.**
+
+- `test_motor` §58 (6 pruebas) con un servidor simulado:
+  - peso plano en volumen → subir, con la adherencia correcta;
+  - sin pedido, tu config no cambia;
+  - con "Aplicar", el ajuste pasa a la config, la meta se resube y queda "esperando";
+  - un pedido viejo se descarta;
+  - servidor caído: nada cambia.
+- Demo a 375 px: "Aplicar +150 kcal" muestra el pedido y "Cancelar"; la barra inferior tiene 5 botones.
+
+## Referencias principales
+
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
 - Robinson ZP et al. (2024). *Exploring the dose-response relationship between estimated resistance training proximity to failure, strength gain, and muscle hypertrophy.* Meta-analysis.
 - Grgic J et al. (2022). *Effects of resistance training performed to repetition failure or non-failure on muscular strength and hypertrophy.* J Sport Health Sci.

@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import * as almacen from './almacen';
 import { fechaLocal } from './entreno-data';
-import { MenuComida, MenuDia, MenuSemana, Pesaje, RutinaApiService } from './rutina-api.service';
+import { CheckinResponse, MenuComida, MenuDia, MenuSemana, Pesaje, RutinaApiService } from './rutina-api.service';
 import { FilaLista, claveEleccion, cocina, comidasDelDia, elegida, listaSuper, textoLista } from './menu-semana';
 
 /**
@@ -565,6 +565,47 @@ export class NutricionService {
     else actual[id] = n;
     this.aplicar(actual);
   }
+
+  // ----- Check-in semanal (lo evalua el motor; "Aplicar" se pide desde aqui) -----
+  readonly checkin = signal<CheckinResponse | null>(this.leerJson('checkin', null));
+  readonly cargandoCheckin = signal(false);
+
+  cargarCheckin(): void {
+    this.cargandoCheckin.set(true);
+    this.api.getCheckin().subscribe({
+      next: (r) => {
+        this.cargandoCheckin.set(false);
+        this.checkin.set(r);
+        this.guardarJson('checkin', r);
+      },
+      error: () => this.cargandoCheckin.set(false)
+    });
+  }
+
+  /** Pide el ajuste sugerido (null: lo cancela). Devuelve un error para mostrar, o ''. */
+  ajustarKcal(delta: number | null): Promise<string> {
+    return new Promise((listo) => {
+      this.api.aplicarAjuste(delta === null ? { cancelar: true } : { kcal_delta: delta }).subscribe({
+        next: () => {
+          this.cargarCheckin();
+          listo('');
+        },
+        error: (e: { status?: number }) =>
+          listo(e?.status === 409 ? 'La sugerencia cambió: vuelve a abrir el check-in.' : 'Sin conexión: inténtalo de nuevo.')
+      });
+    });
+  }
+
+  /** kcal y proteina promedio de los ultimos 7 dias con algo anotado en la app. */
+  readonly semana7 = computed(() => {
+    const dias = Array.from({ length: 7 }, (_, i) => {
+      const f = new Date();
+      f.setDate(f.getDate() - i);
+      return desglosar(this.porcionesDe(fechaLocal(f))).total;
+    }).filter((t) => t.kcal > 0 || t.prot > 0);
+    const prom = (k: 'kcal' | 'prot') => (dias.length ? dias.reduce((s, t) => s + t[k], 0) / dias.length : null);
+    return { dias: dias.length, kcal: prom('kcal'), prot: prom('prot') };
+  });
 
   /** Lo anotado en una fecha: hoy, lo del telefono; otro dia reciente, lo del servidor. */
   porcionesDe(fecha: string): Record<string, number> {

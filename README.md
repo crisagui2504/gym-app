@@ -153,6 +153,7 @@ Una app hermana solo de comida, con diseño propio (claro, tarjetas blancas, pas
 - **Agregar:** lo del menú de hoy, porciones de casa y "Comí fuera", con buscador.
 - **Menú:** el menú de la semana, la cocina y la lista del súper.
 - **Progreso:** gráficas de peso y proteína, y tu meta.
+- **Check-in semanal** (como MacroFactor): tu peso contra el objetivo de tu enfoque, tu adherencia de 7 días y la sugerencia de calorías con **Aplicar**; el motor lo pasa a tu config en la VM.
 
 - Es el proyecto `nutri` del mismo workspace de Angular: reutiliza la lógica de `src/app/nutricion.ts` y `proteina.component.ts`, con su propia hoja `nutri/styles.css`. Compilar: `npx ng build nutri`; desarrollo: `npx ng serve nutri --port 4300` (con `?demo=1`, datos simulados).
 - Tiene su propia API y MySQL en esa cuenta (el antibot de InfinityFree no deja llamar a otro dominio). `servidor/armar_deploy_nutri.sh` copia solo los endpoints de nutrición y peso, y arma `config.php` con los secretos.

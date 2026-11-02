@@ -1726,6 +1726,68 @@ finally:
             _os.environ[_k] = _v
 
 print()
+print("== 58. Check-in semanal: la app pide el ajuste, el motor lo aplica ==")
+
+
+class _ApiCheckin:
+    """get_checkin / guardar_checkin en memoria (como los PHP)."""
+    def __init__(self, delta=None, caido=False):
+        self.evaluacion, self.delta, self.caido, self.subidas = None, delta, caido, []
+
+    def _r(self, datos):
+        return type("R", (), {"raise_for_status": lambda s: None, "json": lambda s: datos})()
+
+    def get(self, url, headers=None, timeout=None, params=None):
+        if self.caido:
+            raise ConnectionError("sin red")
+        assert url.endswith("/get_checkin.php")
+        return self._r({"ok": True, "evaluacion": self.evaluacion,
+                        "pendiente": {"delta": self.delta, "pedido": "x"} if self.delta else None})
+
+    def post(self, url, json=None, headers=None, timeout=None):
+        assert url.endswith("/guardar_checkin.php")
+        self.subidas.append(json)
+        self.evaluacion = json["evaluacion"]
+        if json.get("aplicado"):
+            self.delta = None
+        return self._r({"ok": True})
+
+
+_d58 = pathlib.Path(_tf.mkdtemp())
+_pesos(70, 0.0).assign(fecha=lambda d: d["fecha"].dt.strftime("%Y-%m-%d")).to_csv(_d58 / nut.CSV_PESO, index=False)
+pd.DataFrame({"fecha": [(_hoy49 - timedelta(days=i)).isoformat() for i in range(1, 6)],
+              "proteina_g": [150, 140, 0, 160, 120], "creatina": [1, 1, 0, 1, 0]}).to_csv(_d58 / nut.CSV_NUTRICION, index=False)
+_cfg58_real, _sm58_real, _metas58 = _cu.CONFIG_PATH, nut.subir_meta, []
+_cu.CONFIG_PATH = _d58 / "config_usuario.json"
+nut.subir_meta = lambda cfg=None: _metas58.append(_cu.cargar_config()["kcal_ajuste"]) or True
+try:
+    _cu.guardar_config({"enfoque": "volumen", "peso_corporal": 70, "kcal_ajuste": 0, "kcal_ajuste_fecha": None})
+    _srv58 = _ApiCheckin()
+    _ev = nut.sincronizar_checkin(_srv58, "https://n", "tk", _d58, hoy=_hoy49)
+    check("evaluacion de la semana: peso plano en volumen -> subir kcal, con adherencia",
+          _ev["estado"] == "subir" and _ev["kcal_delta"] > 0 and _ev["proteina"]["dias"] == 4
+          and _ev["creatina_dias"] == 3 and "check-in" in _ev["consejo"], str(_ev))
+    check("sin pedido de la app no cambia tu config", _cu.cargar_config()["kcal_ajuste"] == 0 and _metas58 == []
+          and _srv58.subidas[-1]["aplicado"] is False)
+    _srv58.delta = _ev["kcal_delta"]
+    _ev2 = nut.sincronizar_checkin(_srv58, "https://n", "tk", _d58, hoy=_hoy49)
+    check("con 'Aplicar' en la app: el ajuste pasa a tu config y la meta se resube",
+          _cu.cargar_config()["kcal_ajuste"] == _ev["kcal_delta"] and _metas58 == [_ev["kcal_delta"]]
+          and _cu.cargar_config()["kcal_ajuste_fecha"] == _hoy49.isoformat())
+    check("despues de aplicar: la evaluacion queda 'esperando' y el pedido se limpia",
+          _ev2["estado"] == "esperando" and _ev2["aplicado"]["delta"] == _ev["kcal_delta"] and _srv58.delta is None)
+    _srv58.delta = 250
+    _ev3 = nut.sincronizar_checkin(_srv58, "https://n", "tk", _d58, hoy=_hoy49)
+    check("un pedido viejo (la sugerencia ya cambio) se descarta sin tocar tu config",
+          _ev3.get("descartado") == 250 and _srv58.delta is None and _cu.cargar_config()["kcal_ajuste"] == _ev["kcal_delta"])
+    check("servidor caido: None y nada cambia",
+          nut.sincronizar_checkin(_ApiCheckin(caido=True), "https://n", "tk", _d58, hoy=_hoy49) is None
+          and len(_metas58) == 1)
+finally:
+    _cu.CONFIG_PATH = _cfg58_real
+    nut.subir_meta = _sm58_real
+
+print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")
     sys.exit(1)
