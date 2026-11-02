@@ -1634,6 +1634,98 @@ check("curl nordico: 3-6 reps excentricas, sin rest-pause ni drop, 120 s",
                           for f in _nord), str([(f.tecnica, f.reps_min, f.reps_max) for f in _nord]))
 
 print()
+print("== 57. App de nutricion: fuente unica y migracion desde GymTracker ==")
+import os as _os
+import migrar_a_nutri as _mig
+
+
+class _ApiNutri:
+    """Los endpoints de nutricion en memoria (mismas reglas que los PHP: upsert, sin duplicar)."""
+    def __init__(self, dias=None, meta=None, pesos=None, recetas=(), alimentos=(), menu=None):
+        self.dias = {d["fecha"]: dict(d) for d in (dias or [])}
+        self.meta, self.menu = meta, menu
+        self.pesos = {p["fecha"]: dict(p) for p in (pesos or [])}
+        self.nmg = {("receta", x) for x in recetas} | {("alimento", x) for x in alimentos}
+        self.posts = []
+
+    def _r(self, datos):
+        return type("R", (), {"raise_for_status": lambda s: None, "json": lambda s: datos})()
+
+    def get(self, url, params=None, headers=None, timeout=None):
+        assert headers["X-API-Token"] == "tk"
+        f = url.rsplit("/", 1)[1]
+        if f == "get_nutricion.php":
+            return self._r({"ok": True, "meta": self.meta, "dias": [self.dias[k] for k in sorted(self.dias)]})
+        if f == "get_peso.php":
+            return self._r({"ok": True, "pesos": [self.pesos[k] for k in sorted(self.pesos)]})
+        if f == "get_no_me_gusta.php":
+            return self._r({"ok": True, "recetas": sorted(x for t, x in self.nmg if t == "receta"),
+                            "alimentos": sorted(x for t, x in self.nmg if t == "alimento")})
+        if f == "get_menu.php":
+            return self._r({"ok": True, "menu": self.menu})
+        raise AssertionError(f)
+
+    def post(self, url, json=None, headers=None, timeout=None):
+        f = url.rsplit("/", 1)[1]
+        self.posts.append(f)
+        if f == "guardar_proteina.php":
+            self.dias[json["fecha"]] = {"fecha": json["fecha"], "proteina_g": json["proteina_g"], "porciones": json["porciones"]}
+        elif f == "guardar_peso.php":
+            self.pesos[json["fecha"]] = {"fecha": json["fecha"], "peso": json["peso"], "cintura": json.get("cintura")}
+        elif f == "guardar_no_me_gusta.php":
+            self.nmg.add((json["tipo"], json["id"]))
+        elif f == "guardar_meta_nutricion.php":
+            self.meta = dict(json)
+        elif f == "guardar_menu.php":
+            self.menu = json["menu"]
+        return self._r({"ok": True})
+
+
+_gym = _ApiNutri(dias=[{"fecha": "2026-10-30", "proteina_g": 120.0, "porciones": {"huevo": 3, "creatina": 1}},
+                       {"fecha": "2026-10-31", "proteina_g": 90.0, "porciones": {"frijol": 2}}],
+                 meta={"proteina_min": 131, "proteina_max": 161, "kcal": 2400, "peso": 73, "enfoque": "recomposicion"},
+                 pesos=[{"fecha": "2026-10-30", "peso": 73.2, "cintura": 84.0}, {"fecha": "2026-10-31", "peso": 73.0, "cintura": None}],
+                 recetas=["tacos_lentejas"], alimentos=["sardina"], menu={"semana_inicio": "2026-10-26", "dias": []})
+_nut = _ApiNutri(dias=[{"fecha": "2026-10-31", "proteina_g": 140.0, "porciones": {"pollo": 5}}],
+                 pesos=[{"fecha": "2026-10-31", "peso": 72.8, "cintura": None}], alimentos=["sardina"])
+_o, _d = (_gym, "https://gym", "tk"), (_nut, "https://nutri", "tk")
+check("migrar --probar no escribe nada en la app de nutricion",
+      _mig.migrar(_o, _d, probar=True, hoy=date(2026, 11, 2)) == {"proteina": 1, "peso": 1, "no_me_gusta": 1, "meta": 1, "menu": 1}
+      and _nut.posts == [])
+_c = _mig.migrar(_o, _d, hoy=date(2026, 11, 2))
+check("migrar copia solo lo que le falta a nutricion (proteina, peso, meta, menu, no me gusta)",
+      _c == {"proteina": 1, "peso": 1, "no_me_gusta": 1, "meta": 1, "menu": 1}
+      and sorted(_nut.dias) == ["2026-10-30", "2026-10-31"] and sorted(_nut.pesos) == ["2026-10-30", "2026-10-31"], str(_c))
+check("nunca pisa lo que ya anotaste en la app de nutricion",
+      _nut.dias["2026-10-31"]["proteina_g"] == 140.0 and _nut.pesos["2026-10-31"]["peso"] == 72.8)
+check("las porciones (creatina incluida) y la cintura viajan completas",
+      _nut.dias["2026-10-30"]["porciones"] == {"huevo": 3, "creatina": 1} and _nut.pesos["2026-10-30"]["cintura"] == 84.0
+      and ("receta", "tacos_lentejas") in _nut.nmg and _nut.meta["kcal"] == 2400 and _nut.menu["semana_inicio"] == "2026-10-26")
+_n = len(_nut.posts)
+check("correrlo otra vez no copia nada",
+      _mig.migrar(_o, _d, hoy=date(2026, 11, 2)) == {"proteina": 0, "peso": 0, "no_me_gusta": 0, "meta": 0, "menu": 0}
+      and len(_nut.posts) == _n)
+_env_antes = {k: _os.environ.get(k) for k in ("API_BASE_URL", "API_TOKEN", "NUTRI_API_BASE_URL", "NUTRI_API_TOKEN")}
+_carga_real = pl.load_dotenv
+pl.load_dotenv = lambda *a, **k: None          # sin leer tu .env real
+try:
+    _os.environ.update({"API_BASE_URL": "https://gym/api/", "API_TOKEN": "g"})
+    _os.environ.pop("NUTRI_API_BASE_URL", None)
+    _os.environ.pop("NUTRI_API_TOKEN", None)
+    check("sin la app de nutricion en el .env (otras personas), todo sigue en GymTracker",
+          pl.nutri_api_config() == ("https://gym/api", "g"))
+    _os.environ.update({"NUTRI_API_BASE_URL": "https://nutri/api/", "NUTRI_API_TOKEN": "n"})
+    check("con ella, proteina, peso, meta y menu van a la app de nutricion",
+          pl.nutri_api_config() == ("https://nutri/api", "n"))
+finally:
+    pl.load_dotenv = _carga_real
+    for _k, _v in _env_antes.items():
+        if _v is None:
+            _os.environ.pop(_k, None)
+        else:
+            _os.environ[_k] = _v
+
+print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")
     sys.exit(1)

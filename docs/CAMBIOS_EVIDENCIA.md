@@ -2882,7 +2882,7 @@ Volver a guardar duplicaba series, porque el servidor solo insertaba.
 - **API y base:** el antibot de InfinityFree pone una cookie por dominio, así que la app no puede llamar a la API de GymTracker desde otro dominio. El sitio tiene su propia API y MySQL (`if0_43338891_nutri`). `servidor/armar_deploy_nutri.sh` copia **solo** los 14 archivos de nutrición, menú, "no me gusta" y peso de `infinityfree/api` (una sola copia del código) y genera `config.php` con los secretos. Las cadenas PHP se escapan.
 - **CI:** trabajo `desplegar-nutri`, que pone el token en la app, compila `ng build nutri` y sube por FTPS. Sin los secretos `NUTRI_PASSWORD` y `NUTRI_TOKEN` compila y avisa, pero no sube.
 
-**Fase 2 (pendiente):** compartir los datos. La VM sube la meta y el menú también a la API de nutrición, y sincroniza peso y proteína entre las dos bases.
+**Fase 2:** ver CM (al final se eligió que la app de nutrición sea la fuente única, sin sincronizar dos bases).
 
 **Verificación.**
 
@@ -2890,6 +2890,32 @@ Volver a guardar duplicaba series, porque el servidor solo insertaba.
 - `config.php` generado con una contraseña que tiene comilla y barra: `php -l` lo acepta y los valores salen idénticos.
 - Navegador a 375 px, demo de Nutri: Hoy (sumar huevo: el anillo pasa a 12 g), Menú (sin las pestañas internas) y Progreso (17 pesajes, 14 barras), sin scroll horizontal.
 - GymTracker (demo a 375 px): rutina, barra `.seg`, Guardar, Historial y Semana siguen igual; `ng build` sin nombre sigue compilando GymTracker.
+
+## CM. Nutri, fase 2: la app de nutrición es la fuente única (2026-11-02)
+
+**Decisión del usuario: opción A.** GymTracker ya tiene oculto el panel Comida, así que todo lo de comida vive en la app de nutrición. Sincronizar dos bases (opción B) habría traído conflictos y más puntos de falla.
+
+- `planificar.nutri_api_config()`: la API de nutrición, si `NUTRI_API_BASE_URL` y `NUTRI_API_TOKEN` están en el `.env`. Si no, la de GymTracker, así que las copias de otras personas no cambian.
+- Usan esa API:
+  - la meta (`nutricion.subir_meta`);
+  - el menú (`menu.subir_menu`) y los "no me gusta" (`menu._api`);
+  - el peso del dashboard (`subir_peso_en_segundo_plano`);
+  - `exportar_local`, que baja la proteína y sincroniza el peso con su propia sesión del antibot.
+- El historial, la encuesta, las preferencias y los avisos siguen en GymTracker.
+- `migrar_a_nutri.py`: copia **una vez** de GymTracker lo que le falte a nutrición (proteína con sus porciones, peso con cintura, meta, menú y "no me gusta"). Nunca pisa lo que ya está en nutrición, y correrlo otra vez no copia nada. `--probar` muestra qué copiaría sin escribir.
+- Corrida real: proteína 1 día, meta 1 y menú 1. No había pesajes ni "no me gusta". La segunda pasada copió 0.
+
+**Verificación.**
+
+- `test_motor` §57 (7 pruebas) con dos servidores simulados (GymTracker y nutrición):
+  - `--probar` no escribe;
+  - solo copia lo que falta y nunca pisa;
+  - porciones, creatina y cintura viajan completas;
+  - la segunda corrida copia 0;
+  - sin las variables, todo sigue en GymTracker.
+- Las 5 suites pasan.
+
+## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
 - Robinson ZP et al. (2024). *Exploring the dose-response relationship between estimated resistance training proximity to failure, strength gain, and muscle hypertrophy.* Meta-analysis.

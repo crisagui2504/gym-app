@@ -50,6 +50,16 @@ def api_config() -> tuple[str, str]:
     return base_url, token
 
 
+def nutri_api_config() -> tuple[str, str]:
+    """API de la app de NUTRICION (crisrodrigo.infinityfree.io): ahi viven la
+    proteina, el peso, la meta, el menu y los "no me gusta". Con NUTRI_API_BASE_URL
+    y NUTRI_API_TOKEN en el .env; sin ellos (otras personas) es la misma de GymTracker."""
+    load_dotenv()
+    base = os.environ.get("NUTRI_API_BASE_URL", "").strip().rstrip("/")
+    token = os.environ.get("NUTRI_API_TOKEN", "").strip()
+    return (base, token) if base and token else api_config()
+
+
 def sesion_infinityfree(base_url: str) -> requests.Session:
     sesion = requests.Session()
     sesion.headers.update({"User-Agent": _UA})

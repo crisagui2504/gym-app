@@ -14,7 +14,8 @@ Lo que pide la evidencia, sin pedirle al usuario que pese su comida:
   musculo); por eso el ajuste es chico (100-300 kcal) y se reevalua cada 2
   semanas, que es lo que tarda en verse en la tendencia.
 
-La meta se sube a InfinityFree (guardar_meta_nutricion.php) para que la app la
+La meta se sube a la API de nutricion (planificar.nutri_api_config: la app de
+nutricion, o GymTracker si no hay otra) con guardar_meta_nutricion.php para que la app la
 muestre; la proteina registrada se baja a nutricion.csv para el dashboard.
 """
 from __future__ import annotations
@@ -254,7 +255,7 @@ def subir_meta(cfg: dict | None = None) -> bool:
         import planificar as pl
         from config_usuario import cargar_config
         m = metas(cfg or cargar_config())
-        base, token = pl.api_config()
+        base, token = pl.nutri_api_config()      # la app de nutricion (o GymTracker sin ella)
         sesion = pl.sesion_infinityfree(base)
         r = sesion.post(f"{base}/guardar_meta_nutricion.php", headers={"X-API-Token": token}, timeout=40,
                         json={k: m[k] for k in ("proteina_min", "proteina_max", "kcal", "peso", "enfoque")})
@@ -389,7 +390,7 @@ def subir_peso_en_segundo_plano(fecha: str, peso: float, cintura: float | None =
             from dotenv import load_dotenv
             load_dotenv(AQUI / ".env")
             import planificar as pl
-            base, token = pl.api_config()
+            base, token = pl.nutri_api_config()
             subir_peso(pl.sesion_infinityfree(base), base, token, fecha, peso, cintura)
         except Exception as e:  # noqa: BLE001
             print(f"Peso no subido ({e.__class__.__name__}): exportar_local lo reintenta.")

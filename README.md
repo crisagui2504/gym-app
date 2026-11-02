@@ -151,6 +151,7 @@ Una app hermana solo de comida, con diseño propio (claro: crema, verde y naranj
 
 - Es el proyecto `nutri` del mismo workspace de Angular: reutiliza la lógica de `src/app/nutricion.ts` y `proteina.component.ts`, con su propia hoja `nutri/styles.css`. Compilar: `npx ng build nutri`; desarrollo: `npx ng serve nutri --port 4300` (con `?demo=1`, datos simulados).
 - Tiene su propia API y MySQL en esa cuenta (el antibot de InfinityFree no deja llamar a otro dominio). `servidor/armar_deploy_nutri.sh` copia solo los endpoints de nutrición y peso, y arma `config.php` con los secretos.
+- **Es la fuente única de tus datos de comida** (proteína, peso, meta, menú y "no me gusta"): el motor y el dashboard leen y escriben ahí con `NUTRI_API_BASE_URL` y `NUTRI_API_TOKEN` en `python-engine/.env` (`planificar.nutri_api_config`; sin ellos, como en las copias de otras personas, todo sigue en GymTracker). `python migrar_a_nutri.py` copió una vez lo que había en GymTracker (`--probar` para ver sin escribir).
 - El CI la sube en cada push (trabajo `desplegar-nutri`). Secretos de GitHub, una sola vez: `NUTRI_PASSWORD` (la del vPanel de esa cuenta) y `NUTRI_TOKEN` (el de `NUTRI_TOKEN.txt`, que no se sube al repo).
 
 ### Otra persona con su propia copia

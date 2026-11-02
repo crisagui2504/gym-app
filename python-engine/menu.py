@@ -164,7 +164,7 @@ def _api():
     from dotenv import load_dotenv
     load_dotenv(AQUI / ".env")
     import planificar as pl
-    base, token = pl.api_config()
+    base, token = pl.nutri_api_config()          # los "no me gusta" viven en la app de nutricion
     return pl.sesion_infinityfree(base), base, token
 
 
@@ -804,7 +804,7 @@ def subir_menu(menu: dict) -> bool:
         from dotenv import load_dotenv
         load_dotenv(AQUI / ".env")
         import planificar as pl
-        base, token = pl.api_config()
+        base, token = pl.nutri_api_config()      # el menu lo muestra la app de nutricion
         sesion = pl.sesion_infinityfree(base)
         r = sesion.post(f"{base}/guardar_menu.php", headers={"X-API-Token": token}, timeout=60,
                         json={"semana_inicio": menu["semana_inicio"], "menu": menu})

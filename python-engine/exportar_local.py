@@ -60,12 +60,16 @@ def main() -> None:
     prefs = feedback.descargar_preferencias(sesion, base_url, token)
     pd.DataFrame({"original": list(prefs), "reemplazo": list(prefs.values())}).to_csv(
         destino.parent / feedback.CSV_PREFERENCIAS, index=False)
-    # proteina registrada en la app (para la pestana Peso corporal del dashboard)
+    # proteina y peso: viven en la app de NUTRICION (otro dominio y otra base); sin
+    # ella configurada (otras personas), en la misma API de GymTracker
     import nutricion
-    nut = nutricion.descargar_nutricion(sesion, base_url, token)
+    from planificar import nutri_api_config
+    base_n, token_n = nutri_api_config()
+    sesion_n = sesion if base_n == base_url else sesion_infinityfree(base_n)
+    nut = nutricion.descargar_nutricion(sesion_n, base_n, token_n)
     nut.to_csv(destino.parent / nutricion.CSV_NUTRICION, index=False)
     print(f"{nutricion.CSV_NUTRICION} actualizado ({len(nut)} dias)")
-    exportar_peso(sesion, base_url, token)
+    exportar_peso(sesion_n, base_n, token_n)
 
 
 def exportar_peso(sesion, base_url: str, token: str, raiz: pathlib.Path = AQUI):
