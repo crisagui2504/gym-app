@@ -19,49 +19,51 @@ export interface Porcion {
   porcion: string;
   g: number;
   barato?: boolean;   // de lo mas barato por gramo de proteina en Mexico (Profeco 2026)
-  kcal?: number;      // solo los platillos de "Comí fuera" (aproximado)
+  kcal?: number;      // aproximadas (USDA / SMAE), por porcion
+  carb?: number;      // g de carbohidratos por porcion (aprox.)
+  grasa?: number;     // g de grasa por porcion (aprox.)
   fuera?: boolean;    // platillo de la calle / fonda
 }
 
 export const PORCIONES: Porcion[] = [
-  { id: 'huevo', nombre: 'Huevo', porcion: '1 pieza', g: 6, barato: true },
-  { id: 'frijol', nombre: 'Frijoles', porcion: '1 taza cocidos', g: 15, barato: true },
-  { id: 'lentejas', nombre: 'Lentejas', porcion: '1 taza cocidas', g: 18, barato: true },
-  { id: 'soya', nombre: 'Soya texturizada', porcion: '½ taza seca', g: 12, barato: true },
-  { id: 'atun', nombre: 'Atún', porcion: '1 lata escurrida', g: 24, barato: true },
-  { id: 'sardina', nombre: 'Sardina', porcion: '100 g', g: 21, barato: true },
-  { id: 'pollo', nombre: 'Pollo', porcion: '100 g cocido (una palma)', g: 28 },
-  { id: 'res', nombre: 'Res o cerdo', porcion: '100 g cocido', g: 26 },
-  { id: 'pescado', nombre: 'Pescado', porcion: '100 g cocido', g: 22 },
-  { id: 'leche', nombre: 'Leche', porcion: '1 vaso (250 ml)', g: 8, barato: true },
-  { id: 'yogur_griego', nombre: 'Yogur griego', porcion: '1 taza', g: 18 },
-  { id: 'queso', nombre: 'Queso panela o fresco', porcion: '60 g (2 rebanadas)', g: 11 },
-  { id: 'tortilla', nombre: 'Tortillas de maíz', porcion: '3 piezas', g: 5, barato: true },
-  { id: 'avena', nombre: 'Avena', porcion: '½ taza cruda', g: 5, barato: true },
-  { id: 'cacahuate', nombre: 'Cacahuates', porcion: '1 puño (30 g)', g: 7 },
-  { id: 'scoop', nombre: 'Proteína en polvo', porcion: '1 scoop', g: 24 },
-  { id: 'otro', nombre: 'Otro', porcion: 'algo más', g: 5 },
+  { id: 'huevo', nombre: 'Huevo', porcion: '1 pieza', g: 6, barato: true, kcal: 72, carb: 0.4, grasa: 5 },
+  { id: 'frijol', nombre: 'Frijoles', porcion: '1 taza cocidos', g: 15, barato: true, kcal: 225, carb: 40, grasa: 1 },
+  { id: 'lentejas', nombre: 'Lentejas', porcion: '1 taza cocidas', g: 18, barato: true, kcal: 230, carb: 40, grasa: 1 },
+  { id: 'soya', nombre: 'Soya texturizada', porcion: '½ taza seca', g: 12, barato: true, kcal: 85, carb: 8, grasa: 0.3 },
+  { id: 'atun', nombre: 'Atún', porcion: '1 lata escurrida', g: 24, barato: true, kcal: 130, carb: 0, grasa: 3 },
+  { id: 'sardina', nombre: 'Sardina', porcion: '100 g', g: 21, barato: true, kcal: 190, carb: 1, grasa: 11 },
+  { id: 'pollo', nombre: 'Pollo', porcion: '100 g cocido (una palma)', g: 28, kcal: 165, carb: 0, grasa: 4 },
+  { id: 'res', nombre: 'Res o cerdo', porcion: '100 g cocido', g: 26, kcal: 250, carb: 0, grasa: 15 },
+  { id: 'pescado', nombre: 'Pescado', porcion: '100 g cocido', g: 22, kcal: 130, carb: 0, grasa: 4 },
+  { id: 'leche', nombre: 'Leche', porcion: '1 vaso (250 ml)', g: 8, barato: true, kcal: 150, carb: 12, grasa: 8 },
+  { id: 'yogur_griego', nombre: 'Yogur griego', porcion: '1 taza', g: 18, kcal: 150, carb: 8, grasa: 4 },
+  { id: 'queso', nombre: 'Queso panela o fresco', porcion: '60 g (2 rebanadas)', g: 11, kcal: 150, carb: 2, grasa: 11 },
+  { id: 'tortilla', nombre: 'Tortillas de maíz', porcion: '3 piezas', g: 5, barato: true, kcal: 160, carb: 33, grasa: 2 },
+  { id: 'avena', nombre: 'Avena', porcion: '½ taza cruda', g: 5, barato: true, kcal: 150, carb: 27, grasa: 3 },
+  { id: 'cacahuate', nombre: 'Cacahuates', porcion: '1 puño (30 g)', g: 7, kcal: 170, carb: 5, grasa: 14 },
+  { id: 'scoop', nombre: 'Proteína en polvo', porcion: '1 scoop', g: 24, kcal: 120, carb: 3, grasa: 1.5 },
+  { id: 'otro', nombre: 'Otro', porcion: 'algo más', g: 5, kcal: 50, carb: 3, grasa: 2 },
   // ── Comí fuera: platillos comunes de calle y fonda (APROXIMADOS: USDA y recetas típicas) ──
-  { id: 'f_pastor', nombre: 'Tacos al pastor', porcion: '3 tacos', g: 24, kcal: 560, fuera: true },
-  { id: 'f_asada', nombre: 'Tacos de asada', porcion: '3 tacos', g: 30, kcal: 540, fuera: true },
-  { id: 'f_canasta', nombre: 'Tacos de canasta', porcion: '4 tacos', g: 14, kcal: 620, fuera: true },
-  { id: 'f_quesadilla', nombre: 'Quesadillas de comal', porcion: '2 con queso', g: 22, kcal: 600, fuera: true },
-  { id: 'f_torta', nombre: 'Torta de milanesa o pierna', porcion: '1 torta', g: 32, kcal: 750, fuera: true },
-  { id: 'f_corrida', nombre: 'Comida corrida', porcion: 'sopa, arroz, guisado', g: 35, kcal: 900, fuera: true },
-  { id: 'f_pozole', nombre: 'Pozole', porcion: '1 plato grande', g: 30, kcal: 550, fuera: true },
-  { id: 'f_enchiladas', nombre: 'Enchiladas de pollo', porcion: '3 piezas', g: 28, kcal: 650, fuera: true },
-  { id: 'f_chilaquiles', nombre: 'Chilaquiles con pollo', porcion: '1 plato', g: 25, kcal: 700, fuera: true },
-  { id: 'f_tamal', nombre: 'Tamal', porcion: '1 pieza', g: 8, kcal: 300, fuera: true },
-  { id: 'f_rostizado', nombre: 'Pollo rostizado', porcion: '¼ de pollo', g: 38, kcal: 550, fuera: true },
-  { id: 'f_hamburguesa', nombre: 'Hamburguesa sencilla', porcion: '1 pieza', g: 25, kcal: 550, fuera: true },
-  { id: 'f_pizza', nombre: 'Pizza', porcion: '2 rebanadas', g: 24, kcal: 560, fuera: true },
-  { id: 'f_sushi', nombre: 'Sushi empanizado', porcion: '1 rollo', g: 15, kcal: 650, fuera: true },
-  { id: 'f_burrito', nombre: 'Burrito de carne', porcion: '1 pieza', g: 30, kcal: 700, fuera: true },
-  { id: 'f_gorditas', nombre: 'Gorditas de chicharrón', porcion: '2 piezas', g: 14, kcal: 650, fuera: true },
-  { id: 'f_caldo', nombre: 'Caldo de res o de pollo', porcion: '1 plato', g: 30, kcal: 400, fuera: true },
-  { id: 'f_coctel', nombre: 'Cóctel de camarón', porcion: '1 mediano', g: 25, kcal: 250, fuera: true },
-  { id: 'f_esquite', nombre: 'Esquite', porcion: '1 vaso mediano', g: 6, kcal: 350, fuera: true },
-  { id: 'f_licuado', nombre: 'Licuado de plátano (fonda)', porcion: '1 vaso grande', g: 12, kcal: 350, fuera: true }
+  { id: 'f_pastor', nombre: 'Tacos al pastor', porcion: '3 tacos', g: 24, kcal: 560, carb: 50, grasa: 28, fuera: true },
+  { id: 'f_asada', nombre: 'Tacos de asada', porcion: '3 tacos', g: 30, kcal: 540, carb: 45, grasa: 26, fuera: true },
+  { id: 'f_canasta', nombre: 'Tacos de canasta', porcion: '4 tacos', g: 14, kcal: 620, carb: 70, grasa: 31, fuera: true },
+  { id: 'f_quesadilla', nombre: 'Quesadillas de comal', porcion: '2 con queso', g: 22, kcal: 600, carb: 50, grasa: 34, fuera: true },
+  { id: 'f_torta', nombre: 'Torta de milanesa o pierna', porcion: '1 torta', g: 32, kcal: 750, carb: 80, grasa: 33, fuera: true },
+  { id: 'f_corrida', nombre: 'Comida corrida', porcion: 'sopa, arroz, guisado', g: 35, kcal: 900, carb: 110, grasa: 35, fuera: true },
+  { id: 'f_pozole', nombre: 'Pozole', porcion: '1 plato grande', g: 30, kcal: 550, carb: 55, grasa: 22, fuera: true },
+  { id: 'f_enchiladas', nombre: 'Enchiladas de pollo', porcion: '3 piezas', g: 28, kcal: 650, carb: 60, grasa: 33, fuera: true },
+  { id: 'f_chilaquiles', nombre: 'Chilaquiles con pollo', porcion: '1 plato', g: 25, kcal: 700, carb: 70, grasa: 36, fuera: true },
+  { id: 'f_tamal', nombre: 'Tamal', porcion: '1 pieza', g: 8, kcal: 300, carb: 35, grasa: 15, fuera: true },
+  { id: 'f_rostizado', nombre: 'Pollo rostizado', porcion: '¼ de pollo', g: 38, kcal: 550, carb: 5, grasa: 42, fuera: true },
+  { id: 'f_hamburguesa', nombre: 'Hamburguesa sencilla', porcion: '1 pieza', g: 25, kcal: 550, carb: 45, grasa: 30, fuera: true },
+  { id: 'f_pizza', nombre: 'Pizza', porcion: '2 rebanadas', g: 24, kcal: 560, carb: 65, grasa: 22, fuera: true },
+  { id: 'f_sushi', nombre: 'Sushi empanizado', porcion: '1 rollo', g: 15, kcal: 650, carb: 80, grasa: 30, fuera: true },
+  { id: 'f_burrito', nombre: 'Burrito de carne', porcion: '1 pieza', g: 30, kcal: 700, carb: 75, grasa: 30, fuera: true },
+  { id: 'f_gorditas', nombre: 'Gorditas de chicharrón', porcion: '2 piezas', g: 14, kcal: 650, carb: 60, grasa: 39, fuera: true },
+  { id: 'f_caldo', nombre: 'Caldo de res o de pollo', porcion: '1 plato', g: 30, kcal: 400, carb: 30, grasa: 17, fuera: true },
+  { id: 'f_coctel', nombre: 'Cóctel de camarón', porcion: '1 mediano', g: 25, kcal: 250, carb: 25, grasa: 5, fuera: true },
+  { id: 'f_esquite', nombre: 'Esquite', porcion: '1 vaso mediano', g: 6, kcal: 350, carb: 45, grasa: 16, fuera: true },
+  { id: 'f_licuado', nombre: 'Licuado de plátano (fonda)', porcion: '1 vaso grande', g: 12, kcal: 350, carb: 55, grasa: 9, fuera: true }
 ];
 
 const POR_ID = new Map(PORCIONES.map((p) => [p.id, p]));
@@ -124,10 +126,89 @@ export function tendenciaPeso(pesos: Pesaje[], hoy = new Date()): { pct: number;
 /** "menu_<tiempo>": comida del menu marcada como "Lo comi"; su valor ya son gramos. */
 export const esDelMenu = (id: string) => id.startsWith('menu_');
 
+/** Las 4 comidas del dia. En porciones, "<pre>_<id>" = esa porcion en esa comida
+ *  ("de_huevo": 2). Sin prefijo (registros viejos o GymTracker) cuenta igual, sin comida. */
+export interface Tiempo {
+  id: string;
+  pre: string;
+  nombre: string;
+  ico: string;
+  parte: number;      // parte de las kcal del dia si no hay menu (aprox. 25/35/15/25 %)
+}
+export const TIEMPOS: Tiempo[] = [
+  { id: 'desayuno', pre: 'de', nombre: 'Desayuno', ico: '🍳', parte: 0.25 },
+  { id: 'comida', pre: 'co', nombre: 'Comida', ico: '🍲', parte: 0.35 },
+  { id: 'colacion', pre: 'cl', nombre: 'Colación', ico: '🍎', parte: 0.15 },
+  { id: 'cena', pre: 'ce', nombre: 'Cena', ico: '🌮', parte: 0.25 }
+];
+const POR_PRE = new Map(TIEMPOS.map((t) => [t.pre, t]));
+
+/** "de_huevo" -> {tiempo: desayuno, id: huevo}; "huevo" -> {tiempo: null, id: huevo}. */
+export function partirClave(clave: string): { tiempo: Tiempo | null; id: string } {
+  const t = POR_PRE.get(clave.slice(0, 2));
+  return t && clave[2] === '_' ? { tiempo: t, id: clave.slice(3) } : { tiempo: null, id: clave };
+}
+
+export interface Macros {
+  kcal: number;
+  prot: number;
+  carb: number;
+  grasa: number;
+}
+const CERO: Macros = { kcal: 0, prot: 0, carb: 0, grasa: 0 };
+const sumarMacros = (a: Macros, b: Macros): Macros =>
+  ({ kcal: a.kcal + b.kcal, prot: a.prot + b.prot, carb: a.carb + b.carb, grasa: a.grasa + b.grasa });
+
+export interface Anotado extends Macros {
+  clave: string;      // la llave en porciones ("de_huevo" o "menu_desayuno")
+  nombre: string;
+  n: number;          // porciones (en las del menu, 1)
+  menu: boolean;
+}
+export interface ComidaDelDia extends Macros {
+  tiempo: Tiempo;
+  items: Anotado[];
+}
+
+/** Lo anotado en un dia, por comida, con sus kcal y macros (aproximados). Las del
+ *  menu ("Lo comi") guardan proteina en menu_<t> y kcal/carb/grasa en mk_/mc_/mg_<t>. */
+export function desglosar(porciones: Record<string, number>, nombreMenu: (tiempo: string) => string = () => ''): {
+  comidas: ComidaDelDia[]; sinComida: Anotado[]; total: Macros;
+} {
+  const comidas: ComidaDelDia[] = TIEMPOS.map((t) => ({ tiempo: t, items: [], ...CERO }));
+  const sinComida: Anotado[] = [];
+  for (const [clave, n] of Object.entries(porciones)) {
+    if (!n) continue;
+    let item: Anotado;
+    let destino: ComidaDelDia | undefined;
+    if (esDelMenu(clave)) {
+      const t = clave.slice(5);
+      destino = comidas.find((c) => c.tiempo.id === t);
+      item = { clave, nombre: nombreMenu(t) || 'Del menú', n: 1, menu: true, prot: n,
+               kcal: porciones['mk_' + t] ?? 0, carb: porciones['mc_' + t] ?? 0, grasa: porciones['mg_' + t] ?? 0 };
+    } else {
+      const { tiempo, id } = partirClave(clave);
+      const p = POR_ID.get(id);
+      if (!p) continue;                                    // creatina, mk_/mc_/mg_...
+      item = { clave, nombre: p.nombre, n, menu: false, prot: p.g * n, kcal: (p.kcal ?? 0) * n,
+               carb: (p.carb ?? 0) * n, grasa: (p.grasa ?? 0) * n };
+      destino = tiempo ? comidas.find((c) => c.tiempo === tiempo) : undefined;
+    }
+    if (destino) {
+      destino.items.push(item);
+      Object.assign(destino, sumarMacros(destino, item));
+    } else {
+      sinComida.push(item);
+    }
+  }
+  const total = [...comidas, ...sinComida].reduce((a, b) => sumarMacros(a, b), CERO);
+  return { comidas, sinComida, total };
+}
+
 export function gramosDe(porciones: Record<string, number>): number {
   let total = 0;
   for (const [id, n] of Object.entries(porciones)) {
-    total += esDelMenu(id) ? n || 0 : (POR_ID.get(id)?.g ?? 0) * (n || 0);
+    total += esDelMenu(id) ? n || 0 : (POR_ID.get(partirClave(id).id)?.g ?? 0) * (n || 0);
   }
   return Math.round(total * 10) / 10;
 }
@@ -199,6 +280,33 @@ export class NutricionService {
   });
 
   readonly total = computed(() => gramosDe(this.porciones()));
+
+  /** El dia de hoy en el menu de la semana (si el menu lo cubre). */
+  readonly menuHoy = computed(() => this.menu()?.dias.find((d) => d.fecha === fechaLocal(new Date())) ?? null);
+  /** Lo de hoy por comida, con kcal y macros (aprox.). */
+  readonly desglose = computed(() => {
+    const d = this.menuHoy();
+    return desglosar(this.porciones(), (t) => {
+      const c = d?.comidas.find((x) => x.tiempo === t);
+      return d && c ? this.comidaDe(d, c).nombre : '';
+    });
+  });
+  /** Metas de HOY: kcal del dia (mas si entrenas: kcal_por_dia del motor, via el menu),
+   *  proteina del motor y carb/grasa del menu; sin menu, del promedio (grasa ~27 %). */
+  readonly metaHoy = computed(() => {
+    const m = this.metaEfectiva();
+    const d = this.menuHoy();
+    const kcal = d?.kcal_meta ?? m.kcal ?? 2200;
+    const prot = m.proteina_min;
+    const grasa = d?.grasa ?? Math.round((kcal * 0.27) / 9);
+    const carb = d?.carb ?? Math.max(0, Math.round((kcal - prot * 4 - grasa * 9) / 4));
+    const porTiempo: Record<string, number> = {};
+    for (const t of TIEMPOS) {
+      const c = d?.comidas.find((x) => x.tiempo === t.id);
+      porTiempo[t.id] = Math.round(d && c ? this.comidaDe(d, c).kcal : kcal * t.parte);
+    }
+    return { kcal, prot, carb, grasa, porTiempo, conMenu: !!d };
+  });
   readonly metaEfectiva = computed(() => this.meta() ?? META_POR_DEFECTO);
   readonly pct = computed(() => Math.min(100, Math.round((this.total() / this.metaEfectiva().proteina_min) * 100)));
 
@@ -374,7 +482,8 @@ export class NutricionService {
     // si ya la habias marcado como comida, se actualiza con la proteina de la nueva
     if (d.fecha === fechaLocal(new Date()) && this.comioMenu(c.tiempo)) {
       this.alternarMenu(c.tiempo, 0);
-      this.alternarMenu(c.tiempo, this.comidaDe(d, c).prot);
+      const nueva = this.comidaDe(d, c);
+      this.alternarMenu(c.tiempo, nueva.prot, nueva);
     }
   }
 
@@ -457,12 +566,52 @@ export class NutricionService {
     this.aplicar(actual);
   }
 
-  /** "Lo comi" en una comida del menu de hoy: suma su proteina; otra vez la quita. */
-  alternarMenu(tiempo: string, gramos: number): void {
-    const id = 'menu_' + tiempo.replace(/[^a-z]/g, '').slice(0, 19);
+  /** Lo anotado en una fecha: hoy, lo del telefono; otro dia reciente, lo del servidor. */
+  porcionesDe(fecha: string): Record<string, number> {
+    if (fecha === fechaLocal(new Date())) return this.porciones();
+    return this.diasServidor().find((d) => String(d.fecha).slice(0, 10) === fecha)?.porciones ?? {};
+  }
+
+  /** Una porcion en una comida del dia ("de_huevo"). */
+  cantidadEn(tiempo: Tiempo, id: string): number {
+    return this.porciones()[tiempo.pre + '_' + id] ?? 0;
+  }
+
+  sumarEn(tiempo: Tiempo, id: string, delta: number): void {
+    if (!POR_ID.has(id)) return;
+    const clave = tiempo.pre + '_' + id;
     const actual = this.deHoy();
-    if (actual[id]) delete actual[id];
-    else actual[id] = Math.max(1, Math.min(300, Math.round(gramos)));
+    const n = Math.max(0, Math.min(50, (actual[clave] ?? 0) + delta));
+    if (n === 0) delete actual[clave];
+    else actual[clave] = n;
+    this.aplicar(actual);
+  }
+
+  /** Quita algo anotado (una porcion o una comida del menu) de un solo toque. */
+  quitarAnotado(clave: string): void {
+    if (esDelMenu(clave)) {
+      if (this.porciones()[clave]) this.alternarMenu(clave.slice(5), 0);
+      return;
+    }
+    const actual = this.deHoy();
+    delete actual[clave];
+    this.aplicar(actual);
+  }
+
+  /** "Lo comi" en una comida del menu de hoy: suma su proteina (y sus kcal y macros,
+   *  si vienen); otra vez la quita. */
+  alternarMenu(tiempo: string, gramos: number, macros?: { kcal?: number; carb?: number; grasa?: number }): void {
+    const t = tiempo.replace(/[^a-z]/g, '').slice(0, 19);
+    const id = 'menu_' + t;
+    const actual = this.deHoy();
+    if (actual[id]) {
+      for (const k of [id, 'mk_' + t, 'mc_' + t, 'mg_' + t]) delete actual[k];
+    } else {
+      actual[id] = Math.max(1, Math.min(300, Math.round(gramos)));
+      if (macros?.kcal) actual['mk_' + t] = Math.min(3000, Math.round(macros.kcal));
+      if (macros?.carb) actual['mc_' + t] = Math.min(300, Math.round(macros.carb));
+      if (macros?.grasa) actual['mg_' + t] = Math.min(300, Math.round(macros.grasa));
+    }
     this.aplicar(actual);
   }
 

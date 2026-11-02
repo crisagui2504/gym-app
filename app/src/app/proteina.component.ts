@@ -158,7 +158,7 @@ import { cucharadita } from './menu-semana';
               <p class="menu-como" *ngIf="c.como">{{ c.como }}</p>
               <div class="menu-acciones">
                 <button type="button" class="menu-comi" *ngIf="esHoy(d)" [class.on]="nut.comioMenu(c.tiempo)"
-                        (click)="nut.alternarMenu(c.tiempo, c.prot)">
+                        (click)="nut.alternarMenu(c.tiempo, c.prot, c)">
                   {{ nut.comioMenu(c.tiempo) ? '✓ Comido · +' + (c.prot | number: '1.0-0') + ' g' : 'Lo comí (+' + (c.prot | number: '1.0-0') + ' g)' }}
                 </button>
                 <button type="button" class="menu-nogusta" [class.on]="nut.noGusta(c.receta)"

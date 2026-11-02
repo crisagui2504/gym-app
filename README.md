@@ -147,7 +147,12 @@ cd ~/gym && git pull && bash servidor/instalar_vm.sh
 
 ### App de nutrición (`app/nutri/`, crisrodrigo.infinityfree.io)
 
-Una app hermana solo de comida, con diseño propio (claro: crema, verde y naranja) y tres pestañas: **Hoy** (proteína, creatina, peso), **Menú** (menú de la semana, cocina y lista del súper) y **Progreso** (gráficas de peso y proteína, y tu meta).
+Una app hermana solo de comida, con diseño propio (claro, tarjetas blancas, pasteles por macro y el **+** al centro):
+
+- **Hoy:** calorías y macros por comida contra tu meta del día (más los días que entrenas), la semana, creatina y peso.
+- **Agregar:** lo del menú de hoy, porciones de casa y "Comí fuera", con buscador.
+- **Menú:** el menú de la semana, la cocina y la lista del súper.
+- **Progreso:** gráficas de peso y proteína, y tu meta.
 
 - Es el proyecto `nutri` del mismo workspace de Angular: reutiliza la lógica de `src/app/nutricion.ts` y `proteina.component.ts`, con su propia hoja `nutri/styles.css`. Compilar: `npx ng build nutri`; desarrollo: `npx ng serve nutri --port 4300` (con `?demo=1`, datos simulados).
 - Tiene su propia API y MySQL en esa cuenta (el antibot de InfinityFree no deja llamar a otro dominio). `servidor/armar_deploy_nutri.sh` copia solo los endpoints de nutrición y peso, y arma `config.php` con los secretos.

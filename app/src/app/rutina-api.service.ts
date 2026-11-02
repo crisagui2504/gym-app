@@ -88,6 +88,8 @@ export interface MenuComida {
   ingredientes: Array<{ id: string; nombre: string; g: number; texto: string }>;
   kcal: number;
   prot: number;
+  carb?: number;
+  grasa?: number;
   costo: number;
   alternativas?: MenuComida[];     // para "Cambiar" (parecidas en kcal y proteina)
 }
@@ -98,6 +100,8 @@ export interface MenuDia {
   comidas: MenuComida[];
   tipo?: string;        // pesas | deporte | cardio | descanso (las kcal se reparten segun el gasto)
   kcal_meta?: number;
+  carb?: number;        // g planeados del dia
+  grasa?: number;
   kcal: number;
   prot: number;
   costo: number;

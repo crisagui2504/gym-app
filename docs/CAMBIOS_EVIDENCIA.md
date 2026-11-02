@@ -2915,7 +2915,47 @@ Volver a guardar duplicaba series, porque el servidor solo insertaba.
   - sin las variables, todo sigue en GymTracker.
 - Las 5 suites pasan.
 
-## Referencias principales
+## CN. Nutri, fase 3: diseño nuevo y calorías y macros por comida (2026-11-02)
+
+**Pedido.** Un diseño "muy nuevo" como las referencias que mandó el usuario (FitBite y Calorie Tracker de Dribbble) y una app que se sienta completa. De la investigación (MacroFactor, Cronometer, MyFitnessPal, Yazio, Lifesum y Fitia, la más usada en México) eligió: **calorías y macros por comida** y **check-in semanal** (este va en la fase 4).
+
+**Diseño** (`app/nutri/styles.css`, reescrita):
+
+- fondo gris claro, tarjetas blancas muy redondeadas y Plus Jakarta Sans;
+- un pastel por macro: naranja carbohidratos, celeste grasa, verde proteína y lila calorías;
+- lima de acento y negro para lo principal;
+- barra inferior negra flotante con el **+** lima al centro;
+- **bienvenida** la primera vez ("Tu guía diaria para comer mejor", con alimentos y etiquetas de kcal). No usa fotos de internet, por derechos y por peso de la página: los alimentos son emoji.
+
+**Hoy** (`hoy.component.ts`):
+
+- tira de la semana: un punto en los días con registro, y tocar un día pasado lo muestra en solo lectura;
+- doble anillo: kcal por fuera y proteína por dentro, contra la meta **del día** (`kcal_meta` del menú: más kcal los días de pesas o deporte);
+- tarjetas de carbohidratos, grasa y proteína;
+- las 4 comidas, con sus kcal contra la parte del día y lo anotado (tocar un elemento lo quita);
+- hábitos: creatina y peso con cintura.
+
+**Agregar** (`agregar.component.ts`), hoja de abajo:
+
+- elegir la comida (el **+** central abre la que toca por la hora);
+- buscador sin acentos;
+- "Del menú de hoy" con sus kcal y macros;
+- porciones de casa y "Comí fuera" con − / +.
+
+**Datos.**
+
+- Las 37 porciones y platillos tienen kcal, carbohidratos y grasa aproximados (USDA / SMAE).
+- Las porciones se guardan por comida (`de_/co_/cl_/ce_<id>`). "Lo comí" del menú guarda además `mk_/mc_/mg_<tiempo>` (kcal, carbohidratos y grasa).
+- `guardar_proteina.php` acepta `mk_` hasta 3000, `mc_/mg_` hasta 300 y hasta 80 entradas por día.
+- La proteína del día se calcula igual que antes, así que el motor y la revisión del domingo no cambian.
+- `NutricionService` agrega `desglose`, `metaHoy`, `sumarEn`, `quitarAnotado` y `porcionesDe`. GymTracker solo usa lo de antes.
+
+**Verificación** (demo a 375 px):
+
+- 2 huevos y 2 tortillas en Desayuno dan 464 kcal. "Lo comí" en la comida del menú suma 937 kcal. Total: 1,401 kcal, 62 g de proteína, 259 g de carbohidratos y 19 g de grasa, que es la suma exacta.
+- Buscar "taco" deja solo los 3 tacos. El **+** central abrió Colación a las 17 h.
+- Menú muestra "✓ Comido" en la comida marcada desde Hoy.
+- Sin scroll horizontal.
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
 - Robinson ZP et al. (2024). *Exploring the dose-response relationship between estimated resistance training proximity to failure, strength gain, and muscle hypertrophy.* Meta-analysis.

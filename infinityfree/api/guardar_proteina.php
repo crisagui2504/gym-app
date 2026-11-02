@@ -21,14 +21,17 @@ if ($gramos === false || $gramos < 0 || $gramos > 600) {
 }
 
 $porciones = $data['porciones'] ?? [];
-if (!is_array($porciones) || count($porciones) > 40) {
+if (!is_array($porciones) || count($porciones) > 80) {
     json_response(['ok' => false, 'error' => 'Porciones invalidas'], 400);
 }
 $limpias = [];
 foreach ($porciones as $id => $n) {
     $cant = filter_var($n, FILTER_VALIDATE_INT);
-    // "menu_<tiempo>": comida del menu marcada como "Lo comi"; el valor son sus GRAMOS de proteina
-    $tope = (is_string($id) && strncmp($id, 'menu_', 5) === 0) ? 300 : 50;
+    // "menu_<tiempo>": comida del menu marcada como "Lo comi"; el valor son sus GRAMOS de proteina.
+    // De esa misma comida: "mk_<tiempo>" sus kcal; "mc_" y "mg_" sus g de carbohidratos y grasa.
+    // "de_/co_/cl_/ce_<id>": porciones por comida del dia (cuentan como las normales, tope 50).
+    $pre = is_string($id) ? substr($id, 0, 3) : '';
+    $tope = $pre === 'mk_' ? 3000 : (($pre === 'mc_' || $pre === 'mg_' || (is_string($id) && strncmp($id, 'menu_', 5) === 0)) ? 300 : 50);
     if (!is_string($id) || !preg_match('/^[a-z0-9_]{1,24}$/', $id) || $cant === false || $cant < 0 || $cant > $tope) {
         json_response(['ok' => false, 'error' => 'Porciones invalidas'], 400);
     }
