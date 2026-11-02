@@ -145,6 +145,14 @@ cd ~/gym && git pull && bash servidor/instalar_vm.sh
 
 `infinityfree/api/config.php` (credenciales de la base de datos) nunca se sube ni se sobrescribe desde el CI ni desde `deploy/`. Para la subida manual existe `Construir app para subir.bat`.
 
+### App de nutrición (`app/nutri/`, crisrodrigo.infinityfree.io)
+
+Una app hermana solo de comida, con diseño propio (claro: crema, verde y naranja) y tres pestañas: **Hoy** (proteína, creatina, peso), **Menú** (menú de la semana, cocina y lista del súper) y **Progreso** (gráficas de peso y proteína, y tu meta).
+
+- Es el proyecto `nutri` del mismo workspace de Angular: reutiliza la lógica de `src/app/nutricion.ts` y `proteina.component.ts`, con su propia hoja `nutri/styles.css`. Compilar: `npx ng build nutri`; desarrollo: `npx ng serve nutri --port 4300` (con `?demo=1`, datos simulados).
+- Tiene su propia API y MySQL en esa cuenta (el antibot de InfinityFree no deja llamar a otro dominio). `servidor/armar_deploy_nutri.sh` copia solo los endpoints de nutrición y peso, y arma `config.php` con los secretos.
+- El CI la sube en cada push (trabajo `desplegar-nutri`). Secretos de GitHub, una sola vez: `NUTRI_PASSWORD` (la del vPanel de esa cuenta) y `NUTRI_TOKEN` (el de `NUTRI_TOKEN.txt`, que no se sube al repo).
+
 ### Otra persona con su propia copia
 
 Doble clic en **`Nuevo usuario.bat`** y sigue la guía [`docs/NUEVO_USUARIO.md`](docs/NUEVO_USUARIO.md). Esa persona recibe su propia app, base de datos, motor y dashboard (`nombre.20-150-209-104.sslip.io`), sin tocar nada de lo tuyo. Después, cada push actualiza su app y `instalar_vm.sh` actualiza su copia en la VM.

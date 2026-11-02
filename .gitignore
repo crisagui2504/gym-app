@@ -2,6 +2,7 @@
 node_modules/
 dist/
 deploy/
+deploy-nutri/
 .angular/
 npm-debug.log*
 yarn-debug.log*
@@ -53,3 +54,6 @@ instancias/*/
 # y en este PC. Ni git ni el CI las suben (servidor/armar_deploy.sh las excluye).
 infinityfree/api/config.php
 app/tests/.semana.js
+
+# Token de la app de nutricion (se copia a un secreto de GitHub; no se sube)
+NUTRI_TOKEN.txt

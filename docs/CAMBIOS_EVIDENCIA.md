@@ -2868,7 +2868,28 @@ Volver a guardar duplicaba series, porque el servidor solo insertaba.
 - Con 2 series más, el botón dice "ACTUALIZAR (+2)" y actualiza a 5 sin duplicar.
 - `php -l`, `test_funcional` y `ng build` pasan.
 
-## Referencias principales
+## CL. App hermana de nutrición: crisrodrigo.infinityfree.io (2026-11-02)
+
+**Pedido.** Una app solo de nutrición en otro dominio, con una imagen distinta a GymTracker y que se publique sola en cada cambio. Decisiones del usuario: datos **compartidos** con GymTracker, **solo para él** y estilo **fresco y claro**.
+
+**Fase 1 (esta).**
+
+- **App** (`app/nutri/`): segundo proyecto del workspace de Angular, no una copia.
+  - Reutiliza la lógica ya probada: proteína por porciones, creatina, peso con cola sin conexión, menú, "Cambiar", lista del súper y demo.
+  - `ProteinaComponent` acepta `fija="prot" | "menu"` para que cada vista vaya en su pestaña; sin ese valor, GymTracker no cambia.
+  - Diseño propio en `nutri/styles.css`: crema, verde nopal y naranja, Fraunces + Nunito, tarjetas suaves, barra inferior flotante y un anillo de proteína en el encabezado. Icono y manifiesto propios (PWA "Nutri").
+  - Pestaña nueva **Progreso**: pesajes de 60 días con su media de 7 días, la tendencia, la proteína de 14 días contra la meta y la meta del motor.
+- **API y base:** el antibot de InfinityFree pone una cookie por dominio, así que la app no puede llamar a la API de GymTracker desde otro dominio. El sitio tiene su propia API y MySQL (`if0_43338891_nutri`). `servidor/armar_deploy_nutri.sh` copia **solo** los 14 archivos de nutrición, menú, "no me gusta" y peso de `infinityfree/api` (una sola copia del código) y genera `config.php` con los secretos. Las cadenas PHP se escapan.
+- **CI:** trabajo `desplegar-nutri`, que pone el token en la app, compila `ng build nutri` y sube por FTPS. Sin los secretos `NUTRI_PASSWORD` y `NUTRI_TOKEN` compila y avisa, pero no sube.
+
+**Fase 2 (pendiente):** compartir los datos. La VM sube la meta y el menú también a la API de nutrición, y sincroniza peso y proteína entre las dos bases.
+
+**Verificación.**
+
+- `test_funcional`: la hoja de Nutri no repite selectores (ya encontró `button` definido dos veces). Cada endpoint que usa `nutricion.ts` y sus `require_once` se copian al sitio.
+- `config.php` generado con una contraseña que tiene comilla y barra: `php -l` lo acepta y los valores salen idénticos.
+- Navegador a 375 px, demo de Nutri: Hoy (sumar huevo: el anillo pasa a 12 g), Menú (sin las pestañas internas) y Progreso (17 pesajes, 14 barras), sin scroll horizontal.
+- GymTracker (demo a 375 px): rutina, barra `.seg`, Guardar, Historial y Semana siguen igual; `ng build` sin nombre sigue compilando GymTracker.
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
 - Robinson ZP et al. (2024). *Exploring the dose-response relationship between estimated resistance training proximity to failure, strength gain, and muscle hypertrophy.* Meta-analysis.

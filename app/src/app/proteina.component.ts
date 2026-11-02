@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, Input, OnInit, computed, inject, signal } from '@angular/core';
 import { NutricionService, PESAJES_TENDENCIA, PORCIONES, esDelMenu } from './nutricion';
 import { fechaLocal } from './entreno-data';
 import type { MenuComida, MenuDia } from './rutina-api.service';
@@ -12,7 +12,7 @@ import { cucharadita } from './menu-semana';
   imports: [CommonModule],
   template: `
     <section class="panel prot">
-      <div class="comida-tabs">
+      <div class="comida-tabs" *ngIf="!vistaFija">
         <button type="button" [class.on]="vista() === 'prot'" (click)="vista.set('prot')">🍗 Proteína</button>
         <button type="button" [class.on]="vista() === 'menu'" (click)="verMenu()">🍽️ Menú</button>
       </div>
@@ -223,6 +223,14 @@ export class ProteinaComponent implements OnInit {
   readonly faltanPesajes = computed(() => Math.max(0, PESAJES_TENDENCIA - this.nut.pesajes21()));
 
   readonly vista = signal<'prot' | 'menu'>('prot');
+  vistaFija: 'prot' | 'menu' | null = null;
+
+  /** La app de nutricion (app/nutri) pone cada vista en su propia pestana: sin las de aqui. */
+  @Input() set fija(v: 'prot' | 'menu' | null) {
+    this.vistaFija = v;
+    if (v === 'menu') this.verMenu();
+    else if (v) this.vista.set(v);
+  }
   readonly diaSel = signal(((new Date().getDay() + 6) % 7) + 1);     // hoy (1 = lunes)
   readonly dia = computed(() => this.nut.menu()?.dias.find((d) => d.dia === this.diaSel()) ?? null);
   readonly cucharadita = cucharadita;

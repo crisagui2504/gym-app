@@ -1,0 +1,16 @@
+{
+  "name": "Nutri",
+  "short_name": "Nutri",
+  "description": "Proteína del día, menú mexicano barato, lista del súper y tu peso.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fbf6ec",
+  "theme_color": "#fbf6ec",
+  "lang": "es",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

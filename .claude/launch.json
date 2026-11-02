@@ -13,8 +13,20 @@
     {
       "name": "gym-angular",
       "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "cd app && npx ng serve --port 4200"],
+      "runtimeArgs": [
+        "/c",
+        "cd app && npx ng serve --port 4200"
+      ],
       "port": 4200
+    },
+    {
+      "name": "nutri",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd app && npx ng serve nutri --port 4300"
+      ],
+      "port": 4300
     }
   ]
 }

@@ -27,6 +27,7 @@ on:
       - "python-engine/**"
       - "instancias/instancias.json"
       - "servidor/armar_deploy.sh"
+      - "servidor/armar_deploy_nutri.sh"
       - ".github/workflows/desplegar.yml"
   workflow_dispatch:
 
@@ -103,6 +104,63 @@ jobs:
         if: ${{ env.HAY_FTP != 'true' }}
         run: |
           echo "::notice::Sin FTP_PASSWORD en los secretos del repo. Se probo y compilo, pero no se subio nada."
+
+  # ── App de NUTRICION (proyecto "nutri" de app/, en crisrodrigo.infinityfree.io) ──
+  # Misma logica que GymTracker (src/app/nutricion.ts) con su propio diseno y su
+  # propia API/MySQL (el antibot de InfinityFree no deja llamar a otro dominio).
+  # Secretos (una sola vez): NUTRI_PASSWORD (la del vPanel de esa cuenta: FTP y
+  # MySQL) y NUTRI_TOKEN (el de NUTRI_TOKEN.txt). Sin ellos: compila y no sube.
+  desplegar-nutri:
+    needs: pruebas
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HAY_NUTRI: ${{ secrets.NUTRI_PASSWORD != '' && secrets.NUTRI_TOKEN != '' }}
+      NUTRI_FTP_USUARIO: if0_43338891
+      NUTRI_DB_HOST: sql103.infinityfree.com
+      NUTRI_DB_NAME: if0_43338891_nutri
+      NUTRI_DB_USER: if0_43338891
+      NUTRI_ORIGEN: https://crisrodrigo.infinityfree.io
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Token de la API en la app
+        if: ${{ env.HAY_NUTRI == 'true' }}
+        env:
+          NUTRI_TOKEN: ${{ secrets.NUTRI_TOKEN }}
+        run: |
+          f=app/nutri/environment.ts
+          sed -i "s#apiToken: '[^']*'#apiToken: '$NUTRI_TOKEN'#" "$f"
+          ! grep -q "NUTRI_TOKEN_DEL_CI" "$f"
+      - name: Compilar la app de nutricion
+        working-directory: app
+        run: |
+          npm ci
+          npx ng build nutri
+      - name: Armar deploy-nutri/ (con config.php desde los secretos)
+        env:
+          NUTRI_PASSWORD: ${{ secrets.NUTRI_PASSWORD }}
+          NUTRI_TOKEN: ${{ secrets.NUTRI_TOKEN }}
+        run: bash servidor/armar_deploy_nutri.sh
+      - name: Subir a crisrodrigo.infinityfree.io (FTPS)
+        if: ${{ env.HAY_NUTRI == 'true' }}
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ftpupload.net
+          username: ${{ env.NUTRI_FTP_USUARIO }}
+          password: ${{ secrets.NUTRI_PASSWORD }}
+          protocol: ftps
+          port: 21
+          local-dir: ./deploy-nutri/
+          server-dir: ./htdocs/
+      - name: Sin secretos de nutricion
+        if: ${{ env.HAY_NUTRI != 'true' }}
+        run: |
+          echo "::notice::Faltan NUTRI_PASSWORD / NUTRI_TOKEN en los secretos del repo: la app de nutricion se compilo pero no se subio."
 
   # ── Otras personas: una app por cada entrada de instancias/instancias.json ──
   lista:

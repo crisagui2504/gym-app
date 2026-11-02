@@ -161,7 +161,14 @@ export class NutricionService {
   readonly tendencia = computed(() => tendenciaPeso(this.pesos()));
   readonly pesajes21 = computed(() => pesajesRecientes(this.pesos()).length);
   /** Dias recientes del servidor (para la racha de creatina). */
-  private readonly diasServidor = signal<Array<{ fecha: string; porciones: Record<string, number> }>>([]);
+  private readonly diasServidor = signal<Array<{ fecha: string; proteina_g?: number; porciones: Record<string, number> }>>([]);
+  /** Proteina registrada por dia (servidor; hoy, lo del telefono), para graficas. */
+  readonly proteinaDias = computed(() => {
+    const hoy = fechaLocal(new Date());
+    const m = new Map(this.diasServidor().map((d) => [String(d.fecha).slice(0, 10), Number(d.proteina_g) || 0]));
+    m.set(hoy, this.total());
+    return [...m.entries()].map(([fecha, g]) => ({ fecha, g })).sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
+  });
 
   readonly lista = computed<FilaLista[]>(() => {
     const m = this.menu();

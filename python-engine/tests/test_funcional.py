@@ -231,6 +231,29 @@ _nuevos = _selectores_repetidos(_css_app) - _CSS_PERMITIDOS
 check("ningun selector nuevo se define dos veces en app/src/styles.css", not _nuevos, str(sorted(_nuevos)))
 
 print()
+print("== App de nutricion (app/nutri, crisrodrigo.infinityfree.io) ==")
+_raiz = pathlib.Path(dsh.__file__).resolve().parent.parent
+_css_nutri = (_raiz / "app" / "nutri" / "styles.css").read_text(encoding="utf-8")
+check("ningun selector se define dos veces en app/nutri/styles.css",
+      not _selectores_repetidos(_css_nutri), str(sorted(_selectores_repetidos(_css_nutri))))
+_sh = (_raiz / "servidor" / "armar_deploy_nutri.sh").read_text(encoding="utf-8")
+_api_nutri = set(_re.findall(r"[a-z_]+\.php", _re.search(r"API=\((.*?)\)", _sh, _re.S).group(1)))
+check("los endpoints del sitio de nutricion existen en infinityfree/api",
+      all((_raiz / "infinityfree" / "api" / f).exists() for f in _api_nutri), str(sorted(_api_nutri)))
+# cada llamada de la logica de nutricion (this.api.X) debe tener su .php en el sitio
+_srv_ts = (_raiz / "app" / "src" / "app" / "rutina-api.service.ts").read_text(encoding="utf-8")
+_metodos = set(_re.findall(r"this\.api\.(\w+)", (_raiz / "app" / "src" / "app" / "nutricion.ts").read_text(encoding="utf-8")))
+_php_de = {m: _re.search(rf"\n  {m}\(.*?\n  \}}", _srv_ts, _re.S) for m in _metodos}
+_faltan_api = sorted(m for m, cuerpo in _php_de.items()
+                     if not cuerpo or not set(_re.findall(r"[a-z_]+\.php", cuerpo.group(0))) <= _api_nutri)
+check("todo endpoint que usa nutricion.ts se sube al sitio de nutricion", _metodos and not _faltan_api, str(_faltan_api))
+_php_tablas = {m.group(1) for f in _api_nutri
+               for m in _re.finditer(r"require_once __DIR__ \. '/([a-z_]+\.php)'",
+                                     (_raiz / "infinityfree" / "api" / f).read_text(encoding="utf-8"))}
+check("y sus require_once (tablas, bootstrap) tambien", _php_tablas - {"config.php"} <= _api_nutri,
+      str(sorted(_php_tablas - {"config.php"} - _api_nutri)))
+
+print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")
     sys.exit(1)
