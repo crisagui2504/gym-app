@@ -297,6 +297,15 @@ details > summary {
   fill: var(--nu-muted);
 }
 
+/* la etiqueta de la meta va sobre la linea, con un halo crema para leerse sobre las barras */
+.nu-graf-txt-meta {
+  font-weight: 800;
+  fill: var(--nu-naranja);
+  paint-order: stroke;
+  stroke: var(--nu-card);
+  stroke-width: 3px;
+}
+
 .nu-leyenda {
   display: flex;
   align-items: center;

@@ -50,7 +50,7 @@ const MARGEN = 14;
         <rect *ngFor="let b of grafProt().barras" class="nu-graf-barra" [class.ok]="b.ok" [class.hoy]="b.hoy"
               [attr.x]="b.x" [attr.y]="b.y" [attr.width]="b.w" [attr.height]="b.h" rx="3"/>
         <line class="nu-graf-meta" [attr.x1]="margen" [attr.x2]="ancho - margen" [attr.y1]="grafProt().meta" [attr.y2]="grafProt().meta"/>
-        <text class="nu-graf-txt" [attr.x]="ancho - margen" [attr.y]="grafProt().meta - 4" text-anchor="end">meta {{ meta().proteina_min }} g</text>
+        <text class="nu-graf-txt nu-graf-txt-meta" [attr.x]="margen" [attr.y]="grafProt().meta - 5">meta {{ meta().proteina_min }} g</text>
       </svg>
       <p class="nu-dato">{{ grafProt().enMeta }} de {{ grafProt().conDato }} días registrados llegaron a la meta.</p>
     </section>
