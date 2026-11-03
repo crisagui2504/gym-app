@@ -703,6 +703,15 @@ export class NutricionService {
     this.temporizador = setTimeout(() => this.enviar({ fecha: this.fecha, proteina_g: this.total(), porciones: actual }), 1500);
   }
 
+  /** Antes de recargar la app: lo anotado en el ultimo segundo y medio (aun sin mandar) queda
+   *  como pendiente, y al abrir otra vez se manda (reenviarPendiente). */
+  async antesDeRecargar(): Promise<void> {
+    if (!this.temporizador) return;
+    clearTimeout(this.temporizador);
+    this.temporizador = null;
+    await almacen.guardar('proteina-pendiente', { fecha: this.fecha, proteina_g: this.total(), porciones: this.porciones() });
+  }
+
   /** Lo que no se pudo mandar (sin red) se reintenta al volver internet o al abrir la app. */
   async reenviarPendiente(): Promise<void> {
     const p = await almacen.leer<Pendiente>('proteina-pendiente');

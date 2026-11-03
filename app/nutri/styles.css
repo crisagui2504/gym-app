@@ -126,6 +126,52 @@ details > summary {
   text-transform: uppercase;
 }
 
+/* jalar para actualizar (app instalada en inicio) y aviso de version nueva */
+.nu-ptr {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 4px);
+  left: 50%;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--nu-card);
+  box-shadow: var(--nu-sombra);
+  color: var(--nu-muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.nu-ptr.listo {
+  background: var(--nu-lima);
+  color: var(--nu-ink);
+}
+
+.nu-ptr-icono {
+  display: inline-block;
+  font-size: 14px;
+}
+
+.nu-version {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--nu-ink);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(17, 20, 24, 0.25);
+}
+
 .nu-demo {
   display: flex;
   align-items: center;
