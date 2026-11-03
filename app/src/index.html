@@ -21,6 +21,18 @@
       } catch (e) {}
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function () {
+          // Un service worker viejo (cache 'gymtracker-v5') guardaba la pagina del antibot de InfinityFree y
+          // su cookie vencida bloqueaba la API; no se puede actualizar solo (el antibot tambien
+          // contesta sw.js con HTML). Se quita una vez y se recarga.
+          if (window.caches) {
+            caches.keys().then(function (k) {
+              if (k.indexOf('gymtracker-v5') < 0) return;
+              navigator.serviceWorker.getRegistrations()
+                .then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })
+                .then(function () { return caches.delete('gymtracker-v5'); })
+                .then(function () { location.reload(); });
+            });
+          }
           navigator.serviceWorker.register('sw.js').catch(function () {});
         });
       }
