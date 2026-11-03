@@ -119,6 +119,8 @@ export interface MenuComida {
   grasa?: number;
   costo: number;
   alternativas?: MenuComida[];     // para "Cambiar" (parecidas en kcal y proteina)
+  /** Paso a paso de la receta (python-engine/pasos_mx.py). */
+  pasos?: string[];
   /** Dia de cocina: se cocina para hoy y manana (porciones). */
   rinde?: number;
   /** Sobras: es la comida que se cocino ese dia (la app la cambia junto con ese dia). */

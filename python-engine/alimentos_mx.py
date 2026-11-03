@@ -205,13 +205,21 @@ ALIMENTOS: dict[str, Alimento] = {a.id: a for a in [
              piezas=("toronja", "toronjas"), fibra=1.6, hierro=0.1, calcio=22, sat=0, sodio=0),
     Alimento("poblano", "Chile poblano", 20, 0.9, 4.6, 0.2, 68, _EST, "verduras_frutas", "pieza", 110,
              piezas=("chile poblano", "chiles poblanos"), fibra=1.7, hierro=0.3, calcio=7, sat=0, sodio=3),
+    Alimento("salchicha", "Salchicha de pavo", 180, 12.0, 4.0, 13.0, 75, _EST, "origen_animal", "pieza", 38,
+             piezas=("salchicha", "salchichas"), hierro=1.0, calcio=60, sat=4.0, sodio=950),
+    Alimento("crema", "Media crema", 245, 2.5, 3.5, 25.0, 64, _EST, "grasas",
+             calcio=80, sat=15.0, sodio=40),
+    Alimento("verduras_mixtas", "Verduras mixtas congeladas", 65, 3.3, 13.0, 0.4, 70, _EST, "verduras_frutas",
+             fibra=4.0, hierro=0.9, calcio=25, sat=0.1, sodio=50),
+    Alimento("coliflor", "Coliflor", 25, 1.9, 5.0, 0.3, 74, _EST, "verduras_frutas",
+             fibra=2.0, hierro=0.4, calcio=22, sat=0.1, sodio=30),
     # ── suplemento (solo si hace falta: es lo mas caro por gramo de proteina) ──
     Alimento("proteina_polvo", "Proteína en polvo", 380, 75.0, 8.0, 5.0, 600, _EST, "origen_animal", "scoop", 32, fibra=0, hierro=1.0, calcio=400, sat=2.5, sodio=200),
 ]}
 
 # lo que se puede excluir de golpe desde el dashboard
 GRUPOS_EXCLUIBLES = {
-    "carnes": ["pollo", "pechuga", "pollo_rostizado", "res", "res_magra", "cerdo", "jamon"],
+    "carnes": ["pollo", "pechuga", "pollo_rostizado", "res", "res_magra", "cerdo", "jamon", "salchicha"],
     "pescado": ["atun", "sardina", "tilapia", "camaron"],
     "lacteos": ["leche", "leche_light", "yogur", "yogur_griego", "queso_fresco", "panela", "requeson",
                 "queso_oaxaca", "cottage"],

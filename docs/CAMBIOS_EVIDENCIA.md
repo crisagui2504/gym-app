@@ -3058,6 +3058,49 @@ Volver a guardar duplicaba series, porque el servidor solo insertaba.
 
 `test_funcional`: la tarjeta se dibuja con y sin datos.
 
+## CR. Paso a paso, 65 recetas nuevas y 4 dietas más (2026-11-02)
+
+**Lo pediste así:** mucha más variedad realista (comida normal, barata y fácil, como la de los videos de cocina económica de TikTok), recetas explicadas paso a paso y más tipos de dieta para otros objetivos.
+
+- **Paso a paso** (`pasos_mx.py`):
+  - las 266 recetas de desayuno, comida y cena traen sus pasos (2 a 5, cortos);
+  - el menú los manda con cada comida y sus opciones;
+  - en Nutri se abren con "👩‍🍳 Paso a paso" y en el dashboard también.
+- **Recetas nuevas** (336 en total: 111 comidas, 78 desayunos, 77 cenas y 73 colaciones), pensadas en comida de casa barata:
+  - tinga con zanahoria;
+  - tortitas de atún en caldillo;
+  - arroz con atún;
+  - ensalada de coditos;
+  - espagueti verde;
+  - pollo encacahuatado y en pipián;
+  - mole de olla, carne en su jugo y puerco en chile colorado;
+  - enchiladas, enmoladas y flautas al horno;
+  - burritos y bowls para congelar o para la semana;
+  - pozole rojo;
+  - salchichas a la mexicana;
+  - avena horneada, muffins de huevo y el sándwich de huevo viral;
+  - pizza de tortilla, nachos y wraps.
+  - Ideas tomadas de creadores de cocina económica (videos de comida con 50 y 100 pesos); los pasos los escribí yo.
+- **Ingredientes nuevos** con productos reales de Chedraui: salchicha de pavo, media crema, verduras congeladas y coliflor.
+- **Dietas nuevas** (dashboard, pestaña Menú), cada una con su para qué (`PARA_QUE`) y sus reglas, que el menú cumple o avisa:
+  - **Vegetariana** (con huevo y lácteos): sin carne ni pescado.
+  - **Flexitariana**: carne en comida o cena hasta 5 veces por semana, roja 1 y pescado 1 (EAT-Lancet 2019).
+  - **Baja en carbohidratos moderada**: ≤ 30 % de las kcal. No es keto; con las mismas kcal y proteína pierde grasa igual que una baja en grasa (DIETFITS, Gardner 2018), y sirve si así te llenas más. Sin el tope de grasa de la estrategia de saciedad.
+  - **Control de glucosa** (diabetes o prediabetes): carbohidratos ≤ 45 %, fibra ≥ 14 g por 1,000 kcal e integrales en lugar de arroz blanco, pasta, bolillo y cereal (ADA Standards of Care).
+- Las 3 vegetarianas con mucha proteína (frijoles con huevo y queso, lentejas con huevo y panela, soya al pastor) hacen posible la vegetariana aun en definición.
+
+**Verificación.**
+
+- `test_menu`, pruebas nuevas:
+  - 75+ opciones por tiempo;
+  - pasos en cada receta y en el menú;
+  - cada dieta nueva cumple sus reglas o avisa;
+  - vegetariana sin carne ni pescado (tampoco en Cambiar);
+  - flexitariana con 5 comidas con carne o menos;
+  - baja en carbos con ≤ 30 % de las kcal;
+  - glucosa con integrales y fibra.
+- El barrido corre ahora las 7 dietas.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

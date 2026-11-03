@@ -1296,7 +1296,10 @@ _EXCLUIR_OPC = [("carnes", "Carnes (pollo, res, cerdo)"), ("pescado", "Pescado y
 _TIENDAS_OPC = [("mercado", "Mercado o tianguis"), ("tortilleria", "Tortillería"), ("3b", "Tiendas 3B"),
                 ("walmart", "Walmart"), ("chedraui", "Chedraui"), ("sams", "Sam's Club")]   # = productos_mx.TIENDAS
 _DIETA_OPC = [("mexicana", "Mexicana equilibrada (Plato del Bien Comer)"), ("dash", "DASH (presión arterial) · sodio ≤ 2,300 mg"),
-              ("dash1500", "DASH bajo en sodio · ≤ 1,500 mg"), ("mediterranea", "Mediterránea")]
+              ("dash1500", "DASH bajo en sodio · ≤ 1,500 mg"), ("mediterranea", "Mediterránea (corazón)"),
+              ("vegetariana", "Vegetariana · sin carne ni pescado"), ("flexitariana", "Flexitariana · poca carne"),
+              ("baja_carbos", "Baja en carbohidratos (moderada) · ≤ 30 %"),
+              ("glucosa", "Control de glucosa · diabetes o prediabetes")]
 _ESTRATEGIA_OPC = [("auto", "Automática según tu enfoque"),
                    ("musculo", "Proteína repartida: ganar músculo o recomposición"),
                    ("saciedad", "Saciedad: perder grasa sin pasar hambre"), ("ninguna", "Ninguna")]
@@ -1400,6 +1403,12 @@ def _menu_vista(m) -> html.Div:
                          style={"color": MUTED, "fontSize": "12px", "marginTop": "2px"}),
                 *([html.Div(c["como"], style={"color": MUTED, "fontSize": "11px", "fontStyle": "italic",
                                                "marginTop": "2px"})] if c.get("como") else []),
+                *([html.Details([html.Summary("👩‍🍳 Paso a paso", style={"cursor": "pointer", "color": ACCENT,
+                                                                       "fontSize": "12px", "fontWeight": "700"}),
+                                 html.Ol([html.Li(x) for x in c["pasos"]],
+                                         style={"color": TEXT, "fontSize": "12px", "margin": "4px 0 0",
+                                                "paddingLeft": "18px"})],
+                               style={"marginTop": "4px"})] if c.get("pasos") else []),
                 *([html.Div("Otras opciones: " + " · ".join(
                     f"{a['nombre']} ({a['kcal']} kcal, {a['prot']:.0f} g, ${a['costo']:.0f})"
                     for a in c["alternativas"]),

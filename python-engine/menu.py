@@ -68,6 +68,7 @@ N_ALTERNATIVAS = {"colacion": 20, "comida": 4}      # "Cambiar" en la app; desay
 
 # Grupos para las reglas de cada dieta
 CARNE_ROJA = {"res", "res_magra", "cerdo"}
+CARNE = {"pollo", "pechuga", "pollo_rostizado", "res", "res_magra", "cerdo", "jamon", "salchicha"}
 PESCADO = {"atun", "sardina", "tilapia", "camaron"}
 NUECES = {"nuez", "almendra", "cacahuate", "crema_cacahuate", "chia", "pepitas"}
 LACTEO_PORCION = {"leche": 250, "leche_light": 250, "yogur": 200, "yogur_griego": 200,
@@ -96,6 +97,39 @@ DIETAS = {
                      "cambios": {"aceite": "aceite_oliva", "res": "res_magra"},
                      "sodio_max": None, "sat_pct": 0.09, "verdfruta": (350, 500), "lacteos_min": 0,
                      "roja_max": 1, "pescado_min": 2},
+    # Vegetariana (lacto-ovo): sin carne ni pescado; la proteina sale de huevo, lacteos,
+    # leguminosas y soya (Position of the Academy of Nutrition and Dietetics, 2016).
+    "vegetariana": {"nombre": "Vegetariana (con huevo y lácteos)", "cambios": {}, "sodio_max": None,
+                    "sat_pct": 0.10, "verdfruta": (400, 500), "lacteos_min": 0, "roja_max": None, "pescado_min": 0,
+                    "excluye": ("carnes", "pescado")},
+    # Flexitariana: casi siempre sin carne; carne (pollo, res, cerdo...) en comida o cena
+    # hasta 5 veces por semana y roja 1; pescado al menos 1 (EAT-Lancet 2019).
+    "flexitariana": {"nombre": "Flexitariana (poca carne)", "cambios": {"res": "res_magra"}, "sodio_max": None,
+                     "sat_pct": 0.10, "verdfruta": (400, 500), "lacteos_min": 0, "roja_max": 1, "pescado_min": 1,
+                     "carne_max": 5},
+    # Baja en carbohidratos MODERADA (<= 30 % de las kcal): misma perdida de grasa que
+    # una baja en grasa con las mismas kcal y proteina (DIETFITS, Gardner 2018); sirve si
+    # asi te llenas mas. No es keto: tortilla y fruta van, en menos cantidad.
+    "baja_carbos": {"nombre": "Baja en carbohidratos (moderada)", "cambios": {}, "sodio_max": None,
+                    "sat_pct": 0.10, "verdfruta": (400, 500), "lacteos_min": 0, "roja_max": None, "pescado_min": 0,
+                    "carb_pct": 0.30},
+    # Control de glucosa (diabetes tipo 2 o prediabetes): carbohidratos <= 45 % de las kcal,
+    # integrales y fibra >= 14 g por 1,000 kcal (ADA Standards of Care 2026; consulta a tu medico).
+    "glucosa": {"nombre": "Control de glucosa (diabetes y prediabetes)",
+                "cambios": {"arroz": "arroz_integral", "pasta": "pasta_integral", "bolillo": "pan_integral",
+                            "cereal": "avena", "tortilla_harina": "tortilla"},
+                "sodio_max": None, "sat_pct": 0.10, "verdfruta": (400, 500), "lacteos_min": 0, "roja_max": None,
+                "pescado_min": 0, "carb_pct": 0.45, "fibra_1000": 14},
+}
+# Para que sirve cada una (el dashboard lo muestra al elegir)
+PARA_QUE = {
+    "mexicana": "Comer normal y barato: la de diario.",
+    "dash": "Bajar la presión arterial: poca sal y más verdura, fruta y lácteos.",
+    "mediterranea": "Salud del corazón: aceite de oliva, pescado y poca carne roja.",
+    "vegetariana": "Sin carne ni pescado: proteína de huevo, lácteos, frijol, lentejas y soya.",
+    "flexitariana": "Comer menos carne sin dejarla: la mayoría de las comidas sin carne.",
+    "baja_carbos": "Bajar grasa si te llenas más con proteína y verdura: menos tortilla, arroz y pan.",
+    "glucosa": "Diabetes o prediabetes: menos carbohidratos, integrales y mucha fibra.",
 }
 ENFASIS = {"equilibrado": "Equilibrado", "proteina": "Más proteína", "carbohidratos": "Más carbohidratos"}
 
@@ -274,7 +308,7 @@ def _servir(r: Receta, escala: float, precios: dict[str, float]) -> dict:
         hierro += a.hierro * gg / 100
         calcio += a.calcio * gg / 100
         costo += precios[aid] * gg / 1000
-    return {"tiempo": r.tiempo, "receta": r.id, "nombre": r.nombre, "como": r.como,
+    return {"tiempo": r.tiempo, "receta": r.id, "nombre": r.nombre, "como": r.como, "pasos": list(r.pasos),
             "ingredientes": ing, "kcal": round(kcal), "prot": round(prot, 1),
             "carb": round(carb), "grasa": round(grasa), "fibra": round(fibra, 1),
             "hierro": round(hierro, 1), "calcio": round(calcio), "sodio": round(sodio), "sat": round(sat, 1),
@@ -320,7 +354,7 @@ def factor_hogar(cfg: dict) -> float:
 def _vector(r: Receta | None, precios: dict[str, float]) -> np.ndarray:
     """kcal, prot, carb, costo, sodio, sat, verdfruta(g), lacteos(porciones), huevo(g), roja, pescado, nuez,
     fibra, grasa."""
-    v = np.zeros(14)
+    v = np.zeros(15)
     if r is None:
         return v
     for aid, g in r.ingredientes:
@@ -334,6 +368,7 @@ def _vector(r: Receta | None, precios: dict[str, float]) -> np.ndarray:
         v[11] = max(v[11], 1.0 if aid in NUECES else 0.0)
         v[12] += a.fibra * g / 100
         v[13] += a.grasa * g / 100
+        v[14] = max(v[14], 1.0 if aid in CARNE else 0.0)
     return v
 
 
@@ -355,16 +390,20 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
     C_obj = enf.carb_g_kg[1] * peso if enfasis == "carbohidratos" else 0.0
     clave_dieta, dieta = dieta_de(cfg)
     clave_est, est = estrategia_de(cfg)
+    if dieta.get("carb_pct") and dieta["carb_pct"] < 0.4 and est["grasa_pct"]:
+        est = {**est, "grasa_pct": None}
     # la colacion: 0.24 g/kg con tope de 20 g (la dosis clasica en la que la sintesis
     # de musculo se aplana; mas que eso en una colacion ya no es practico)
     P_comida, P_colacion = est["prot_comida"] * peso, min(est["prot_colacion"] * peso, 20.0)
     por_dia = nutricion.kcal_por_dia(cfg)
     precios = precios or alx.precios()
     fuera = excluidos(cfg)
+    for grupo in dieta.get("excluye", ()):
+        fuera |= set(alx.GRUPOS_EXCLUIBLES[grupo])
     no_recetas, _ = no_me_gusta()
     disp = [_con_dieta(r, dieta["cambios"], fuera) for r in RECETAS if r.id not in no_recetas]
     disp = [r for r in disp if not any(aid in fuera for aid, _ in r.ingredientes)]
-    if clave_dieta == "mexicana":            # comida de casa: sin tofu, pudin de chia ni hummus
+    if clave_dieta not in ("dash", "mediterranea", "vegetariana"):   # comida de casa: sin tofu ni hummus
         disp = [r for r in disp if r.id not in POCO_COMUNES]
     sobras = bool(cfg.get("menu_sobras", True))   # la comida se cocina para 2 dias
     grupos = {t: [r for r in disp if r.tiempo == t] for t in ("desayuno", "comida", "cena", "colacion")}
@@ -379,9 +418,10 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
     usos: dict[str, int] = {}
     uso_ing: dict[str, int] = {}         # comidas de la semana con soya, sardina... (MAX_SEMANA)
     familias: dict[str, int] = {}        # comidas cocinadas con pollo, res, cerdo, pescado o sin carne
-    variar_carne = len({familia(r) for r in grupos["comida"]} - {"sin_carne"}) >= 3
+    variar_carne = (len({familia(r) for r in grupos["comida"]} - {"sin_carne"}) >= 3
+                    and not dieta.get("carne_max"))       # la flexitariana ya limita la carne
     comprados: set[str] = set()          # lo que ya esta en la lista del super de esta semana
-    semana = {"roja": 0, "pescado": 0}
+    semana = {"roja": 0, "pescado": 0, "carne": 0}
     dias, avisos = [], []
     hechos: list[dict] = []              # por dia: recetas elegidas y la comida servida (para las sobras)
     for i in range(7):
@@ -469,6 +509,9 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
         # reglas semanales de la dieta: carne roja con tope; pescado que falta, con premio
         roja = VC[:, 9][None, :, None, None, None] + VN[:, 9][None, None, :, None, None]
         roja_tope = (semana["roja"] + roja > dieta["roja_max"]) if dieta["roja_max"] is not None else np.zeros(1, bool)
+        if dieta.get("carne_max") is not None:
+            carne = VC[:, 14][None, :, None, None, None] + VN[:, 14][None, None, :, None, None]
+            roja_tope = roja_tope | (semana["carne"] + carne > dieta["carne_max"])
         falta_pescado = max(0, dieta["pescado_min"] - semana["pescado"])
         pescado_hoy = bool(falta_pescado and (i in (1, 4) or (7 - i) <= falta_pescado))   # repartido en la semana
         pez = np.minimum(1, VC[:, 10][None, :, None, None, None] + VN[:, 10][None, None, :, None, None])
@@ -514,10 +557,14 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
                 ok = ok & (gra * 9 <= est["grasa_pct"] * kc)
             return ok
 
-        def dieta_ok(nivel, sod, sa, kc, vf, lac, pescado):
+        def dieta_ok(nivel, sod, sa, kc, vf, lac, pescado, cb=0.0, fib=0.0):
             """nivel 2: la dieta completa (verdura ideal, lacteos, pescado del dia);
-            1: lo basico (sodio, grasa saturada, verdura minima); 0: nada."""
+            1: lo basico (sodio, grasa saturada, verdura minima, carbohidratos, fibra); 0: nada."""
             ok = True
+            if nivel and dieta.get("carb_pct"):
+                ok = ok & (cb * 4 <= dieta["carb_pct"] * kc)
+            if nivel and dieta.get("fibra_1000"):
+                ok = ok & (fib * 1000 >= dieta["fibra_1000"] * kc)
             if nivel and dieta["sodio_alimentos"]:
                 ok = ok & (sod <= dieta["sodio_alimentos"])
             if nivel and dieta["sat_pct"]:
@@ -548,7 +595,8 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
             if con_enfasis and C_obj:
                 pre &= carb >= C_obj * 0.95
             if con_dieta:
-                pre &= dieta_ok(con_dieta, sodio * 0.97, sat * 0.97, kcal, verdfruta * 1.03, lacteos * 1.05, pez)
+                pre &= dieta_ok(con_dieta, sodio * 0.97, sat * 0.97, kcal, verdfruta * 1.03, lacteos * 1.05, pez,
+                                carb * 0.97, fibra * 1.03)
             if con_dieta == 2:
                 pre &= prot_ok & est_ok(kcal, fibra * 1.03, grasa * 0.97, verdfruta * 1.03)
             obj = objetivo if con_prot else (-prot + costo * 0.05 + castigo * 0.1 + desvio * 0.005)
@@ -578,7 +626,8 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
                         and (not (con_enfasis and C_obj) or tot["carb"] >= C_obj)
                         and (not con_dieta or bool(dieta_ok(con_dieta, tot["sodio"], tot["sat"], tot["kcal"],
                                                             tot["verdfruta"] * 1.03, tot["lacteos"] * 1.05,
-                                                            vec[C[c_i].id][10] + vec[N[n_i].id][10])))
+                                                            vec[C[c_i].id][10] + vec[N[n_i].id][10],
+                                                            tot["carb"], tot["fibra"] * 1.02)))
                         and (con_dieta != 2 or est_real)):
                     elegido = (d_i, c_i, n_i, sn_i, cand, s)
                     break
@@ -645,6 +694,7 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
                        "s_comida": de_ayer["s_comida"] if de_ayer else s_dia,
                        "comida": next(c for c in elegidas if c["tiempo"] == "comida")})
         semana["roja"] += int(vec[C[c_i].id][9] + vec[N[n_i].id][9])
+        semana["carne"] += int(vec[C[c_i].id][14] + vec[N[n_i].id][14])
         semana["pescado"] += int(vec[C[c_i].id][10] + vec[N[n_i].id][10])
         tot = {k_: sum(c[k_] for c in elegidas)
                for k_ in ("kcal", "prot", "carb", "grasa", "fibra", "hierro", "calcio", "sodio", "sat", "verdfruta",
@@ -762,6 +812,21 @@ def cumplimiento_dieta(dias: list[dict], dieta: dict, semana: dict, fuera: set[s
     if dieta["roja_max"] is not None:
         reglas.append({"regla": f"Carne roja ≤ {dieta['roja_max']} {'vez' if dieta['roja_max'] == 1 else 'veces'} por semana",
                        "valor": str(semana["roja"]), "ok": semana["roja"] <= dieta["roja_max"]})
+    if dieta.get("excluye"):
+        hay = sum(1 for d in dias for c in d["comidas"] for i in c["ingredientes"]
+                  if i["id"] in CARNE or i["id"] in PESCADO)
+        reglas.append({"regla": "Sin carne ni pescado", "valor": "ninguna" if not hay else f"{hay} veces", "ok": not hay})
+    if dieta.get("carne_max") is not None:
+        reglas.append({"regla": f"Comidas y cenas con carne ≤ {dieta['carne_max']} por semana",
+                       "valor": str(semana.get("carne", 0)), "ok": semana.get("carne", 0) <= dieta["carne_max"]})
+    if dieta.get("carb_pct"):
+        v = sum(d["carb"] * 4 for d in dias) / max(1, sum(d["kcal"] for d in dias)) * 100
+        reglas.append({"regla": f"Carbohidratos ≤ {dieta['carb_pct'] * 100:.0f} % de las kcal", "valor": f"{v:.0f} %",
+                       "ok": v <= dieta["carb_pct"] * 100 + 0.5})
+    if dieta.get("fibra_1000"):
+        v = sum(d["fibra"] for d in dias) / max(1, sum(d["kcal"] for d in dias)) * 1000
+        reglas.append({"regla": f"Fibra ≥ {dieta['fibra_1000']} g por cada 1,000 kcal", "valor": f"{v:.0f} g",
+                       "ok": v >= dieta["fibra_1000"] - 0.3})
     if dieta["pescado_min"]:
         reglas.append({"regla": f"Pescado o mariscos ≥ {dieta['pescado_min']} veces por semana",
                        "valor": str(semana["pescado"]), "ok": semana["pescado"] >= dieta["pescado_min"]})

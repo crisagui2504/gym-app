@@ -285,12 +285,52 @@ check("sin la 4.a toma (definicion) tambien hay colaciones ligeras: fruta, jicam
           for x in sac["dias"] for c in x["comidas"] if c["tiempo"] == "colacion"
           for a in [c, *c["alternativas"]] for i in a["ingredientes"]))
 
-print("\n== Barrido: 4 enfoques x 3 pesos x 3 dietas x 3 enfasis ==")
+print("\n== Paso a paso y recetas nuevas ==")
+principales = [r for r in rcx.RECETAS if r.tiempo != "colacion"]
+check("75+ opciones por tiempo (desayuno, comida y cena)",
+      all(n >= 75 for n in collections.Counter(r.tiempo for r in principales).values()),
+      str(collections.Counter(r.tiempo for r in principales)))
+check("cada desayuno, comida y cena trae su paso a paso (2+ pasos)", all(len(r.pasos) >= 2 for r in principales),
+      str([r.id for r in principales if len(r.pasos) < 2][:5]))
+import pasos_mx as pmx2  # noqa: E402
+check("no hay pasos de recetas que no existen", set(pmx2.PASOS) <= set(rcx.POR_ID))
+check("el menu lleva el paso a paso de cada comida (y de sus opciones)",
+      all(c["pasos"] for d in m0["dias"] for c in d["comidas"] if c["tiempo"] != "colacion")
+      and all(a["pasos"] for d in m0["dias"] for c in d["comidas"] if c["tiempo"] != "colacion"
+              for a in c.get("alternativas", [])))
+
+print("\n== Dietas nuevas: vegetariana, flexitariana, baja en carbos y control de glucosa ==")
+check("cada dieta dice para que sirve", set(mnu.PARA_QUE) == set(mnu.DIETAS))
+_dt = {k: mnu.generar_menu({**BASE, "menu_dieta": k}, LUN) for k in ("vegetariana", "flexitariana", "baja_carbos",
+                                                                      "glucosa")}
+for k, _m in _dt.items():
+    check(f"{k}: todas sus reglas se cumplen (o el menu avisa que dia no se pudo)",
+          all(r["ok"] is not False for r in _m["dieta"]["cumple"]) or bool(_m["avisos"]),
+          str([(r["regla"], r["valor"]) for r in _m["dieta"]["cumple"] if r["ok"] is False]))
+check("vegetariana: ni carne ni pescado (tampoco en Cambiar)",
+      not (mnu.CARNE | mnu.PESCADO) & {i["id"] for d in _dt["vegetariana"]["dias"] for c in d["comidas"]
+                                       for x in [c, *c.get("alternativas", [])] for i in x["ingredientes"]})
+check("flexitariana: carne en comida o cena 5 veces por semana como mucho",
+      sum(1 for d in _dt["flexitariana"]["dias"] for c in d["comidas"] if c["tiempo"] in ("comida", "cena")
+          and any(i["id"] in mnu.CARNE for i in c["ingredientes"])) <= 5)
+_bc = _dt["baja_carbos"]
+check("baja en carbos: <= 30 % de las kcal de carbohidratos y mucho menos que la mexicana",
+      sum(d["carb"] * 4 for d in _bc["dias"]) <= 0.305 * sum(d["kcal"] for d in _bc["dias"])
+      and _bc["carb_prom"] < m0["carb_prom"] - 60, f"{_bc['carb_prom']} vs {m0['carb_prom']}")
+_gl = _dt["glucosa"]
+check("control de glucosa: integrales (nada de arroz blanco, pasta blanca, bolillo ni cereal)",
+      not {"arroz", "pasta", "bolillo", "cereal", "tortilla_harina"} & set(ids(_gl)))
+check("control de glucosa: fibra >= 14 g por 1,000 kcal y carbohidratos <= 45 %",
+      sum(d["fibra"] for d in _gl["dias"]) * 1000 >= 14 * sum(d["kcal"] for d in _gl["dias"])
+      and sum(d["carb"] * 4 for d in _gl["dias"]) <= 0.455 * sum(d["kcal"] for d in _gl["dias"]))
+
+print("\n== Barrido: 4 enfoques x 3 pesos x 7 dietas (x 3 enfasis en las 3 de siempre) ==")
 errores, sin_aviso = [], []
 for enf in ("recomposicion", "volumen", "fuerza", "definicion"):
     for peso in (55, 75, 95):
-        for dieta in ("mexicana", "dash", "mediterranea"):
-            for e in ("equilibrado", "proteina", "carbohidratos"):
+        for dieta in mnu.DIETAS:
+            for e in (("equilibrado", "proteina", "carbohidratos") if dieta in ("mexicana", "dash", "mediterranea")
+                      else ("equilibrado",)):
                 cfg = {"enfoque": enf, "peso_corporal": peso, "menu_dieta": dieta, "menu_enfasis": e}
                 try:
                     m = mnu.generar_menu(cfg, LUN)

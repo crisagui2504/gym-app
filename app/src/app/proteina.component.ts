@@ -160,6 +160,10 @@ import { FilaLista, ORDEN_TIENDAS, TIENDAS, cucharadita } from './menu-semana';
               <p class="menu-rinde" *ngIf="(c0.rinde ?? 1) > 1">🍳 Cocina el doble: rinde para hoy y mañana.</p>
               <p class="menu-ing">{{ ingredientes(c) }}</p>
               <p class="menu-como" *ngIf="c.como">{{ c.como }}</p>
+              <details class="menu-pasos" *ngIf="c.pasos?.length">
+                <summary>👩‍🍳 Paso a paso</summary>
+                <ol><li *ngFor="let p of c.pasos">{{ p }}</li></ol>
+              </details>
               <div class="menu-acciones">
                 <button type="button" class="menu-comi" *ngIf="esHoy(d)" [class.on]="nut.comioMenu(c.tiempo)"
                         (click)="nut.alternarMenu(c.tiempo, c.prot, c)">

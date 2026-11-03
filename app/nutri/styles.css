@@ -1551,6 +1551,30 @@ details > summary {
   font-size: 13px;
 }
 
+/* paso a paso de la receta */
+.menu-pasos {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--nu-card-2);
+  font-size: 13px;
+}
+
+.menu-pasos summary {
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.menu-pasos ol {
+  margin: 6px 0 2px;
+  padding-left: 20px;
+}
+
+.menu-pasos li {
+  margin: 4px 0;
+  line-height: 1.4;
+}
+
 .menu-como {
   margin: 6px 0 0;
   font-size: 12px;

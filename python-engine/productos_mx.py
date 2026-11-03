@@ -228,6 +228,15 @@ PRODUCTOS: dict[str, list[Producto]] = {
         _pq("chedraui", "Queso cottage Lala 350 g", 350, 55.2),
         _pq("chedraui", "Queso cottage Santa Clara 500 g", 500, 77.5),
     ],
+    "salchicha": [
+        _pq("chedraui", "Salchicha de pavo Zwan 500 g", 500, 36.8),
+        _pq("chedraui", "Salchicha de pavo Sabori 500 g", 500, 38.4),
+        _pq("3b", "Salchicha de pavo San Francisco", 500, None),
+    ],
+    "crema": [
+        _pq("chedraui", "Media crema Alpura 250 ml", 250, 16.0),
+        _pq("chedraui", "Media crema Selecto 250 ml", 250, 17.0),
+    ],
     "proteina_polvo": [],          # sin dato confiable: se usa el estimado de alimentos_mx
     # ── cereales y tuberculos ──
     "tortilla": [
@@ -378,6 +387,14 @@ PRODUCTOS: dict[str, list[Producto]] = {
         _pq("chedraui", "Champiñón Monteblanco 225 g", 225, 34.9, 0.97),
         _kg("chedraui", "Champiñón (por kg)", 109.9, 250, 0.97),
     ],
+    "verduras_mixtas": [
+        _pq("chedraui", "Guarnición de verduras Selecto congelada 500 g", 500, 35.0),
+        _pq("chedraui", "Mezcla campesina Selecto congelada 500 g", 500, 38.5),
+    ],
+    "coliflor": [
+        _pq("chedraui", "Floretes de coliflor Mr. Lucky 454 g", 454, 33.5),
+        _pq("chedraui", "Coliflor (pieza)", 700, 48.9, 0.6),
+    ],
     "lechuga": [
         _pza_mer("Lechuga romana (pieza)", 450, 7.5, 0.85),
         _pq("chedraui", "Lechuga romana (pieza)", 450, 23.9, 0.85),
@@ -493,14 +510,14 @@ DURA_SEMANAS: dict[str, float] = {
     **{a: 26 for a in ("frijol", "lentejas", "garbanzo", "habas", "soya", "arroz", "arroz_integral", "avena", "pasta",
                        "pasta_integral", "aceite", "aceite_oliva", "chia", "palomitas", "atun", "sardina",
                        "proteina_polvo")},
-    **{a: 12 for a in ("pollo", "pechuga", "res", "res_magra", "cerdo", "tilapia", "camaron",   # congelando en porciones
+    **{a: 12 for a in ("pollo", "pechuga", "res", "res_magra", "cerdo", "tilapia", "camaron", "verduras_mixtas",
                        "amaranto", "crema_cacahuate", "almendra", "pan_molido", "mole")},
     **{a: 8 for a in ("leche", "leche_light", "cacahuate", "nuez", "pepitas", "galletas_maria")},
     **{a: 6 for a in ("granola", "cereal", "tostada")},
     **{a: 4 for a in ("huevo", "galletas_saladas")},
     **{a: 3 for a in ("yogur_griego", "papa", "cebolla", "camote", "manzana", "tortilla_harina")},
     **{a: 2 for a in ("yogur", "panela", "queso_oaxaca", "claras", "zanahoria", "limon", "naranja", "jicama", "toronja",
-                      "tofu")},
+                      "tofu", "salchicha", "crema")},
     **{a: 1.5 for a in ("queso_fresco", "cottage", "jamon", "pan_integral", "chayote")},
 }
 # lo demas (verdura y fruta fresca, tortilla, bolillo, requeson, pollo rostizado): 1 semana o menos
