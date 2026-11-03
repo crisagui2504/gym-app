@@ -3,7 +3,7 @@ import { Component, Input, OnInit, computed, inject, signal } from '@angular/cor
 import { NutricionService, PESAJES_TENDENCIA, PORCIONES, esDelMenu } from './nutricion';
 import { fechaLocal } from './entreno-data';
 import type { MenuComida, MenuDia } from './rutina-api.service';
-import { cucharadita } from './menu-semana';
+import { FilaLista, ORDEN_TIENDAS, TIENDAS, cucharadita } from './menu-semana';
 
 /** Panel "Comida": proteína del día por porciones y el menú barato de la semana. */
 @Component({
@@ -104,9 +104,11 @@ import { cucharadita } from './menu-semana';
         </p>
         <ng-container *ngIf="nut.menu() as m">
           <p class="menu-res">
-            <b>\${{ m.costo_semana | number: '1.0-0' }}</b> a la semana · ~\${{ m.costo_dia | number: '1.0-0' }} al día<br>
+            <b>\${{ m.costo_semana | number: '1.0-0' }}</b> de comida a la semana · ~\${{ m.costo_dia | number: '1.0-0' }} al día<br>
             {{ m.kcal_prom | number: '1.0-0' }} kcal, {{ m.prot_prom }} g de proteína<ng-container
               *ngIf="m.carb_prom"> y {{ m.carb_prom }} g de carbohidratos</ng-container> al día en promedio
+            <ng-container *ngIf="caja() > 0"><br>🛒 En la tienda pagas ≈ \${{ caja() | number: '1.0-0' }}: paquetes enteros,
+              lo que sobra rinde para otras semanas</ng-container>
           </p>
           <div class="menu-extra">
             <ng-container *ngIf="m.dieta as dt">
@@ -154,6 +156,8 @@ import { cucharadita } from './menu-semana';
             <div class="menu-comida" *ngIf="nut.comidaDe(d, c0) as c">
               <span class="menu-t">{{ etiqueta[c.tiempo] || c.tiempo }}</span>
               <div class="menu-nom"><strong>{{ c.nombre }}</strong><small>{{ c.kcal }} kcal · {{ c.prot | number: '1.0-0' }} g</small></div>
+              <p class="menu-sobras" *ngIf="c0.sobras as s">🍲 Sobras del {{ s.dia.toLowerCase() }}: ya está hecha, solo caliéntala.</p>
+              <p class="menu-rinde" *ngIf="(c0.rinde ?? 1) > 1">🍳 Cocina el doble: rinde para hoy y mañana.</p>
               <p class="menu-ing">{{ ingredientes(c) }}</p>
               <p class="menu-como" *ngIf="c.como">{{ c.como }}</p>
               <div class="menu-acciones">
@@ -166,8 +170,19 @@ import { cucharadita } from './menu-semana';
                         [attr.aria-label]="nut.noGusta(c.receta) ? 'Quitar no me gusta' : 'No me gusta: no volver a ponerla'">
                   👎{{ nut.noGusta(c.receta) ? ' No me gusta' : '' }}
                 </button>
-                <button type="button" class="menu-cambiar" *ngIf="c0.alternativas?.length" (click)="nut.cambiarComida(d, c0)">
+                <button type="button" class="menu-cambiar" *ngIf="c0.alternativas?.length && c0.tiempo !== 'colacion'"
+                        (click)="nut.cambiarComida(d, c0)">
                   ⟳ Cambiar ({{ nut.opcionDe(d, c0) + 1 }}/{{ (c0.alternativas?.length ?? 0) + 1 }})
+                </button>
+                <button type="button" class="menu-cambiar" *ngIf="c0.alternativas?.length && c0.tiempo === 'colacion'"
+                        (click)="verIdeas(d)" [attr.aria-expanded]="ideasDe() === d.fecha">
+                  🍎 {{ ideasDe() === d.fecha ? 'Cerrar opciones' : 'Ver las ' + ((c0.alternativas?.length ?? 0) + 1) + ' opciones' }}
+                </button>
+              </div>
+              <div class="menu-ideas" *ngIf="c0.tiempo === 'colacion' && ideasDe() === d.fecha">
+                <button type="button" *ngFor="let o of opcionesDe(c0); let i = index" [class.on]="nut.opcionDe(d, c0) === i"
+                        [disabled]="nut.noGusta(o.receta)" (click)="nut.elegirOpcion(d, c0, i)">
+                  <b>{{ o.nombre }}</b><small>{{ o.kcal }} kcal · {{ o.prot | number: '1.0-0' }} g</small>
                 </button>
               </div>
             </div>
@@ -175,8 +190,9 @@ import { cucharadita } from './menu-semana';
           </ng-container>
           <p class="prot-hint aviso" *ngFor="let a of m.avisos">{{ a }}</p>
           <details class="menu-lista" *ngIf="nut.cocina().length">
-            <summary>🍳 Cocina por adelantado</summary>
-            <p class="prot-nota">Lo cocido dura 3-4 días en el refri: por eso se cocina dos veces a la semana.</p>
+            <summary>🍳 Qué cocinar y cuándo</summary>
+            <p class="prot-nota">La comida se cocina para 2 días: lo que sobra del lunes es la comida del martes.
+              Lo cocido dura 3-4 días en el refri.</p>
             <div class="menu-cocina" *ngFor="let t of nut.cocina()">
               <b>{{ t.cuando }}</b> <small>{{ t.para }}</small>
               <ul><li *ngFor="let x of t.tareas">{{ x.texto }}</li></ul>
@@ -184,12 +200,28 @@ import { cucharadita } from './menu-semana';
           </details>
           <details class="menu-lista">
             <summary>🛒 Lista del súper (≈ \${{ nut.costoPendiente() | number: '1.0-0' }} por comprar)</summary>
-            <p class="prot-nota">Toca lo que ya tienes en casa: se quita de la cuenta.</p>
-            <button type="button" class="menu-li" *ngFor="let f of nut.lista()" [class.tengo]="nut.tengo().includes(f.id)"
-                    (click)="nut.alternarTengo(f.id)">
-              <span>{{ nut.tengo().includes(f.id) ? '✓ ' : '' }}{{ f.nombre }}</span><span>{{ f.compra }}</span>
-              <span>\${{ f.costo | number: '1.0-0' }}</span>
-            </button>
+            <p class="prot-nota">Productos reales de cada tienda, en paquetes enteros. Toca lo que ya tienes en casa: se
+              quita de la cuenta.<ng-container *ngIf="nut.despensaPendiente() >= 20"> De lo que pagas, ≈
+              \${{ nut.despensaPendiente() | number: '1.0-0' }} es despensa que te sobra para otras semanas.</ng-container></p>
+            <div class="lista-tiendas" role="group" aria-label="Tiendas donde compras">
+              <button type="button" *ngFor="let t of tiendas" [class.on]="nut.usaTienda(t)" [attr.aria-pressed]="nut.usaTienda(t)"
+                      (click)="nut.alternarTienda(t)">{{ nombreTienda[t] }}</button>
+            </div>
+            <ng-container *ngFor="let g of gruposLista()">
+              <h4 class="lista-tienda">{{ g.nombre }}<small>≈ \${{ g.costo | number: '1.0-0' }}</small></h4>
+              <button type="button" class="menu-li" *ngFor="let f of g.filas" [class.tengo]="nut.tengo().includes(f.id)"
+                      (click)="nut.alternarTengo(f.id)">
+                <span class="li-que">
+                  <b>{{ nut.tengo().includes(f.id) ? '✓ ' : '' }}{{ f.nombre }}</b>
+                  <small>{{ f.compra }}</small>
+                  <small *ngIf="f.producto && !f.compra.includes(f.producto)">{{ f.producto }}</small>
+                  <small class="li-sobra" *ngIf="f.sobra">{{ f.sobra }}</small>
+                  <small class="li-otras" *ngIf="f.otras.length">También: {{ otras(f) }}</small>
+                </span>
+                <span class="li-costo">\${{ f.costo | number: '1.0-0' }}</span>
+              </button>
+            </ng-container>
+            <p class="prot-nota" *ngIf="sinPrecio3b()">Tiendas 3B no publica sus precios en línea; ahí busca {{ sinPrecio3b() }}.</p>
             <div class="lista-acciones">
               <button type="button" class="menu-cambiar" (click)="compartir()">📤 Compartir lista</button>
               <small *ngIf="aviso()">{{ aviso() }}</small>
@@ -234,6 +266,29 @@ export class ProteinaComponent implements OnInit {
   readonly diaSel = signal(((new Date().getDay() + 6) % 7) + 1);     // hoy (1 = lunes)
   readonly dia = computed(() => this.nut.menu()?.dias.find((d) => d.dia === this.diaSel()) ?? null);
   readonly cucharadita = cucharadita;
+  readonly tiendas = ORDEN_TIENDAS;
+  readonly nombreTienda = TIENDAS;
+  /** Dia (fecha) con la lista de opciones de colacion abierta. */
+  readonly ideasDe = signal<string | null>(null);
+  /** La lista por tienda, con lo que te falta comprar en cada una. */
+  readonly gruposLista = computed(() => {
+    const grupos: Array<{ tienda: string; nombre: string; costo: number; filas: FilaLista[] }> = [];
+    for (const f of this.nut.lista()) {
+      let g = grupos[grupos.length - 1];
+      if (!g || g.tienda !== f.tienda) {
+        g = { tienda: f.tienda, nombre: TIENDAS[f.tienda] ?? 'Otros', costo: 0, filas: [] };
+        grupos.push(g);
+      }
+      g.filas.push(f);
+      if (!this.nut.tengo().includes(f.id)) g.costo += f.costo;
+    }
+    return grupos;
+  });
+  readonly caja = computed(() => this.nut.lista().reduce((s, f) => s + f.costo, 0));
+  /** Marcas de 3B sin precio en linea que salen en tu lista (para que sepas que buscar). */
+  readonly sinPrecio3b = computed(() =>
+    this.nut.usaTienda('3b') ? [...new Set(this.nut.lista().flatMap((f) => f.sinPrecio))].slice(0, 5).join(', ') : ''
+  );
   readonly etiqueta: Record<string, string> = { desayuno: 'Desayuno', comida: 'Comida', colacion: 'Colación', cena: 'Cena' };
 
   ngOnInit(): void {
@@ -269,6 +324,18 @@ export class ProteinaComponent implements OnInit {
 
   async compartir(): Promise<void> {
     this.aviso.set(await this.nut.compartirLista());
+  }
+
+  otras(f: FilaLista): string {
+    return f.otras.map((o) => `${TIENDAS[o.tienda] ?? o.tienda} ${Math.round(o.costo)}`).join(' · ');
+  }
+
+  opcionesDe(c: MenuComida): MenuComida[] {
+    return [c, ...(c.alternativas ?? [])];
+  }
+
+  verIdeas(d: MenuDia): void {
+    this.ideasDe.set(this.ideasDe() === d.fecha ? null : d.fecha);
   }
 
   ingredientes(c: MenuComida): string {

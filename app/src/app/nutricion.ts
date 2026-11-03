@@ -2,7 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import * as almacen from './almacen';
 import { fechaLocal } from './entreno-data';
 import { CheckinResponse, MenuComida, MenuDia, MenuSemana, Pesaje, RutinaApiService } from './rutina-api.service';
-import { FilaLista, claveEleccion, cocina, comidasDelDia, elegida, listaSuper, textoLista } from './menu-semana';
+import { FilaLista, ORDEN_TIENDAS, claveEleccion, cocina, comidasDelDia, elegida, listaSuper, textoLista } from './menu-semana';
 
 /**
  * Proteina del dia por PORCIONES (sin pesar comida ni contar calorias): lo que
@@ -251,9 +251,11 @@ export class NutricionService {
     return [...m.entries()].map(([fecha, g]) => ({ fecha, g })).sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
   });
 
+  /** Tiendas donde compras (null = todas): la lista elige el producto de esas. */
+  readonly tiendas = signal<string[] | null>(this.leerJson('menu-tiendas', null));
   readonly lista = computed<FilaLista[]>(() => {
     const m = this.menu();
-    return m ? listaSuper(m, this.eleccion()) : [];
+    return m ? listaSuper(m, this.eleccion(), this.tiendas()) : [];
   });
   readonly cocina = computed(() => {
     const m = this.menu();
@@ -261,6 +263,10 @@ export class NutricionService {
   });
   readonly costoPendiente = computed(() =>
     this.lista().filter((f) => !this.tengo().includes(f.id)).reduce((s, f) => s + f.costo, 0)
+  );
+  /** De lo que pagas, lo que sobra y rinde para otras semanas (frijol, aceite, arroz...). */
+  readonly despensaPendiente = computed(() =>
+    this.lista().filter((f) => !this.tengo().includes(f.id)).reduce((s, f) => s + f.queda, 0)
   );
   readonly creatinaHoy = computed(() => !!this.porciones()['creatina']);
   /** Dias seguidos con creatina, contando hoy si ya la tomaste. */
@@ -471,12 +477,17 @@ export class NutricionService {
   cambiarComida(d: MenuDia, c: MenuComida): void {
     const n = 1 + (c.alternativas?.length ?? 0);
     if (n < 2) return;
-    const clave = claveEleccion(d, c);
-    const actual = this.eleccion()[clave] ?? 0;
+    const actual = this.eleccion()[claveEleccion(d, c)] ?? 0;
     let sig = (actual + 1) % n;
     for (let i = 0; i < n - 1 && this.noGusta(elegida(c, sig).receta); i++) sig = (sig + 1) % n;
-    if (sig === actual) return;
-    const nueva = { ...this.eleccion(), [clave]: sig };
+    if (sig !== actual) this.elegirOpcion(d, c, sig);
+  }
+
+  /** Pone la opcion `idx` de esa comida (0 = la del menu); las sobras cambian con su dia de cocina. */
+  elegirOpcion(d: MenuDia, c: MenuComida, idx: number): void {
+    const clave = claveEleccion(d, c);
+    if ((this.eleccion()[clave] ?? 0) === idx || idx < 0 || idx > (c.alternativas?.length ?? 0)) return;
+    const nueva = { ...this.eleccion(), [clave]: idx };
     this.eleccion.set(nueva);
     this.guardarJson('menu-eleccion', nueva);
     // si ya la habias marcado como comida, se actualiza con la proteina de la nueva
@@ -518,6 +529,20 @@ export class NutricionService {
         error: () => this.sinConexion.set(true)
       });
     }
+  }
+
+  usaTienda(t: string): boolean {
+    return !this.tiendas() || this.tiendas()!.includes(t);
+  }
+
+  /** Prende o apaga una tienda en la lista (siempre queda al menos una). */
+  alternarTienda(t: string): void {
+    const actuales = this.tiendas() ?? ORDEN_TIENDAS;
+    const nuevas = actuales.includes(t) ? actuales.filter((x) => x !== t) : ORDEN_TIENDAS.filter((x) => x === t || actuales.includes(x));
+    if (!nuevas.length) return;
+    const valor = nuevas.length === ORDEN_TIENDAS.length ? null : nuevas;
+    this.tiendas.set(valor);
+    this.guardarJson('menu-tiendas', valor);
   }
 
   alternarTengo(id: string): void {

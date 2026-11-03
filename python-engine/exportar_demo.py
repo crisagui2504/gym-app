@@ -39,7 +39,7 @@ def menu_demo() -> dict:
     import menu
     from datetime import date
     return menu.generar_menu({"enfoque": "recomposicion", "peso_corporal": 75}, date(2026, 1, 5), semilla=1,
-                             precios={a.id: a.precio_kg for a in alx.ALIMENTOS.values()})
+                             precios=alx.precio_referencia())
 
 
 if __name__ == "__main__":

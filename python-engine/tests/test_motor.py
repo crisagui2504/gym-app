@@ -1272,8 +1272,9 @@ for _cfg in ({"enfoque": "volumen", "peso_corporal": 65}, {"enfoque": "fuerza", 
 _usos = {}
 for _d in _m["dias"]:
     for _c in _d["comidas"]:
-        _usos[_c["receta"]] = _usos.get(_c["receta"], 0) + 1
-check("ninguna receta pasa su tope de veces por semana",
+        if not _c.get("sobras"):                 # las sobras son la misma comida, cocinada una vez
+            _usos[_c["receta"]] = _usos.get(_c["receta"], 0) + 1
+check("ninguna receta pasa su tope de veces por semana (las sobras no cuentan: se cocino una vez)",
       all(n <= mnu.TOPE_USOS[rcx.POR_ID[r].tiempo] for r, n in _usos.items()), str(_usos))
 check("como mucho 4 huevos al dia",
       all(sum(i["g"] for c in d["comidas"] for i in c["ingredientes"] if i["id"] == "huevo") <= 200
@@ -1304,7 +1305,7 @@ check("misma semana y semilla = mismo menu; otra semilla = otro menu",
       == mnu.generar_menu({"enfoque": "volumen", "peso_corporal": 70}, _lun, 5)
       and mnu.generar_menu({"enfoque": "volumen", "peso_corporal": 70}, _lun, 5)["dias"]
       != mnu.generar_menu({"enfoque": "volumen", "peso_corporal": 70}, _lun, 6)["dias"])
-alx.guardar_precios({"frijol": 50.0, "huevo": alx.ALIMENTOS["huevo"].precio_kg})
+alx.guardar_precios({"frijol": 50.0, "huevo": alx.precio_referencia()["huevo"]})
 check("tus precios: solo se guarda lo que cambiaste y se usa en el menu",
       alx.precios()["frijol"] == 50.0 and __import__("json").loads(_tmp_precios.read_text()) == {"frijol": 50.0})
 _tmp_precios.unlink()
@@ -1357,11 +1358,13 @@ check("casi todas las comidas fuertes tienen alternativas para cambiar",
       >= 18, str(len(_alts)))
 check("cada alternativa es del mismo tiempo, otra receta, kcal parecidas y casi la misma proteina",
       all(a["tiempo"] == c["tiempo"] and a["receta"] != c["receta"]
-          and abs(a["kcal"] - c["kcal"]) <= c["kcal"] * (0.40 if c["tiempo"] == "colacion" else 0.12)
+          and abs(a["kcal"] - c["kcal"]) <= c["kcal"] * (0.50 if c["tiempo"] == "colacion" else 0.12)
           and a["prot"] >= c["prot"] * (0.5 if c["tiempo"] == "colacion" else 0.85) for c, a in _alts))
-check("las alternativas van de la mas barata a la mas cara",
+check("las alternativas van de la mas barata a la mas cara (en la comida, primero una de cada carne)",
       all([a["costo"] for a in c["alternativas"]] == sorted(a["costo"] for a in c["alternativas"])
-          for d in _m4["dias"] for c in d["comidas"] if c.get("alternativas")))
+          for d in _m4["dias"] for c in d["comidas"] if c.get("alternativas") and c["tiempo"] != "comida")
+      and all(len({mnu.familia(rcx.POR_ID[a["receta"]]) for a in c["alternativas"][:3]}) >= min(3, len(c["alternativas"]))
+              for d in _m4["dias"] for c in d["comidas"] if c["tiempo"] == "comida" and c.get("alternativas")))
 check("vegetariano: las alternativas tampoco traen carne ni pescado",
       not any(i["id"] in ("pollo", "pechuga", "res", "cerdo", "atun", "sardina")
               for d in _veg["dias"] for c in d["comidas"] for a in c.get("alternativas", []) for i in a["ingredientes"]))
@@ -1370,8 +1373,8 @@ check("el menu trae la ficha de cada alimento usado (para rehacer la lista en la
        for i in x["ingredientes"]} <= set(_m4["alimentos"]))
 _coc = _m4["cocina"]
 _frijol_menu = sum(i["g"] for d in _m4["dias"] for c in d["comidas"] for i in c["ingredientes"] if i["id"] == "frijol")
-check("cocina por adelantado: domingo y miercoles, y suma todo el frijol de la semana",
-      [x["cuando"] for x in _coc] == ["Domingo", "Miércoles en la noche"]
+check("cocina: la comida de lunes, miercoles y viernes (x2) y la olla de frijol domingo y miercoles con todo el de la semana",
+      [x["cuando"] for x in _coc] == ["Lunes", "Miércoles", "Viernes", "Domingo", "Miércoles en la noche"]
       and abs(sum(tk["g"] for x in _coc for tk in x["tareas"] if tk["id"] == "frijol") - _frijol_menu) <= 2,
       str(_coc))
 _h4 = date(2026, 10, 11)

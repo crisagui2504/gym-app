@@ -1574,8 +1574,9 @@ details > summary {
 
 .menu-li {
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  gap: 8px;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 10px;
   width: 100%;
   padding: 11px 2px;
   border-bottom: 1px solid var(--nu-line);
@@ -1583,17 +1584,136 @@ details > summary {
   text-align: left;
 }
 
-.menu-li span:nth-child(2) {
-  color: var(--nu-muted);
+/* fila de la lista: alimento, que comprar (producto real), lo que sobra y otras tiendas */
+.li-que {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
-.menu-li span:last-child {
+.li-que b {
   font-weight: 800;
 }
 
-.menu-li.tengo span {
+.li-que small {
+  font-size: 12px;
+  color: var(--nu-muted);
+  overflow-wrap: anywhere;
+}
+
+.li-que .li-sobra {
+  color: var(--nu-lima-osc);
+}
+
+.li-que .li-otras {
+  font-size: 11px;
+}
+
+.li-costo {
+  font-weight: 800;
+}
+
+.menu-li.tengo .li-que {
   color: var(--nu-muted);
   text-decoration: line-through;
+}
+
+.menu-li.tengo .li-costo {
+  color: var(--nu-muted);
+  text-decoration: line-through;
+}
+
+/* donde compras: una pastilla por tienda */
+.lista-tiendas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 4px;
+}
+
+.lista-tiendas button {
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: var(--nu-card-2);
+  color: var(--nu-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lista-tiendas button.on {
+  background: var(--nu-ink);
+  color: #fff;
+}
+
+.lista-tienda {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 16px 2px 2px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.lista-tienda small {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--nu-muted);
+}
+
+/* comida que rinde 2 dias y sus sobras */
+.menu-sobras {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--nu-grasa);
+  color: var(--nu-grasa-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.menu-rinde {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--nu-lima-claro);
+  color: var(--nu-lima-osc);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* opciones de colacion */
+.menu-ideas {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.menu-ideas button {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--nu-card-2);
+  font-size: 13px;
+  text-align: left;
+}
+
+.menu-ideas button.on {
+  background: var(--nu-lima-claro);
+  box-shadow: inset 0 0 0 2px var(--nu-lima);
+}
+
+.menu-ideas button:disabled {
+  opacity: 0.45;
+}
+
+.menu-ideas small {
+  flex: none;
+  font-size: 12px;
+  color: var(--nu-muted);
 }
 
 .lista-acciones {

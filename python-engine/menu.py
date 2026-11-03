@@ -9,12 +9,16 @@ La variedad se cuida con penalizaciones: repetir una receta en la semana
 "cuesta" de mas y cada receta tiene un tope de veces; la comida y la cena del
 mismo dia nunca repiten la fuente de proteina.
 
-Comida mexicana de diario (frijol, huevo, tortilla, pollo, atun, lentejas,
-soya...) con precios de Profeco donde hay dato y estimados editables donde no
-(alimentos_mx.py). Resultado: los 7 dias, la lista del super y el costo.
+Comida mexicana de diario de casa (pollo, carne, huevo, frijol, tortilla,
+arroz...). Como en casa, la comida se cocina para 2 dias: lo que sobra del
+lunes es la comida del martes (y asi miercoles-jueves y viernes-sabado). Los
+precios son de productos reales (productos_mx.py: Chedraui, Walmart, Sam's,
+3B, mercado y tortilleria) y la lista del super redondea a paquetes enteros.
+Resultado: los 7 dias, la lista del super por tienda y el costo.
 """
 from __future__ import annotations
 
+import copy
 import json
 import math
 import pathlib
@@ -25,8 +29,9 @@ import numpy as np
 
 import alimentos_mx as alx
 import nutricion
+import productos_mx as pmx
 from dataclasses import replace
-from recetas_mx import RECETAS, Receta
+from recetas_mx import POCO_COMUNES, RECETAS, Receta
 
 AQUI = pathlib.Path(__file__).resolve().parent
 MENU_LOCAL = AQUI / "menu_semana.json"       # copia para el dashboard (ignorada por git)
@@ -41,13 +46,33 @@ RUIDO = 4.0                  # $ virtuales de azar por receta (variedad entre se
 NUEVO_INGREDIENTE = 5.0      # $ virtuales por cada ingrediente que no esta ya en tu lista de la semana
 SAL_G_MG = 393               # mg de sodio en 1 g de sal (cloruro de sodio)
 POR_TIEMPO_DIA = 18          # recetas de cada tiempo que se combinan cada dia (de ~50; cambia el dia a dia)
+POR_COLACION_DIA = 24        # colaciones que entran cada dia (de ~70): la memoria de la VM no da para todas
+# La comida se cocina para 2 dias: dia (0 = lunes) en que se comen las sobras -> dia en que se cocino
+SOBRAS_DE = {1: 0, 3: 2, 5: 4}
+DIAS_COCINA = set(SOBRAS_DE.values())
+# Veces por semana como mucho (comidas): que no salga soya o sardina diario por baratas
+MAX_SEMANA = {"soya": 2, "habas": 1, "tofu": 2, "sardina": 2, "camaron": 2, "lentejas": 3, "garbanzo": 3,
+              "pollo_rostizado": 3}
+# Las 4 comidas que se cocinan en la semana, como en casa: pollo hasta 2 veces y
+# res, cerdo, pescado o una sin carne (frijol, lentejas, soya, huevo) una vez cada
+# una. Sin esto saldria pollo y soya diario por ser lo mas barato. Solo aplica si
+# comes carne (si la excluiste, no hay de donde variar).
+FAMILIA = {"pollo": "pollo", "pechuga": "pollo", "pollo_rostizado": "pollo", "res": "res", "res_magra": "res",
+           "cerdo": "cerdo", "atun": "pescado", "sardina": "pescado", "tilapia": "pescado", "camaron": "pescado"}
+MAX_FAMILIA = {"pollo": 2, "res": 1, "cerdo": 1, "pescado": 1, "sin_carne": 1}
+
+
+def familia(r: Receta) -> str:
+    return FAMILIA.get(_fuente(r), "sin_carne")
+N_ALTERNATIVAS = {"colacion": 20, "comida": 4}      # "Cambiar" en la app; desayuno y cena, 3
 
 # Grupos para las reglas de cada dieta
 CARNE_ROJA = {"res", "res_magra", "cerdo"}
 PESCADO = {"atun", "sardina", "tilapia", "camaron"}
-NUECES = {"nuez", "almendra", "cacahuate", "crema_cacahuate", "chia"}
+NUECES = {"nuez", "almendra", "cacahuate", "crema_cacahuate", "chia", "pepitas"}
 LACTEO_PORCION = {"leche": 250, "leche_light": 250, "yogur": 200, "yogur_griego": 200,
-                  "queso_fresco": 40, "panela": 40, "requeson": 60}     # g de una porcion
+                  "queso_fresco": 40, "panela": 40, "requeson": 60, "queso_oaxaca": 30,
+                  "cottage": 100}     # g de una porcion
 
 # Tipos de dieta (patrones de alimentacion con evidencia). Cada uno puede
 # CAMBIAR ingredientes (leche entera -> descremada...) y poner REGLAS diarias o
@@ -217,6 +242,11 @@ def _fuente(r: Receta) -> str:
     return max(r.ingredientes, key=lambda x: alx.ALIMENTOS[x[0]].prot * x[1])[0]
 
 
+def _fuente_servida(m: dict) -> str:
+    """Lo mismo, de una comida ya servida (con sus gramos)."""
+    return max(m["ingredientes"], key=lambda i: alx.ALIMENTOS[i["id"]].prot * i["g"])["id"]
+
+
 def _redondear(aid: str, g: float) -> float:
     a = alx.ALIMENTOS[aid]
     if a.unidad == "pieza" and a.g_unidad <= 60:        # huevo, tortilla: piezas enteras
@@ -334,6 +364,9 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
     no_recetas, _ = no_me_gusta()
     disp = [_con_dieta(r, dieta["cambios"], fuera) for r in RECETAS if r.id not in no_recetas]
     disp = [r for r in disp if not any(aid in fuera for aid, _ in r.ingredientes)]
+    if clave_dieta == "mexicana":            # comida de casa: sin tofu, pudin de chia ni hummus
+        disp = [r for r in disp if r.id not in POCO_COMUNES]
+    sobras = bool(cfg.get("menu_sobras", True))   # la comida se cocina para 2 dias
     grupos = {t: [r for r in disp if r.tiempo == t] for t in ("desayuno", "comida", "cena", "colacion")}
     for t in ("desayuno", "comida", "cena"):
         if not grupos[t]:
@@ -344,17 +377,23 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
     vf_min, vf_ideal = dieta["verdfruta"]
 
     usos: dict[str, int] = {}
+    uso_ing: dict[str, int] = {}         # comidas de la semana con soya, sardina... (MAX_SEMANA)
+    familias: dict[str, int] = {}        # comidas cocinadas con pollo, res, cerdo, pescado o sin carne
+    variar_carne = len({familia(r) for r in grupos["comida"]} - {"sin_carne"}) >= 3
     comprados: set[str] = set()          # lo que ya esta en la lista del super de esta semana
     semana = {"roja": 0, "pescado": 0}
     dias, avisos = [], []
+    hechos: list[dict] = []              # por dia: recetas elegidas y la comida servida (para las sobras)
     for i in range(7):
         K = float(por_dia[i + 1]["kcal"])
+        # sobras: la comida de hoy es la que se cocino ayer, con la misma porcion
+        de_ayer = hechos[SOBRAS_DE[i]] if sobras and i in SOBRAS_DE else None
 
-        def escoger(lista: list[Receta], tiempo: str) -> list[Receta]:
+        def escoger(lista: list[Receta], tiempo: str, cuantas: int = POR_TIEMPO_DIA) -> list[Receta]:
             """~18 de ~50: las 5 mas baratas por kcal, las mas llenadoras, las 4 que mejor cumplen la dieta
             (y las 4 con mas proteina o carbos si pediste enfasis) + el resto al azar."""
             libres = [r for r in lista if usos.get(r.id, 0) < TOPE_USOS[tiempo] + topes_extra] or list(lista)
-            if len(libres) <= POR_TIEMPO_DIA:
+            if len(libres) <= cuantas:
                 return libres
             fijas = sorted(libres, key=lambda r: vec[r.id][3] / max(vec[r.id][0], 1))[:5]
             # las 3 con mas kcal y las 2 con mas proteina: que siempre alcance para 3,500+ kcal
@@ -373,17 +412,31 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
                 fijas += [r for r in sorted(libres, key=lambda r: -vec[r.id][12] / max(vec[r.id][0], 1))
                           if r not in fijas][:3]
             resto = [r for r in libres if r not in fijas]
-            return fijas + rng.sample(resto, max(0, POR_TIEMPO_DIA - len(fijas)))
+            return fijas + rng.sample(resto, max(0, cuantas - len(fijas)))
 
-        D, C, N = escoger(grupos["desayuno"], "desayuno"), escoger(grupos["comida"], "comida"), escoger(grupos["cena"], "cena")
-        SN = [None] + grupos["colacion"]
+        if de_ayer:
+            C = [de_ayer["recetas"]["comida"]]
+        else:
+            comidas = grupos["comida"]
+            if sobras and i in DIAS_COCINA:      # hoy se cocina para 2 dias: solo lo que aguanta
+                comidas = [r for r in comidas if "olla" in r.tags] or comidas
+            if (variar_carne and clave_dieta == "mexicana" and i == max(DIAS_COCINA)
+                    and not (familias.get("res") or familias.get("cerdo"))):
+                # en la semana va al menos una comida de res o de cerdo (la ultima que se cocina)
+                comidas = [r for r in comidas if familia(r) in ("res", "cerdo")] or comidas
+            C = escoger(comidas, "comida")
+        D, N = escoger(grupos["desayuno"], "desayuno"), escoger(grupos["cena"], "cena")
+        SN = [None] + escoger(grupos["colacion"], "colacion", POR_COLACION_DIA)
         VD, VC, VN = (np.array([vec[r.id] for r in L]) for L in (D, C, N))
         VS = np.array([_vector(r, precios) if r is None else vec[r.id] for r in SN])
+        # la comida de sobras va con la porcion con que se cocino; lo demas, con la del dia
+        esc_c = np.full_like(esc, de_ayer["s_comida"]) if de_ayer else esc
 
         def suma(col: int) -> np.ndarray:
             """(D, C, N, S, SN) del indicador `col`: las 3 comidas escaladas + la colacion."""
-            base = VD[:, col][:, None, None] + VC[:, col][None, :, None] + VN[:, col][None, None, :]
-            return base[..., None, None] * esc[None, None, None, :, None] + VS[:, col][None, None, None, None, :]
+            base = (VD[:, col][:, None, None] + VN[:, col][None, None, :])[..., None, None] * esc[None, None, None, :, None]
+            return (base + VC[:, col][None, :, None, None, None] * esc_c[None, None, None, :, None]
+                    + VS[:, col][None, None, None, None, :])
 
         kcal, prot, carb, costo = suma(0), suma(1), suma(2), suma(3)
         fibra, grasa = suma(12), suma(13)
@@ -391,7 +444,7 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
         prot_ok = np.ones(1, bool)
         if P_comida:
             prot_ok = ((VD[:, 1][:, None, None, None, None] * esc[None, None, None, :, None] >= P_comida * 0.97)
-                       & (VC[:, 1][None, :, None, None, None] * esc[None, None, None, :, None] >= P_comida * 0.97)
+                       & (VC[:, 1][None, :, None, None, None] * esc_c[None, None, None, :, None] >= P_comida * 0.97)
                        & (VN[:, 1][None, None, :, None, None] * esc[None, None, None, :, None] >= P_comida * 0.97))
         if P_colacion:
             prot_ok = prot_ok & (VS[:, 1][None, None, None, None, :] >= P_colacion * 0.97)
@@ -399,10 +452,14 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
 
         def pen(lista):
             v = np.array([usos.get(r.id, 0) * PENALIZA_REPETIR * variedad if r else 0.0 for r in lista])
-            tope = np.array([usos.get(r.id, 0) >= TOPE_USOS[r.tiempo] + topes_extra if r else False for r in lista])
+            tope = np.array([(usos.get(r.id, 0) >= TOPE_USOS[r.tiempo] + topes_extra
+                              or any(uso_ing.get(a, 0) >= MAX_SEMANA[a] for a, _ in r.ingredientes if a in MAX_SEMANA)
+                              or (r.tiempo == "comida" and variar_carne
+                                  and familias.get(familia(r), 0) >= MAX_FAMILIA[familia(r)]))
+                             if r else False for r in lista])
             return v, tope
         vd, td = pen(D)
-        vc, tc = pen(C)
+        vc, tc = pen(C) if not de_ayer else (np.zeros(1), np.zeros(1, bool))   # las sobras se repiten a proposito
         vn, tn = pen(N)
         vs, ts = pen(SN)
         castigo = (vd[:, None, None, None, None] + vc[None, :, None, None, None]
@@ -426,6 +483,8 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
             suave = suave - VS[:, 11][None, None, None, None, :] * 1.0          # nueces de colacion
         # un poco de azar por receta: dos menus igual de baratos no salen siempre igual
         rd, rc, rn = (np.array([rng.uniform(0, RUIDO * variedad) for _ in L]) for L in (D, C, N))
+        if de_ayer:
+            rc = np.zeros(1)
         ruido = ((rd[:, None, None, None, None] + rc[None, :, None, None, None] + rn[None, None, :, None, None])
                  * esc[None, None, None, :, None])          # crece con la porcion, como el costo
         desvio = np.abs(kcal - K)
@@ -439,7 +498,10 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
         mucho_huevo = huevos > MAX_HUEVO_DIA + 1
         fuente_c = np.array([_fuente(r) for r in C])
         fuente_n = np.array([_fuente(r) for r in N])
-        misma_fuente = (fuente_c[:, None] == fuente_n[None, :])[None, :, :, None, None]
+        fuente_s = np.array([_fuente(r) if r else "" for r in SN])
+        # comida y cena no repiten proteina; la colacion tampoco la de la cena (burrito y burritos el mismo dia)
+        misma_fuente = ((fuente_c[:, None] == fuente_n[None, :])[None, :, :, None, None]
+                        | (fuente_n[:, None] == fuente_s[None, :])[None, None, :, None, :])
 
         def est_ok(kc, fib, gra, vf):
             """La estrategia completa (solo en las etapas con la dieta completa)."""
@@ -500,7 +562,8 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
             for plano in planos:
                 d_i, c_i, n_i, s_i, sn_i = (int(x) for x in np.unravel_index(plano, obj.shape))
                 s = ESCALAS[s_i]
-                cand = [_servir(D[d_i], s, precios), _servir(C[c_i], s, precios), _servir(N[n_i], s, precios)]
+                s_c = de_ayer["s_comida"] if de_ayer else s
+                cand = [_servir(D[d_i], s, precios), _servir(C[c_i], s_c, precios), _servir(N[n_i], s, precios)]
                 if SN[sn_i]:
                     cand.insert(2, _servir(SN[sn_i], 1.0, precios))
                 tot = {k_: sum(c[k_] for c in cand)
@@ -540,22 +603,49 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
         recetas_dia = {"desayuno": D[d_i], "comida": C[c_i], "cena": N[n_i], "colacion": SN[sn_i]}
         huevo_dia = sum(x["g"] for c in elegidas for x in c["ingredientes"] if x["id"] == "huevo")
         sodio_dia = sum(c["sodio"] for c in elegidas)
+        fecha = semana_inicio + timedelta(days=i)
         for c in elegidas:
+            if c["tiempo"] == "comida" and de_ayer:
+                # las sobras: misma comida y mismas opciones que el dia en que se cocino (la app las
+                # cambia juntas), pero solo las que tambien caben hoy (sodio, huevo, proteina de la cena)
+                libre = (dieta["sodio_alimentos"] - (sodio_dia - c["sodio"])) if dieta["sodio_alimentos"] else None
+                h0 = sum(x["g"] for x in c["ingredientes"] if x["id"] == "huevo")
+                cena_fuente = _fuente(recetas_dia["cena"])
+                comunes = [a for a in de_ayer["comida"].get("alternativas", [])
+                           if (libre is None or a["sodio"] <= libre)
+                           and sum(x["g"] for x in a["ingredientes"] if x["id"] == "huevo") - h0 <= MAX_HUEVO_DIA - huevo_dia
+                           and _fuente_servida(a) != cena_fuente]
+                de_ayer["comida"]["alternativas"] = comunes
+                c["alternativas"] = copy.deepcopy(comunes)
+                c["sobras"] = {"de": de_ayer["fecha"], "dia": NOMBRES_DIA[SOBRAS_DE[i]]}
+                continue
             otra = recetas_dia["cena" if c["tiempo"] == "comida" else "comida"] if c["tiempo"] in ("comida", "cena") else None
             sodio_libre = (dieta["sodio_alimentos"] - (sodio_dia - c["sodio"])) if dieta["sodio_alimentos"] else None
-            minimo = P_colacion if c["tiempo"] == "colacion" else P_comida
-            c["alternativas"] = _alternativas(c, grupos[c["tiempo"]], 1.0 if c["tiempo"] == "colacion" else s_dia,
+            minimo = (P_colacion if c["tiempo"] == "colacion" else P_comida) * 0.97   # la misma tolerancia del menu
+            opciones = grupos[c["tiempo"]]
+            if c["tiempo"] == "comida" and sobras and i in DIAS_COCINA:
+                opciones = [r for r in opciones if "olla" in r.tags] or opciones
+                c["rinde"] = 2                   # se cocina para hoy y manana
+            c["alternativas"] = _alternativas(c, opciones, 1.0 if c["tiempo"] == "colacion" else s_dia,
                                               precios, _fuente(otra) if otra else None,
-                                              MAX_HUEVO_DIA - huevo_dia, sodio_libre=sodio_libre,
+                                              MAX_HUEVO_DIA - huevo_dia, n=N_ALTERNATIVAS.get(c["tiempo"], 3),
+                                              sodio_libre=sodio_libre,
                                               sin_roja=dieta["roja_max"] is not None and semana["roja"] >= dieta["roja_max"],
-                                              prot_min=minimo if c["prot"] >= minimo else 0.0)
-        for r in recetas_dia.values():
+                                              prot_min=minimo + 0.5 if c["prot"] >= minimo else 0.0)
+        for t, r in recetas_dia.items():
             if r:
-                usos[r.id] = usos.get(r.id, 0) + 1
+                if not (t == "comida" and de_ayer):
+                    usos[r.id] = usos.get(r.id, 0) + 1
+                    if t == "comida":
+                        familias[familia(r)] = familias.get(familia(r), 0) + 1
                 comprados.update(a for a, _ in r.ingredientes)
+                for a in {a for a, _ in r.ingredientes} & set(MAX_SEMANA):
+                    uso_ing[a] = uso_ing.get(a, 0) + 1
+        hechos.append({"recetas": recetas_dia, "fecha": fecha.isoformat(),
+                       "s_comida": de_ayer["s_comida"] if de_ayer else s_dia,
+                       "comida": next(c for c in elegidas if c["tiempo"] == "comida")})
         semana["roja"] += int(vec[C[c_i].id][9] + vec[N[n_i].id][9])
         semana["pescado"] += int(vec[C[c_i].id][10] + vec[N[n_i].id][10])
-        fecha = semana_inicio + timedelta(days=i)
         tot = {k_: sum(c[k_] for c in elegidas)
                for k_ in ("kcal", "prot", "carb", "grasa", "fibra", "hierro", "calcio", "sodio", "sat", "verdfruta",
                           "lacteos", "costo")}
@@ -574,7 +664,8 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
                                if dieta["sodio_max"] else None)})
 
     hogar = factor_hogar(cfg)
-    lista = lista_super(dias, precios, hogar)
+    lista = lista_super(dias, precios, hogar, tiendas_de(cfg))
+    ref = alx.precio_referencia()
     costo_sem = round(sum(d["costo"] for d in dias), 2)
     usados = {ing["id"] for d in dias for c in d["comidas"]
               for x in [c, *c.get("alternativas", [])] for ing in x["ingredientes"]}
@@ -590,6 +681,11 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
                   + cumplimiento_estrategia(dias, est, P_comida, P_colacion)},
         "dias": dias,
         "lista": lista,
+        "costo_caja": round(sum(f["costo"] for f in lista), 2),     # lo que pagas en la tienda (paquetes enteros)
+        "despensa": round(sum(f.get("queda", 0) for f in lista), 2),  # de eso, lo que rinde para otras semanas
+        "tiendas": [{"id": t, "nombre": n} for t, n in pmx.TIENDAS.items()],
+        "tiendas_usadas": sorted(tiendas_de(cfg) or pmx.TIENDAS, key=pmx.ORDEN_TIENDAS.index),
+        "sobras": sobras,
         "costo_semana": costo_sem,
         "costo_dia": round(costo_sem / 7, 2),
         "kcal_prom": round(sum(d["kcal"] for d in dias) / 7),
@@ -603,9 +699,10 @@ def _generar(cfg: dict, semana_inicio: date, semilla: int | None = None, precios
                   "factor": hogar},
         "nutrientes": nutrientes_semana(dias, K_sem, fuera),
         # lo que la app necesita para rehacer la lista y la cocina si cambias comidas
-        "alimentos": {aid: _ficha(alx.ALIMENTOS[aid], precios[aid]) for aid in sorted(usados)},
-        "nota": "Cantidades en crudo (frijol, lentejas, arroz y avena en seco). Precios de referencia: "
-                "Profeco 2026 donde hay dato; el resto estimado. Corrígelos con lo que pagas.",
+        "alimentos": {aid: _ficha(alx.ALIMENTOS[aid], precios[aid], ref[aid]) for aid in sorted(usados)},
+        "nota": "Cantidades en crudo (frijol, lentejas, arroz y avena en seco). Precios de productos reales de "
+                "Chedraui, Walmart y Sam's (2-nov-2026), del folleto de 3B y del mercado (estimado con la Central "
+                "de Abasto); cambian por ciudad. Corrígelos con lo que pagas.",
     }
 
 
@@ -675,11 +772,12 @@ def _alternativas(elegida: dict, opciones: list[Receta], escala: float, precios:
                   fuente_prohibida: str | None, huevo_libre: float, n: int = 3,
                   sodio_libre: float | None = None, sin_roja: bool = False, prot_min: float = 0.0) -> list[dict]:
     """Hasta `n` recetas del mismo tiempo, parecidas a la elegida: kcal a +/-12 %
-    (colaciones +/-40 %), al menos 85 % de su proteina, sin repetir la proteina
-    de la otra comida fuerte ni pasarse de huevo. Las mas baratas primero."""
+    (colaciones +/-50 %: son muchas y chicas), al menos 85 % de su proteina, sin
+    repetir la proteina de la otra comida fuerte ni pasarse de huevo. Las mas
+    baratas primero."""
     k0, p0 = elegida["kcal"], elegida["prot"]
     huevo0 = sum(i["g"] for i in elegida["ingredientes"] if i["id"] == "huevo")
-    tol = 0.40 if elegida["tiempo"] == "colacion" else 0.12
+    tol = 0.50 if elegida["tiempo"] == "colacion" else 0.12
     min_prot = 0.5 if elegida["tiempo"] == "colacion" else 0.85      # una colacion es fruta o algo ligero
     escalas = (1.0,) if elegida["tiempo"] == "colacion" else ESCALAS
     salida = []
@@ -698,20 +796,35 @@ def _alternativas(elegida: dict, opciones: list[Receta], escala: float, precios:
                 if mejor is None or abs(m["kcal"] - k0) < abs(mejor["kcal"] - k0):
                     mejor = m
         if mejor:
-            salida.append(mejor)
-    salida.sort(key=lambda m: m["costo"])
-    return salida[:n]
+            salida.append((familia(r), mejor))
+    salida.sort(key=lambda x: x[1]["costo"])
+    if elegida["tiempo"] == "comida":
+        # para "Cambiar" en una comida: primero una de cada carne distinta (pollo -> res, cerdo, pescado),
+        # luego las demas, siempre de la mas barata a la mas cara
+        fam0 = FAMILIA.get(max(elegida["ingredientes"], key=lambda i: alx.ALIMENTOS[i["id"]].prot * i["g"])["id"],
+                           "sin_carne")
+        vistas, primero, resto = {fam0}, [], []
+        for fam, m in salida:
+            (primero if fam not in vistas else resto).append(m)
+            vistas.add(fam)
+        return (primero + resto)[:n]
+    return [m for _, m in salida][:n]
 
 
-def _ficha(a: "alx.Alimento", precio: float) -> dict:
+def _ficha(a: "alx.Alimento", precio: float, ref: float | None = None) -> dict:
+    """Lo que la app necesita para rehacer la lista: precio, productos reales por tienda y cuanto dura."""
     return {"nombre": a.nombre, "precio_kg": round(precio, 2), "compra": a.compra, "g_compra": a.g_compra,
-            "piezas": list(a.piezas), "seco_por_taza": a.seco_por_taza, "grupo": a.grupo}
+            "piezas": list(a.piezas), "seco_por_taza": a.seco_por_taza, "grupo": a.grupo,
+            "unidad": a.unidad, "g_unidad": a.g_unidad,
+            "propio": ref is not None and abs(precio - ref) > 0.005,      # corregiste el precio en el dashboard
+            "dura": pmx.dura(a.id), "productos": pmx.ficha(a.id)}
 
 
-# lo que conviene cocinar por adelantado; lo cocido dura 3-4 dias en el refri
-# (USDA, "Leftovers and Food Safety"), por eso se cocina dos veces por semana
-PARA_COCINAR = {"frijol": "en olla", "lentejas": "en olla", "arroz": "", "pollo": "cocer y deshebrar",
-                "pechuga": "cocer y deshebrar"}
+# Lo que se cocina en olla grande dos veces por semana (las leguminosas tardan
+# horas); lo cocido dura 3-4 dias en el refri (USDA, "Leftovers and Food Safety").
+# Las comidas de cada dia se cocinan para 2 dias (ver SOBRAS_DE).
+PARA_COCINAR = {"frijol": "en olla (2 h, o 40 min en olla exprés)", "lentejas": "en olla (30-40 min)",
+                "garbanzo": "remojo la noche anterior y olla (1½ h)", "habas": "en olla (1 h)"}
 TANDAS = (("Domingo", "para lunes a miércoles", (1, 2, 3)), ("Miércoles en la noche", "para jueves a domingo", (4, 5, 6, 7)))
 
 
@@ -744,7 +857,21 @@ def nutrientes_semana(dias: list[dict], kcal: float, fuera: set[str] | None = No
 
 
 def cocina_por_adelantado(dias: list[dict], factor: float = 1.0) -> list[dict]:
+    """Que cocinar y cuando: la comida de cada dia de cocina (para 2 dias) y las ollas de frijol."""
     salida = []
+    for d in dias:
+        c = next((x for x in d["comidas"] if x["tiempo"] == "comida"), None)
+        if not c or c.get("rinde", 1) < 2:
+            continue
+        otro = next((dd for dd in dias for x in dd["comidas"]
+                     if x["tiempo"] == "comida" and (x.get("sobras") or {}).get("de") == d["fecha"]), None)
+        veces = 2 if otro else 1
+        tareas = [{"id": c["receta"], "g": round(sum(i["g"] for i in c["ingredientes"]) * veces * factor),
+                   "texto": f"{c['nombre']} × {veces} porciones: "
+                   + ", ".join(alx.cantidad_legible(alx.ALIMENTOS[i["id"]], i["g"] * veces * factor)
+                               for i in c["ingredientes"])}]
+        salida.append({"cuando": d["nombre"], "para": f"comida de hoy y de mañana ({otro['nombre'].lower()})"
+                       if otro else "comida de hoy", "tareas": tareas})
     for cuando, para, nums in TANDAS:
         total: dict[str, float] = {}
         for d in dias:
@@ -765,23 +892,87 @@ def cocina_por_adelantado(dias: list[dict], factor: float = 1.0) -> list[dict]:
     return salida
 
 
-def lista_super(dias: list[dict], precios: dict[str, float] | None = None, factor: float = 1.0) -> list[dict]:
-    """Lo de los 7 dias, para todo el hogar (factor = adultos + 0.6 x ninos)."""
+ORDEN_GRUPO = {"origen_animal": 0, "leguminosas": 1, "cereales": 2, "verduras_frutas": 3, "grasas": 4}
+
+
+def _peso(g: float) -> str:
+    """750 g · 1.25 kg · 2 kg"""
+    if g < 1000:
+        return f"{g:.0f} g"
+    return f"{g / 1000:.2f}".rstrip("0").rstrip(".") + " kg"
+
+
+def texto_compra(a: "alx.Alimento", op: dict, g_comer: float) -> str:
+    """Que pedir: '2 × Frijol negro Chedraui 900 g', '1.25 kg (≈ 7 plátanos)', '3 piezas'."""
+    p = op["producto"]
+    if p.granel:
+        txt = _peso(op["g_compra"])
+        if a.piezas[0] and a.g_unidad > 1:
+            n = max(1, round(g_comer / a.g_unidad))
+            txt += f" (≈ {n} {a.piezas[0] if n == 1 else a.piezas[1]})"
+        return txt
+    if "(pieza" in p.nombre:
+        return f"{op['n']} pieza{'s' if op['n'] != 1 else ''}"
+    return f"{op['n']} × {p.nombre}" if op["n"] > 1 else p.nombre
+
+
+def texto_sobra(a: "alx.Alimento", op: dict, g_comer: float) -> str:
+    """'te sobran ≈ 10 huevos (rinden para otra semana)' o '' si casi no sobra."""
+    sobra = op["sobra"]
+    if sobra < max(40.0, 0.12 * g_comer):
+        return ""
+    cuanto = alx.cantidad_legible(a, sobra) if a.unidad in ("pieza", "lata") and a.g_unidad > 1 else _peso(sobra)
+    if pmx.dura(a.id) >= 4 or op["merma"] <= sobra * 0.25:       # despensa, o fresco que alcanzas a usar
+        return f"te sobran ≈ {cuanto} para otras semanas"
+    return f"sobran ≈ {cuanto}: úsalo pronto o congélalo"
+
+
+def fila_lista(aid: str, g: float, precios: dict[str, float], ref: dict[str, float],
+               tiendas: set[str] | None = None) -> dict:
+    """Una fila de la lista: el producto real mas conveniente de tus tiendas, lo que pagas y
+    lo que te sobra, mas las otras tiendas para comparar."""
+    a = alx.ALIMENTOS[aid]
+    fila = {"id": aid, "nombre": a.nombre, "g": round(g), "grupo": a.grupo}
+    propio = abs(precios[aid] - ref[aid]) > 0.005
+    ops = [] if propio else pmx.elegir(aid, g, g, tiendas)
+    if not ops:                       # tu precio, o ningun producto en tus tiendas: por kilo
+        return {**fila, "tienda": "otra", "producto": "", "compra": alx.compra_legible(a, g),
+                "costo": round(precios[aid] * g / 1000, 2), "sobra": "", "queda": 0.0,
+                "fuente": "tu precio" if propio else alx.fuente_de(aid), "otras": [], "sin_precio": []}
+    o = ops[0]
+    p = o["producto"]
+    otras, vistas = [], {p.tienda}
+    for x in ops[1:]:
+        if x["producto"].tienda not in vistas:
+            vistas.add(x["producto"].tienda)
+            otras.append({"tienda": x["producto"].tienda, "producto": x["producto"].nombre, "costo": round(x["pagas"], 2)})
+    sin_precio = [q.nombre for q in pmx.PRODUCTOS.get(aid, []) if not q.precio and (tiendas is None or q.tienda in tiendas)]
+    return {**fila, "tienda": p.tienda, "producto": p.nombre, "compra": texto_compra(a, o, g),
+            "costo": round(o["pagas"], 2), "sobra": texto_sobra(a, o, g), "queda": round(o["queda"], 2),
+            "fuente": p.fuente, "otras": otras[:2], "sin_precio": sin_precio}
+
+
+def lista_super(dias: list[dict], precios: dict[str, float] | None = None, factor: float = 1.0,
+                tiendas: set[str] | None = None) -> list[dict]:
+    """Lo de los 7 dias, para todo el hogar (factor = adultos + 0.6 x ninos), en productos
+    reales: paquetes enteros, por tienda (las que usas; None = todas)."""
     precios = precios or alx.precios()
+    ref = alx.precio_referencia()
     total: dict[str, float] = {}
     for d in dias:
         for c in d["comidas"]:
             for ing in c["ingredientes"]:
                 total[ing["id"]] = total.get(ing["id"], 0) + ing["g"] * factor
-    orden = {"leguminosas": 0, "origen_animal": 1, "cereales": 2, "verduras_frutas": 3, "grasas": 4}
-    filas = []
-    for aid, g in total.items():
-        a = alx.ALIMENTOS[aid]
-        filas.append({"id": aid, "nombre": a.nombre, "g": round(g), "compra": alx.compra_legible(a, g),
-                      "costo": round(precios[aid] * g / 1000, 2), "grupo": a.grupo,
-                      "fuente": "tu precio" if precios[aid] != a.precio_kg else a.fuente})
-    filas.sort(key=lambda f: (orden.get(f["grupo"], 9), -f["costo"]))
+    filas = [fila_lista(aid, g, precios, ref, tiendas) for aid, g in total.items()]
+    orden_t = {t: i for i, t in enumerate(pmx.ORDEN_TIENDAS)}
+    filas.sort(key=lambda f: (orden_t.get(f["tienda"], 9), ORDEN_GRUPO.get(f["grupo"], 9), -f["costo"]))
     return filas
+
+
+def tiendas_de(cfg: dict) -> set[str] | None:
+    """Las tiendas donde compras (dashboard); None = todas."""
+    t = {x for x in (cfg.get("menu_tiendas") or []) if x in pmx.TIENDAS}
+    return t or None
 
 
 # ── guardar / subir ──────────────────────────────────────────────────────────

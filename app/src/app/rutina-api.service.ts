@@ -119,6 +119,35 @@ export interface MenuComida {
   grasa?: number;
   costo: number;
   alternativas?: MenuComida[];     // para "Cambiar" (parecidas en kcal y proteina)
+  /** Dia de cocina: se cocina para hoy y manana (porciones). */
+  rinde?: number;
+  /** Sobras: es la comida que se cocino ese dia (la app la cambia junto con ese dia). */
+  sobras?: { de: string; dia: string };
+}
+/** Un producto real (python-engine/productos_mx.py): tienda, nombre, contenido, precio. */
+export interface ProductoMenu {
+  t: string;            // tienda: mercado | tortilleria | 3b | walmart | chedraui | sams
+  n: string;
+  g: number;            // contenido como se compra (a granel: 1000, precio por kg)
+  p: number | null;     // sin precio en linea: null (3B)
+  gr: boolean;          // a granel, en pasos de "paso" g
+  paso: number;
+  r: number;            // parte que se come
+}
+/** Fila de la lista del super (paquetes enteros de la tienda mas conveniente). */
+export interface FilaListaMenu {
+  id: string;
+  nombre: string;
+  compra: string;
+  costo: number;
+  fuente: string;
+  g?: number;
+  tienda?: string;
+  producto?: string;
+  sobra?: string;
+  queda?: number;
+  otras?: Array<{ tienda: string; producto: string; costo: number }>;
+  sin_precio?: string[];
 }
 export interface MenuDia {
   dia: number;
@@ -139,7 +168,14 @@ export interface MenuSemana {
   semana_inicio: string;
   meta: { kcal: number; proteina_min: number; proteina_max: number };
   dias: MenuDia[];
-  lista: Array<{ id: string; nombre: string; compra: string; costo: number; fuente: string }>;
+  lista: FilaListaMenu[];
+  /** Lo que pagas en la tienda (paquetes enteros) y, de eso, lo que rinde para otras semanas. */
+  costo_caja?: number;
+  despensa?: number;
+  tiendas?: Array<{ id: string; nombre: string }>;
+  tiendas_usadas?: string[];
+  /** La comida se cocina para 2 dias. */
+  sobras?: boolean;
   costo_semana: number;
   costo_dia: number;
   kcal_prom: number;
@@ -148,7 +184,9 @@ export interface MenuSemana {
   nota: string;
   cocina?: Array<{ cuando: string; para: string; tareas: Array<{ id: string; texto: string }> }>;
   alimentos?: Record<string, { nombre: string; precio_kg: number; compra: string; g_compra: number;
-                               piezas: string[]; seco_por_taza: number; grupo: string }>;
+                               piezas: string[]; seco_por_taza: number; grupo: string;
+                               unidad?: string; g_unidad?: number; propio?: boolean; dura?: number;
+                               productos?: ProductoMenu[] }>;
   hogar?: { adultos: number; ninos: number; factor: number };
   presupuesto?: { tope: number; costo: number; cabe: boolean; menos_variedad: boolean };
   nutrientes?: { fibra: number; hierro: number; calcio: number; fibra_min: number; fibra_rec: number;

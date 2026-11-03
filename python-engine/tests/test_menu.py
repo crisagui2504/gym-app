@@ -213,6 +213,78 @@ check("sin cambios no se manda nada", _s.envios == [])
 mnu._api = _api_real
 mnu.NO_ME_GUSTA_LOCAL.unlink()
 
+print("\n== Productos reales y lista por tienda ==")
+import productos_mx as pmx  # noqa: E402
+check("cada alimento tiene productos con precio (menos la proteina en polvo)",
+      all(pmx.con_precio(a) for a in alx.ALIMENTOS if a != "proteina_polvo"),
+      str([a for a in alx.ALIMENTOS if a != "proteina_polvo" and not pmx.con_precio(a)]))
+check("productos bien formados: tienda conocida, contenido y rendimiento validos",
+      all(p.tienda in pmx.TIENDAS and p.g > 0 and 0 < p.rinde <= 1 and (p.precio is None or p.precio > 0)
+          and (not p.granel or p.paso > 0) for ps in pmx.PRODUCTOS.values() for p in ps))
+check("el precio de referencia sale del producto mas barato por kg de lo que se come",
+      alx.precio_referencia()["frijol"] == round(min(pmx.precio_kg(p) for p in pmx.con_precio("frijol")), 2))
+h = pmx.elegir("huevo", 20 * 50, 20 * 50)[0]
+check("huevo para 20 a la semana: la caja de 30, no la de 90 (se echaria a perder)",
+      h["producto"].g == 1500 and h["n"] == 1, h["producto"].nombre)
+f = pmx.elegir("frijol", 1000, 1000)[0]
+check("frijol (dura meses): la bolsa grande que sale mas barata por kg", f["producto"].g >= 2200, f["producto"].nombre)
+g = pmx.compra(pmx.PRODUCTOS["jitomate"][0], 600, 600, "jitomate")
+check("a granel se pide en pasos de 250 g (y cuenta lo que no se come)",
+      g["g_compra"] % 250 == 0 and g["g_compra"] * 0.95 >= 600, str(g["g_compra"]))
+lista = m0["lista"]
+check("cada fila de la lista dice tienda, que comprar y cuanto pagas",
+      all(x["tienda"] in pmx.TIENDAS and x["compra"] and x["costo"] > 0 for x in lista))
+check("lo que pagas (paquetes enteros) es al menos lo que comes, y se dice cuanto queda en despensa",
+      m0["costo_caja"] >= m0["costo_semana"] * 0.9 and 0 <= m0["despensa"] <= m0["costo_caja"],
+      f"{m0['costo_caja']} vs {m0['costo_semana']}")
+solo = mnu.lista_super(m0["dias"], None, 1.0, {"walmart"})
+check("si solo compras en Walmart, la lista no manda a otra tienda",
+      all(x["tienda"] in ("walmart", "otra") for x in solo))
+check("la lista va ordenada por tienda (mercado, tortilleria, 3B, Walmart, Chedraui, Sam's)",
+      [pmx.ORDEN_TIENDAS.index(x["tienda"]) for x in lista if x["tienda"] in pmx.TIENDAS]
+      == sorted(pmx.ORDEN_TIENDAS.index(x["tienda"]) for x in lista if x["tienda"] in pmx.TIENDAS))
+check("la app recibe los productos de cada alimento para rehacer la lista",
+      all(m0["alimentos"][x["id"]]["productos"] for x in lista if x["id"] != "proteina_polvo"))
+
+print("\n== La comida se cocina para 2 dias (sobras) ==")
+d = m0["dias"]
+com = lambda i: next(c for c in d[i]["comidas"] if c["tiempo"] == "comida")  # noqa: E731
+check("martes, jueves y sabado comen lo que se cocino lunes, miercoles y viernes (misma porcion)",
+      all(com(i)["receta"] == com(i - 1)["receta"] and [x["g"] for x in com(i)["ingredientes"]]
+          == [x["g"] for x in com(i - 1)["ingredientes"]] and com(i)["sobras"]["de"] == d[i - 1]["fecha"]
+          for i in (1, 3, 5)))
+check("los dias de cocina dicen que rinde para 2 y solo usan comidas que aguantan",
+      all(com(i).get("rinde") == 2 and "olla" in rcx.POR_ID[com(i)["receta"]].tags for i in (0, 2, 4)))
+check("Cambiar en las sobras ofrece lo mismo que el dia en que se cocino",
+      all([a["receta"] for a in com(i)["alternativas"]] == [a["receta"] for a in com(i - 1)["alternativas"]]
+          for i in (1, 3, 5)))
+check("la cocina dice que hacer cada dia de cocina (x 2 porciones)",
+      sum(1 for t in m0["cocina"] if any("× 2 porciones" in x["texto"] for x in t["tareas"])) == 3,
+      str([t["cuando"] for t in m0["cocina"]]))
+sin_sobras = mnu.generar_menu({**BASE, "menu_sobras": False}, LUN)
+check("sin sobras (menu_sobras: false) cada dia trae su comida", not any(c.get("sobras") for x in sin_sobras["dias"]
+                                                                          for c in x["comidas"]))
+fams = [mnu.familia(rcx.POR_ID[com(i)["receta"]]) for i in (0, 2, 4, 6)]
+check("las comidas de la semana varian la carne: pollo 2 veces como mucho y al menos una de res o cerdo",
+      fams.count("pollo") <= 2 and {"res", "cerdo"} & set(fams), str(fams))
+check("Cambiar en la comida ofrece otras carnes (no 3 de pollo)",
+      len({mnu.familia(rcx.POR_ID[a["receta"]]) for a in com(0)["alternativas"]}) >= 3)
+check("comida de casa: el menu mexicano no pone tofu, pudin de chia ni hummus",
+      not {c["receta"] for x in d for c in x["comidas"] for c in [c, *c.get("alternativas", [])]} & rcx.POCO_COMUNES)
+
+print("\n== Colaciones: muchas y sencillas ==")
+cols = [r for r in rcx.RECETAS if r.tiempo == "colacion"]
+check("70+ colaciones, 30+ con proteina (17 g o mas)", len(cols) >= 70
+      and sum(sum(alx.ALIMENTOS[a].prot * g / 100 for a, g in r.ingredientes) >= 17 for r in cols) >= 30, str(len(cols)))
+check("cada dia la colacion trae 10+ opciones para cambiar, todas con tu proteina",
+      all(len(c["alternativas"]) >= 10 and all(a["prot"] >= min(0.24 * 73, 20) * 0.97 - 0.01 for a in c["alternativas"])
+          for x in d for c in x["comidas"] if c["tiempo"] == "colacion"),
+      str([len(c["alternativas"]) for x in d for c in x["comidas"] if c["tiempo"] == "colacion"]))
+check("sin la 4.a toma (definicion) tambien hay colaciones ligeras: fruta, jicama, palomitas",
+      any(alx.ALIMENTOS[i["id"]].grupo == "verduras_frutas" or i["id"] == "palomitas"
+          for x in sac["dias"] for c in x["comidas"] if c["tiempo"] == "colacion"
+          for a in [c, *c["alternativas"]] for i in a["ingredientes"]))
+
 print("\n== Barrido: 4 enfoques x 3 pesos x 3 dietas x 3 enfasis ==")
 errores, sin_aviso = [], []
 for enf in ("recomposicion", "volumen", "fuerza", "definicion"):

@@ -47,6 +47,8 @@ DEFAULT_CONFIG: dict = {
     "menu_sodio_max": 2300,     # solo DASH: 2300 o 1500 mg
     "menu_enfasis": "equilibrado",  # equilibrado | proteina | carbohidratos
     "menu_estrategia": "auto",  # auto (segun tu enfoque) | musculo | saciedad | ninguna
+    "menu_sobras": True,        # la comida se cocina para 2 dias (lo que sobra es la comida de manana)
+    "menu_tiendas": [],         # donde compras (productos_mx.TIENDAS); [] = todas
 }
 
 

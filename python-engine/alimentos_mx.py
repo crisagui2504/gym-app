@@ -5,14 +5,11 @@ leguminosas, el arroz, la avena y la pasta en SECO). Valores aproximados de
 USDA FoodData Central y tablas mexicanas (SMAE / INCMNSZ): sirven para
 planear, no para una dieta clinica.
 
-Precios en pesos por kg (o por litro) de la parte que se come:
-  - "Profeco": promedios nacionales publicados por Profeco en 2026
-    (huevo, pollo y frijol: mayo; canasta PACIC: septiembre).
-  - "estimado": referencia de octubre de 2026 SIN fuente oficial. Varian
-    mucho por ciudad y tienda: corrigelos con lo que pagas (pestana Menu del
-    dashboard -> precios_alimentos.json).
-El pollo entero de Profeco ($38.9/kg) se convierte a carne aprovechable con
-un rendimiento de ~65 % (hueso y piel): ~$60 por kg de carne.
+Precios en pesos por kg (o por litro) de la parte que se come: salen de los
+productos REALES de productos_mx.py (Chedraui, Walmart, Sam's, 3B, mercado y
+tortilleria; el mas barato por kg de lo que se come). El `precio_kg` de aqui
+solo se usa si un alimento no tiene productos con precio (proteina en polvo).
+Corrige los tuyos en la pestana Menu del dashboard (precios_alimentos.json).
 """
 from __future__ import annotations
 
@@ -162,23 +159,88 @@ ALIMENTOS: dict[str, Alimento] = {a.id: a for a in [
              fibra=34.0, hierro=7.7, calcio=631, sat=3.3, sodio=16),
     Alimento("aceite_oliva", "Aceite de oliva", 884, 0, 0, 100, 217, _EST, "grasas", "g", 1, "L", 920,
              sat=14.0, sodio=2),
+    # ── comida de diario de casa y colaciones sencillas (precios: productos_mx.py) ──
+    Alimento("pollo_rostizado", "Pollo rostizado (carne)", 190, 25.0, 0, 9.5, 150, _EST, "origen_animal",
+             hierro=1.1, calcio=13, sat=2.7, sodio=330),
+    Alimento("jamon", "Jamón de pavo", 110, 16.0, 3.0, 3.5, 155, _EST, "origen_animal", "pieza", 20,
+             piezas=("rebanada de jamón", "rebanadas de jamón"), hierro=1.0, calcio=10, sat=1.0, sodio=950),
+    Alimento("queso_oaxaca", "Queso Oaxaca", 300, 22.0, 2.2, 22.4, 172, _EST, "origen_animal",
+             hierro=0.4, calcio=505, sat=13.2, sodio=620),
+    Alimento("cottage", "Queso cottage", 85, 11.0, 4.0, 2.3, 155, _EST, "origen_animal",
+             hierro=0.1, calcio=85, sat=1.4, sodio=320),
+    Alimento("tortilla_harina", "Tortilla de harina", 306, 8.2, 50.7, 8.0, 43, _EST, "cereales", "pieza", 26,
+             piezas=("tortilla de harina", "tortillas de harina"), fibra=3.5, hierro=3.3, calcio=120, sat=3.0,
+             sodio=600),
+    Alimento("bolillo", "Bolillo", 270, 9.0, 53.0, 2.5, 40, _EST, "cereales", "pieza", 65,
+             piezas=("bolillo", "bolillos"), fibra=2.5, hierro=3.0, calcio=40, sat=0.5, sodio=550),
+    Alimento("tostada", "Tostadas horneadas", 390, 8.0, 76.0, 5.0, 98, _EST, "cereales", "pieza", 12,
+             piezas=("tostada", "tostadas"), fibra=8.0, hierro=1.5, calcio=150, sat=0.7, sodio=200),
+    Alimento("galletas_saladas", "Galletas saladas", 430, 9.0, 70.0, 12.0, 121, _EST, "cereales", "pieza", 4.5,
+             piezas=("galleta salada", "galletas saladas"), fibra=3.0, hierro=3.5, calcio=30, sat=3.0, sodio=800),
+    Alimento("galletas_maria", "Galletas Marías", 440, 7.0, 76.0, 12.0, 65, _EST, "cereales", "pieza", 6,
+             piezas=("galleta María", "galletas Marías"), fibra=2.0, hierro=2.5, calcio=30, sat=5.0, sodio=320),
+    Alimento("palomitas", "Maíz palomero", 375, 12.0, 74.0, 4.5, 27, _EST, "cereales",
+             fibra=13.0, hierro=3.2, calcio=7, sat=0.6, sodio=4),
+    Alimento("granola", "Granola", 440, 10.0, 68.0, 14.0, 86, _EST, "cereales",
+             fibra=7.0, hierro=3.0, calcio=50, sat=2.0, sodio=60),
+    Alimento("cereal", "Cereal de hojuelas de maíz", 357, 7.5, 84.0, 0.4, 90, _EST, "cereales",
+             fibra=3.3, hierro=8.0, calcio=5, sat=0.1, sodio=700),
+    Alimento("pan_molido", "Pan molido", 395, 13.0, 72.0, 5.3, 115, _EST, "cereales",
+             fibra=4.5, hierro=4.8, calcio=180, sat=1.2, sodio=730),
+    Alimento("mole", "Mole en pasta", 500, 7.0, 43.0, 33.0, 162, _EST, "grasas",
+             fibra=9.0, hierro=6.0, calcio=150, sat=5.0, sodio=900),
+    Alimento("pepitas", "Pepitas de calabaza", 559, 30.2, 10.7, 49.0, 375, _EST, "grasas",
+             fibra=6.0, hierro=8.8, calcio=46, sat=8.7, sodio=7),
+    Alimento("jicama", "Jícama", 38, 0.7, 9.0, 0.1, 26, _EST, "verduras_frutas",
+             fibra=4.9, hierro=0.6, calcio=12, sat=0, sodio=4),
+    Alimento("mandarina", "Mandarina", 53, 0.8, 13.3, 0.3, 37, _EST, "verduras_frutas", "pieza", 70,
+             piezas=("mandarina", "mandarinas"), fibra=1.8, hierro=0.15, calcio=37, sat=0, sodio=2),
+    Alimento("pera", "Pera", 57, 0.4, 15.2, 0.1, 58, _EST, "verduras_frutas", "pieza", 160,
+             piezas=("pera", "peras"), fibra=3.1, hierro=0.2, calcio=9, sat=0, sodio=1),
+    Alimento("uva", "Uvas", 69, 0.7, 18.1, 0.2, 51, _EST, "verduras_frutas",
+             fibra=0.9, hierro=0.4, calcio=10, sat=0, sodio=2),
+    Alimento("sandia", "Sandía", 30, 0.6, 7.6, 0.2, 38, _EST, "verduras_frutas",
+             fibra=0.4, hierro=0.2, calcio=7, sat=0, sodio=1),
+    Alimento("toronja", "Toronja", 42, 0.8, 10.7, 0.1, 34, _EST, "verduras_frutas", "pieza", 130,
+             piezas=("toronja", "toronjas"), fibra=1.6, hierro=0.1, calcio=22, sat=0, sodio=0),
+    Alimento("poblano", "Chile poblano", 20, 0.9, 4.6, 0.2, 68, _EST, "verduras_frutas", "pieza", 110,
+             piezas=("chile poblano", "chiles poblanos"), fibra=1.7, hierro=0.3, calcio=7, sat=0, sodio=3),
     # ── suplemento (solo si hace falta: es lo mas caro por gramo de proteina) ──
     Alimento("proteina_polvo", "Proteína en polvo", 380, 75.0, 8.0, 5.0, 600, _EST, "origen_animal", "scoop", 32, fibra=0, hierro=1.0, calcio=400, sat=2.5, sodio=200),
 ]}
 
 # lo que se puede excluir de golpe desde el dashboard
 GRUPOS_EXCLUIBLES = {
-    "carnes": ["pollo", "pechuga", "res", "res_magra", "cerdo"],
+    "carnes": ["pollo", "pechuga", "pollo_rostizado", "res", "res_magra", "cerdo", "jamon"],
     "pescado": ["atun", "sardina", "tilapia", "camaron"],
-    "lacteos": ["leche", "leche_light", "yogur", "yogur_griego", "queso_fresco", "panela", "requeson"],
+    "lacteos": ["leche", "leche_light", "yogur", "yogur_griego", "queso_fresco", "panela", "requeson",
+                "queso_oaxaca", "cottage"],
     "huevo": ["huevo", "claras"],
     "suplementos": ["proteina_polvo"],
 }
 
 
+def precio_referencia() -> dict[str, float]:
+    """$ por kg de lo que se come con el producto real mas barato (productos_mx.py); sin
+    productos, el estimado de aqui."""
+    import productos_mx as pmx
+    base = {}
+    for a in ALIMENTOS.values():
+        p = pmx.referencia(a.id)
+        base[a.id] = round(pmx.precio_kg(p), 2) if p else a.precio_kg
+    return base
+
+
+def fuente_de(aid: str) -> str:
+    """De donde sale el precio de referencia: '<producto> (Tienda)'."""
+    import productos_mx as pmx
+    p = pmx.referencia(aid)
+    return f"{p.nombre} ({pmx.TIENDAS[p.tienda]})" if p else ALIMENTOS[aid].fuente
+
+
 def precios() -> dict[str, float]:
     """Precio por kg de cada alimento: el tuyo si lo corregiste, si no el de referencia."""
-    base = {a.id: a.precio_kg for a in ALIMENTOS.values()}
+    base = precio_referencia()
     if PRECIOS_USUARIO.exists():
         try:
             for k, v in json.loads(PRECIOS_USUARIO.read_text(encoding="utf-8")).items():
@@ -191,7 +253,7 @@ def precios() -> dict[str, float]:
 
 def guardar_precios(nuevos: dict[str, float]) -> None:
     """Guarda SOLO los precios que difieren de la referencia."""
-    ref = {a.id: a.precio_kg for a in ALIMENTOS.values()}
+    ref = precio_referencia()
     propios = {k: round(float(v), 2) for k, v in nuevos.items()
                if k in ref and v and 0 < float(v) < 5000 and abs(float(v) - ref[k]) > 0.005}
     PRECIOS_USUARIO.write_text(json.dumps(propios, indent=2, ensure_ascii=False), encoding="utf-8")

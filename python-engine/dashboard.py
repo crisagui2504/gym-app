@@ -1233,6 +1233,8 @@ _ETIQ_TIEMPO = {"desayuno": "Desayuno", "comida": "Comida", "colacion": "Colaci�
 _EXCLUIR_OPC = [("carnes", "Carnes (pollo, res, cerdo)"), ("pescado", "Pescado y mariscos"),
                 ("lacteos", "Lácteos"), ("huevo", "Huevo")]
 # Tipo de dieta (menu_dieta + menu_sodio_max) y enfasis (menu_enfasis) del menu
+_TIENDAS_OPC = [("mercado", "Mercado o tianguis"), ("tortilleria", "Tortillería"), ("3b", "Tiendas 3B"),
+                ("walmart", "Walmart"), ("chedraui", "Chedraui"), ("sams", "Sam's Club")]   # = productos_mx.TIENDAS
 _DIETA_OPC = [("mexicana", "Mexicana equilibrada (Plato del Bien Comer)"), ("dash", "DASH (presión arterial) · sodio ≤ 2,300 mg"),
               ("dash1500", "DASH bajo en sodio · ≤ 1,500 mg"), ("mediterranea", "Mediterránea")]
 _ESTRATEGIA_OPC = [("auto", "Automática según tu enfoque"),
@@ -1280,7 +1282,10 @@ def _menu_actual(forzar: bool = False):
                 and m.get("no_me_gusta") == {"recetas": sorted(mnu.no_me_gusta()[0]),
                                              "alimentos": sorted(mnu.no_me_gusta()[1])}
                 and (m.get("presupuesto") or {}).get("tope") == (round(float(cfg["menu_presupuesto"]))
-                                                                  if cfg.get("menu_presupuesto") else None)):
+                                                                  if cfg.get("menu_presupuesto") else None)
+                and m.get("sobras") == bool(cfg.get("menu_sobras", True))
+                and m.get("tiendas_usadas") == sorted(mnu.tiendas_de(cfg) or [t for t, _ in _TIENDAS_OPC],
+                                                      key=[t for t, _ in _TIENDAS_OPC].index)):
             return m
     try:
         m = mnu.generar_menu(cfg, lunes)
@@ -1299,9 +1304,12 @@ def _menu_vista(m) -> html.Div:
     resumen = _card([
         html.Div(f"🍽️ Menú de la semana del {m['semana_inicio']}",
                  style={"color": TEXT, "fontWeight": "700", "fontSize": "15px", "marginBottom": "6px"}),
-        html.Div([html.Span(f"${m['costo_semana']:,.0f} a la semana",
+        html.Div([html.Span(f"${m['costo_semana']:,.0f} de comida a la semana",
                             style={"fontWeight": "800", "fontSize": "20px", "color": ACCENT}),
                   html.Span(f"  ·  ~${m['costo_dia']:,.0f} al día", style={"color": MUTED, "fontSize": "13px"})]),
+        *([html.P(f"🛒 En la tienda pagas ≈ ${m['costo_caja']:,.0f} (paquetes enteros); de eso ≈ "
+                  f"${m.get('despensa', 0):,.0f} es despensa que te sobra para otras semanas.",
+                  style={"color": TEXT, "fontSize": "13px", "margin": "6px 0 0"})] if m.get("costo_caja") else []),
         html.P(f"Promedio: {m['kcal_prom']:,} kcal, {m['prot_prom']} g de proteína"
                + (f" y {m['carb_prom']} g de carbohidratos" if m.get("carb_prom") else "") + " al día "
                f"(tu meta: {meta['kcal']:,} kcal y {meta['proteina_min']}-{meta['proteina_max']} g).",
@@ -1324,6 +1332,10 @@ def _menu_vista(m) -> html.Div:
                 html.Div([html.Span(c["nombre"], style={"fontWeight": "700"}),
                           html.Span(f"  {c['kcal']} kcal · {c['prot']:.0f} g", style={"color": MUTED, "fontSize": "12px"})],
                          style={"color": TEXT, "fontSize": "13.5px"}),
+                *([html.Div(f"🍲 Sobras del {c['sobras']['dia'].lower()}: ya está hecha, solo caliéntala.",
+                            style={"color": ACCENT, "fontSize": "12px", "marginTop": "2px"})] if c.get("sobras") else []),
+                *([html.Div("🍳 Cocina el doble: rinde para hoy y mañana.",
+                            style={"color": ACCENT, "fontSize": "12px", "marginTop": "2px"})] if c.get("rinde") else []),
                 html.Div(", ".join(i["texto"] for i in c["ingredientes"]),
                          style={"color": MUTED, "fontSize": "12px", "marginTop": "2px"}),
                 *([html.Div(c["como"], style={"color": MUTED, "fontSize": "11px", "fontStyle": "italic",
@@ -1346,11 +1358,17 @@ def _menu_vista(m) -> html.Div:
               if d.get("sal_g") is not None else []),
             *comidas,
         ], {"padding": "16px"}))
+    import productos_mx as pmx
     lista = dash_table.DataTable(
-        data=[{"alimento": f["nombre"], "cantidad": f["compra"], "costo": f"${f['costo']:.0f}",
-               "precio": f["fuente"]} for f in m["lista"]],
-        columns=[{"name": "Alimento", "id": "alimento"}, {"name": "Comprar", "id": "cantidad"},
-                 {"name": "≈ Costo", "id": "costo"}, {"name": "Precio", "id": "precio"}],
+        data=[{"tienda": pmx.TIENDAS.get(f.get("tienda", ""), "Otros"), "alimento": f["nombre"],
+               "cantidad": f["compra"] + (f" ({f['producto']})" if f.get("producto") and f["producto"] not in f["compra"]
+                                          else ""),
+               "costo": f"${f['costo']:.0f}", "sobra": f.get("sobra", ""),
+               "otras": " · ".join(f"{pmx.TIENDAS.get(o['tienda'], o['tienda'])} ${o['costo']:.0f}"
+                                   for o in f.get("otras", []))} for f in m["lista"]],
+        columns=[{"name": "Tienda", "id": "tienda"}, {"name": "Alimento", "id": "alimento"},
+                 {"name": "Qué comprar", "id": "cantidad"}, {"name": "Pagas", "id": "costo"},
+                 {"name": "Te sobra", "id": "sobra"}, {"name": "En otras tiendas", "id": "otras"}],
         style_table={"overflowX": "auto"},
         style_header={"backgroundColor": CARD2, "color": ACCENT, "fontWeight": "600", "border": f"1px solid {LINE}"},
         style_cell={"backgroundColor": CARD, "color": TEXT, "border": f"1px solid {LINE}", "fontSize": "13px",
@@ -1360,9 +1378,10 @@ def _menu_vista(m) -> html.Div:
         resumen,
         html.Div(dias, className="menu-dias", style={"marginTop": "16px"}),
         *([_card([
-            html.Div("🍳 Cocina por adelantado", style={"color": TEXT, "fontWeight": "700", "fontSize": "15px",
-                                                      "marginBottom": "4px"}),
-            html.P("Lo cocido dura 3-4 días en el refri: por eso se cocina dos veces a la semana.",
+            html.Div("🍳 Qué cocinar y cuándo", style={"color": TEXT, "fontWeight": "700", "fontSize": "15px",
+                                                     "marginBottom": "4px"}),
+            html.P("La comida se cocina para 2 días: lo que sobra del lunes es la comida del martes (y así miércoles "
+                   "y viernes). Lo cocido dura 3-4 días en el refri.",
                    style={"color": MUTED, "fontSize": "12px", "margin": "0 0 8px"}),
             *[html.Div([html.Div(f"{t['cuando']} ({t['para']})", style={"color": ACCENT, "fontWeight": "700",
                                                                          "fontSize": "13px"}),
@@ -1370,7 +1389,7 @@ def _menu_vista(m) -> html.Div:
                                 style={"color": TEXT, "fontSize": "13px", "margin": "4px 0 8px", "paddingLeft": "18px"})])
               for t in m["cocina"]],
         ], {"marginTop": "16px"})] if m.get("cocina") else []),
-        _card([html.Div(f"🛒 Lista del súper (≈ ${m['costo_semana']:,.0f})",
+        _card([html.Div(f"🛒 Lista del súper (≈ ${m.get('costo_caja', m['costo_semana']):,.0f} en la tienda)",
                         style={"color": TEXT, "fontWeight": "700", "fontSize": "15px", "marginBottom": "10px"}),
                lista], {"marginTop": "16px"}),
     ])
@@ -1432,10 +1451,11 @@ def _tab_menu_children() -> html.Div:
     cfg = _menu_cfg()
     no_r, no_a = (set(), set()) if _es_demo() else mnu.no_me_gusta()
     precios = alx.precios()
+    ref = alx.precio_referencia()
     tabla_precios = dash_table.DataTable(
         id="precios-tabla",
         data=[{"id": a.id, "alimento": a.nombre, "precio": precios[a.id],
-               "fuente": "tu precio" if precios[a.id] != a.precio_kg else a.fuente}
+               "fuente": "tu precio" if abs(precios[a.id] - ref[a.id]) > 0.005 else alx.fuente_de(a.id)}
               for a in alx.ALIMENTOS.values()],
         columns=[{"name": "Alimento", "id": "alimento", "editable": False},
                  {"name": "$ por kg o L", "id": "precio", "type": "numeric", "editable": True},
@@ -1513,13 +1533,28 @@ def _tab_menu_children() -> html.Div:
         html.P("La lista del súper y la cocina se multiplican para todos (un niño ≈ 60 % de una porción). "
                "Las calorías y la proteína del menú son las tuyas.",
                style={"color": MUTED, "fontSize": "11px", "margin": "6px 0 0"}),
+        dcc.Checklist(id="menu-sobras", options=[{"label": " Cocino de más: la comida rinde para 2 días (sobras)",
+                                                  "value": "si"}],
+                      value=["si"] if cfg.get("menu_sobras", True) else [],
+                      style={"fontSize": "14px", "marginTop": "12px"},
+                      labelStyle={"color": TEXT, "display": "inline-flex", "alignItems": "center", "gap": "5px"}),
+        html.Label("Dónde compras", style={**_LABEL_STYLE, "display": "block", "marginTop": "12px"}),
+        dcc.Checklist(id="menu-tiendas", options=[{"label": f" {n}", "value": t} for t, n in _TIENDAS_OPC],
+                      value=[t for t, _ in _TIENDAS_OPC if not cfg.get("menu_tiendas") or t in cfg["menu_tiendas"]],
+                      inline=True, style={"fontSize": "14px", "marginTop": "8px", "display": "flex",
+                                          "flexWrap": "wrap", "gap": "8px 4px"},
+                      labelStyle={"color": TEXT, "marginRight": "16px", "display": "inline-flex",
+                                  "alignItems": "center", "gap": "5px"}),
+        html.P("La lista elige el producto más conveniente de esas tiendas (en la app también lo puedes cambiar).",
+               style={"color": MUTED, "fontSize": "11px", "margin": "6px 0 0"}),
         html.Button("🔄 Generar otro menú", id="menu-generar", n_clicks=0, className="gym-btn",
                     style={"marginTop": "16px"}),
     ])
     precios_card = _card([
         html.Div("💲 Tus precios", style={"color": TEXT, "fontWeight": "700", "fontSize": "15px", "marginBottom": "4px"}),
-        html.P("Profeco 2026 donde hay dato; el resto es estimado. Cambia el precio de lo que compras "
-               "(doble clic en la celda) y guarda: el menú se recalcula con lo que de verdad pagas.",
+        html.P("$ por kg de lo que se come, del producto real más barato (Chedraui, Walmart, Sam's, 3B, mercado y "
+               "tortillería; 2-nov-2026). Cambia el precio de lo que compras (doble clic en la celda) y guarda: "
+               "el menú se recalcula con lo que de verdad pagas.",
                style={"color": MUTED, "fontSize": "12px", "marginBottom": "10px"}),
         tabla_precios,
         html.Button("Guardar precios", id="precios-guardar", n_clicks=0, className="gym-btn-ghost",
@@ -2211,10 +2246,12 @@ def _aplicar_kcal(n_clicks, delta):
     State("menu-no-recetas", "value"),
     State("menu-no-alimentos", "value"),
     State("menu-estrategia", "value"),
+    State("menu-sobras", "value"),
+    State("menu-tiendas", "value"),
     prevent_initial_call=True,
 )
 def _generar_menu_cb(n_clicks, excluir, supl, presupuesto=None, adultos=1, ninos=0, dieta=None, enfasis=None,
-                     no_recetas=None, no_alimentos=None, estrategia=None):
+                     no_recetas=None, no_alimentos=None, estrategia=None, sobras=("si",), tiendas=None):
     """Otro menu (otra semilla) con lo que no comes. En demo no se guarda nada."""
     import random
     import menu as mnu
@@ -2230,7 +2267,10 @@ def _generar_menu_cb(n_clicks, excluir, supl, presupuesto=None, adultos=1, ninos
              "menu_dieta": "dash" if dieta == "dash1500" else (dieta if dieta in mnu.DIETAS else "mexicana"),
              "menu_sodio_max": 1500 if dieta == "dash1500" else 2300,
              "menu_enfasis": enfasis if enfasis in mnu.ENFASIS else "equilibrado",
-             "menu_estrategia": estrategia if estrategia in (*mnu.ESTRATEGIAS, "auto") else "auto"}
+             "menu_estrategia": estrategia if estrategia in (*mnu.ESTRATEGIAS, "auto") else "auto",
+             "menu_sobras": bool(sobras),
+             # todas marcadas (o ninguna) = todas las tiendas
+             "menu_tiendas": [] if not tiendas or len(set(tiendas)) >= len(_TIENDAS_OPC) else sorted(set(tiendas))}
     if not _es_demo():
         guardar_config(extra)
         # lo que marcaste aqui manda; lo marcado en la app ya viene en la lista
