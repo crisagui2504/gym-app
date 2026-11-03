@@ -6,7 +6,9 @@
 // manifiesto y bundles viejos) en el telefono. v4: avisos push + encuesta.
 // v5: index.html sin la cache HTTP del navegador (tras un despliegue seguia
 // cargando la version anterior de la app).
-const CACHE = 'nutri-v1';
+// nutri-v2: no guarda la pagina del antibot de InfinityFree como si fuera la app (se quedaba
+// con una vieja y su cookie vencida bloqueaba la API: "Todavia no hay menu").
+const CACHE = 'nutri-v2';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -36,8 +38,11 @@ self.addEventListener('fetch', (event) => {
       fetch(req.url, { cache: 'no-store', credentials: 'include', redirect: 'manual' })
         .then((resp) => {
           if (resp.ok && resp.type === 'basic') {
+            // solo la app de verdad; el antibot tambien contesta 200 con su propio HTML
             const copia = resp.clone();
-            caches.open(CACHE).then((c) => c.put(req, copia));
+            copia.text().then((html) => {
+              if (html.includes('<app-nutri')) caches.open(CACHE).then((c) => c.put(req, new Response(html, resp)));
+            });
           }
           return resp;
         })

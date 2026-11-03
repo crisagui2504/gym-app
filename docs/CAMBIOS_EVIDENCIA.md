@@ -2987,6 +2987,46 @@ Volver a guardar duplicaba series, porque el servidor solo insertaba.
   - servidor caído: nada cambia.
 - Demo a 375 px: "Aplicar +150 kcal" muestra el pedido y "Cancelar"; la barra inferior tiene 5 botones.
 
+## CP. Nutri: lista del súper con productos reales, comida para 2 días y 70+ colaciones (2026-11-02)
+
+**Lo pediste así:** la lista tenía que ser real (3B, Walmart, Chedraui, Sam's o mercado), con comida normal de casa que se cocina de más y sobra para el día siguiente, y muchas colaciones sencillas.
+
+- **Productos reales** (`python-engine/productos_mx.py`): presentación, tienda y precio de cada alimento.
+  - Chedraui: catálogo público de chedraui.com.mx. Walmart y Sam's: sus páginas. Todo del 2 de noviembre de 2026.
+  - Tiendas 3B: no publica precios en línea; hay unos del folleto de agosto 2026 y de prensa, y el resto sale como "busca esta marca".
+  - Mercado: precio de mayoreo de la Central de Abasto de la CDMX (SNIIM, 29 de octubre de 2026) más 30 %. Tortillería: promedio nacional del SNIIM (abril de 2026).
+  - Cada producto trae lo que se come (`rinde`: hueso, cáscara, líquido) y cuánto dura lo que sobra.
+- **Lista del súper:**
+  - paquetes enteros de la tienda que sale más a cuenta (cuenta lo que sobra y si rinde para otras semanas o se echa a perder);
+  - por tienda, con lo que cuesta en las otras;
+  - "lo que pagas" separado de "lo que comes" y de lo que queda en despensa;
+  - en la app eliges dónde compras; en el dashboard, `menu_tiendas`.
+  - El precio para planear el menú es el del producto real más barato por kg de lo que se come.
+- **Comida para 2 días** (`menu_sobras`, prendido de fábrica):
+  - lunes, miércoles y viernes se cocina una comida que aguanta (etiqueta `olla`); martes, jueves y sábado se comen las sobras, con la misma porción;
+  - "Cambiar" en las sobras cambia también el día en que se cocinó;
+  - la cocina dice qué hacer cada día ("× 2 porciones" con los gramos totales).
+- **Comida de casa:**
+  - en la semana, pollo como mucho 2 veces y al menos una comida de res o cerdo; pescado y "sin carne" una vez;
+  - "Cambiar" en la comida ofrece otras carnes;
+  - el menú mexicano ya no pone tofu, pudín de chía ni hummus;
+  - topes por semana para soya, sardina y lentejas.
+- **Recetas nuevas:** 24 comidas de casa (pechugas asadas, pollo rostizado, mole, milanesas, bistec encebollado, boloñesa, chile con carne…), 13 desayunos, 13 cenas y 44 colaciones. Quedan 73 colaciones, 32 con 17 g o más de proteína; cada día muestra 20 opciones.
+- **Service worker** (Nutri y GymTracker): ya no guarda la página del antibot de InfinityFree como si fuera la app. Una copia vieja ponía una cookie vencida y la API dejaba de contestar ("Todavía no hay menú").
+
+**Verificación.**
+
+- `test_menu`, 21 pruebas nuevas:
+  - todos los alimentos con productos con precio;
+  - huevo: la caja de 30, no la de 90;
+  - frijol: la bolsa grande;
+  - la lista va por tienda y respeta tus tiendas;
+  - sobras con la misma porción y las mismas opciones;
+  - variedad de carnes;
+  - 10 o más opciones de colación al día, todas con tu proteína.
+- Pasan `test_motor`, `test_funcional`, `test_plan_qa`, el barrido y la simulación.
+- El menú real se generó en la VM y quedó en el servidor (lista con 6 tiendas). En la demo a 375 px se ven las sobras del martes.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
