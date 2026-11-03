@@ -611,9 +611,69 @@ def _panel_peso_real() -> list:
     tc = _tendencia_cintura(dfp)
     return [
         _card(dcc.Graph(figure=_fig_peso(dfp), config={"displayModeBar": False})),
+        html.Div(_card_grasa_musculo(cfg, dfp), style={"marginTop": "16px"}),
         html.Div(_card_calorias(cfg, dfp, tc), style={"marginTop": "16px"}),
         html.Div(_card_proteina(cfg), style={"marginTop": "16px"}),
     ]
+
+
+def _fig_grasa_musculo(dfp: pd.DataFrame, fz: pd.DataFrame) -> go.Figure:
+    """Peso (promedio semanal, Nutri) contra fuerza (indice de las series principales, GymTracker)."""
+    if (dfp is None or dfp.empty) and fz.empty:
+        return _fig_vacia("Registra tus series y tu peso para ver la gráfica")
+    fig = go.Figure()
+    if dfp is not None and not dfp.empty:
+        sem = dfp.assign(semana=dfp["fecha"].dt.to_period("W").dt.start_time).groupby("semana")["peso"].mean()
+        fig.add_trace(go.Scatter(x=sem.index, y=sem.values, mode="lines+markers", name="Peso (promedio semanal, kg)",
+                                 line=dict(color=ACCENT, width=3), marker=dict(size=7)))
+    if not fz.empty:
+        fig.add_trace(go.Scatter(x=fz["semana"], y=fz["indice"], mode="lines+markers",
+                                 name="Fuerza (100 = tus primeras semanas)", yaxis="y2",
+                                 line=dict(color=ACCENT2, width=2, dash="dot"), marker=dict(size=6)))
+    fig.update_layout(
+        **PLOTLY_THEME,
+        title=_titulo("Peso contra fuerza, por semana"),
+        yaxis=dict(title="kg", gridcolor=GRID),
+        yaxis2=dict(title="fuerza", overlaying="y", side="right", gridcolor="rgba(0,0,0,0)", zeroline=False),
+        xaxis=dict(gridcolor="rgba(0,0,0,0)"),
+        legend=dict(orientation="h", y=1.12),
+    )
+    return fig
+
+
+def _card_grasa_musculo(cfg: dict, dfp: pd.DataFrame) -> html.Div:
+    """¿Lo que bajas es grasa o musculo? Peso y cintura de Nutri contra la fuerza de GymTracker."""
+    df, estado = _cargar_df()
+    dfh = df if estado == "real" else pd.DataFrame()
+    dfn = nutricion.leer_nutricion_csv()
+    r = nutricion.grasa_o_musculo(cfg, dfh, dfp, dfn)
+    sube_bien = r["estado"] == "subiendo" and nutricion._enfoque(cfg).tendencia_sem[1] > 0
+    color = {"grasa": ACCENT, "recomposicion": ACCENT, "solo_fuerza": ACCENT, "atencion": WARN, "fatiga": WARN,
+             "musculo": DANGER, "subiendo": ACCENT if sube_bien else WARN}.get(r["estado"], MUTED)
+    datos = [
+        ("⚖️ Peso", f"{r['peso']:+.2f} %/sem" if r["peso"] is not None else "faltan pesajes"),
+        ("📏 Cintura", f"{r['cintura']:+.1f} cm/sem" if r["cintura"] is not None else "sin medir"),
+        ("💪 Fuerza (3 sem)", f"{r['fuerza']:+.1f} % · {r['ejercicios']} ejercicios" if r["fuerza"] is not None
+         else "faltan semanas de series"),
+        ("🍗 Proteína (14 días)", f"{r['proteina']:.0f} g de {r['proteina_meta']} g" if r["proteina"] is not None
+         else "sin registros en Nutri"),
+    ]
+    return _card([
+        html.Div("💪 ¿Grasa o músculo?", style={"color": TEXT, "fontWeight": "700", "fontSize": "15px",
+                                              "marginBottom": "6px"}),
+        html.Div(r["titulo"], style={"color": color, "fontWeight": "800", "fontSize": "17px"}),
+        html.P(r["texto"], style={"color": TEXT, "fontSize": "13px", "margin": "4px 0 12px"}),
+        html.Div([html.Div([html.Div(k, style={"color": MUTED, "fontSize": "12px"}),
+                            html.Div(v, style={"color": TEXT, "fontWeight": "700", "fontSize": "14px"})],
+                           style={"minWidth": "150px"}) for k, v in datos],
+                 style={"display": "flex", "flexWrap": "wrap", "gap": "12px 20px"}),
+        dcc.Graph(figure=_fig_grasa_musculo(dfp, nutricion.indice_fuerza(dfh)), config={"displayModeBar": False}),
+        html.P("Cómo se lee: si el peso y la cintura bajan y la fuerza se mantiene, lo que se va es grasa. La fuerza "
+               "es el mejor peso estimado a 1 repetición (e1RM) de tus series principales (Top Set y back-off), "
+               "comparando las últimas 3 semanas con las 3 anteriores: así la semana de descarga no cuenta como "
+               "caída. Peso y proteína vienen de Nutri; las series, de GymTracker.",
+               style={"color": MUTED, "fontSize": "11px", "margin": "4px 0 0"}),
+    ])
 
 
 def _card_calorias(cfg: dict, dfp: pd.DataFrame, tc: float | None) -> html.Div:

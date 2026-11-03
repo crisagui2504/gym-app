@@ -64,8 +64,12 @@ check("re-registro conserva la cintura del dia",
       dsh._cargar_peso()["cintura"].iloc[-1] == 83.0)
 check("fig peso con cintura", dsh._fig_peso(dfp2) is not None)
 _pp = dsh._panel_peso()
-check("panel de peso: grafica + calorias adaptativas + proteina",
-      len(_pp) == 3 and "adaptativas" in str(_pp[1]) and "Prote" in str(_pp[2]))
+check("panel de peso: grafica + grasa o musculo + calorias adaptativas + proteina",
+      len(_pp) == 4 and "Grasa o músculo" in str(_pp[1]) and "adaptativas" in str(_pp[2]) and "Prote" in str(_pp[3]))
+check("grasa o musculo: con y sin datos se dibuja (peso de Nutri, fuerza de GymTracker)",
+      "Grasa o músculo" in str(dsh._card_grasa_musculo({"enfoque": "definicion", "peso_corporal": 75}, dfp2))
+      and "Grasa o músculo" in str(dsh._card_grasa_musculo({"enfoque": "definicion", "peso_corporal": 75},
+                                                          pd.DataFrame(columns=["fecha", "peso", "cintura"]))))
 # "Guardar" del dashboard: CSV local + MySQL (la subida y la config, simuladas: nada real)
 _subidas, _cfgs = [], []
 _reales = (dsh.guardar_config, dsh.nutricion.subir_peso_en_segundo_plano, dsh.nutricion.subir_meta_en_segundo_plano)

@@ -3027,6 +3027,37 @@ Volver a guardar duplicaba series, porque el servidor solo insertaba.
 - Pasan `test_motor`, `test_funcional`, `test_plan_qa`, el barrido y la simulación.
 - El menú real se generó en la VM y quedó en el servidor (lista con 6 tiendas). En la demo a 375 px se ven las sobras del martes.
 
+## CQ. Dashboard: "¿Grasa o músculo?" cruza Nutri con GymTracker (2026-11-02)
+
+**Para la definición:** al bajar de peso lo que importa es que se vaya grasa y no músculo. La señal práctica es la fuerza: si bajas de peso y la fuerza se mantiene, se está yendo grasa; si la fuerza cae mientras bajas, probablemente el déficit es muy grande o falta proteína.
+
+- `nutricion.grasa_o_musculo()` cruza tres cosas:
+  - la tendencia del peso (`tendencia_pct_sem`, 21 días) y la de la cintura, de Nutri;
+  - la fuerza (`cambio_fuerza`, de GymTracker): el mejor e1RM (Epley) de cada ejercicio principal (Top Set y back-off del Bloque A), comparando el mejor de las últimas 3 semanas con el de las 3 anteriores, y la mediana de los ejercicios;
+  - la proteína de 14 días contra tu meta.
+- Por bloques de 3 semanas, la semana de descarga del mesociclo no cuenta como caída.
+- Qué dice:
+  - "pierdes grasa": bajas ≥ 0.2 %/sem y la fuerza no baja más de 2 %;
+  - "atención": la fuerza baja de 2 a 5 %;
+  - "puede ser músculo": la fuerza baja más de 5 % mientras bajas de peso, y pide +150-200 kcal y llegar a la proteína;
+  - "cansancio": la fuerza baja sin bajar de peso;
+  - también "recomposición", "peso estable" y "subiendo";
+  - sin datos suficientes, no inventa.
+- En el dashboard, pestaña Peso corporal: una tarjeta con el veredicto, peso, cintura, fuerza y proteína, y una gráfica semanal del peso contra el índice de fuerza (`indice_fuerza`, 100 = tus primeras semanas).
+
+**Verificación.** `test_motor` §59, 10 pruebas con datos sintéticos:
+- grasa: fuerza igual y −0.5 %/sem;
+- músculo: −8 % de fuerza;
+- falta de proteína;
+- cansancio;
+- atención;
+- solo fuerza;
+- sin datos;
+- descarga ignorada;
+- índice 100 → 105.
+
+`test_funcional`: la tarjeta se dibuja con y sin datos.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.

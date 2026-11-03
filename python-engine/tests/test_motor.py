@@ -1791,6 +1791,64 @@ finally:
     nut.subir_meta = _sm58_real
 
 print()
+print("== 59. ¿Grasa o musculo? Bascula (Nutri) contra fuerza (GymTracker) ==")
+_h59 = date(2026, 11, 4)                      # miercoles
+_lun59 = _h59 - timedelta(days=_h59.weekday())
+
+
+def _series59(cambio_pct: float, deload_ultima: bool = False) -> pd.DataFrame:
+    """2 ejercicios principales 6 semanas: las 3 ultimas con `cambio_pct` de fuerza."""
+    filas = []
+    for s in range(6):
+        lunes = _lun59 - timedelta(weeks=5 - s)
+        f = 1 + (cambio_pct / 100 if s >= 3 else 0)
+        if deload_ultima and s == 5:
+            f *= 0.85                          # semana de descarga: menos peso
+        for ej, kg in (("Press de Banca", 80), ("Sentadilla", 100)):
+            filas.append({"fecha_entreno": lunes + timedelta(days=1), "ejercicio": ej, "tecnica": "Top Set",
+                          "bloque": "A - Fuerza maxima", "peso_kg": round(kg * f, 1), "reps_hechas": 6})
+            filas.append({"fecha_entreno": lunes + timedelta(days=1), "ejercicio": "Curl", "tecnica": "Rest-Pause",
+                          "bloque": "C - Aislamiento", "peso_kg": 5.0, "reps_hechas": 12})
+    return pd.DataFrame(filas)
+
+
+def _peso59(pct_sem: float) -> pd.DataFrame:
+    """21 pesajes diarios (del mas viejo a hoy) que cambian `pct_sem` % por semana."""
+    return pd.DataFrame({"fecha": [pd.Timestamp(_h59 - timedelta(days=20 - k)) for k in range(21)],
+                         "peso": [80 + 80 * pct_sem / 100 / 7 * (k - 20) for k in range(21)],
+                         "cintura": [None] * 21})
+
+
+_c59 = {"enfoque": "definicion", "peso_corporal": 80}
+_f, _n = nut.cambio_fuerza(_series59(0.0), _h59)
+check("fuerza: compara las 3 ultimas semanas con las 3 anteriores y solo cuenta las series principales",
+      _f == 0.0 and _n == 2, str((_f, _n)))
+check("una semana de descarga no cuenta como caida (es el mejor de 3 semanas)",
+      nut.cambio_fuerza(_series59(0.0, deload_ultima=True), _h59)[0] == 0.0)
+_g = nut.grasa_o_musculo(_c59, _series59(0.0), _peso59(-0.5), None, _h59)
+check("bajas de peso y la fuerza se mantiene: es grasa", _g["estado"] == "grasa" and _g["peso"] < -0.2, str(_g))
+_m = nut.grasa_o_musculo(_c59, _series59(-8.0), _peso59(-0.6), None, _h59)
+check("bajas de peso y la fuerza cae 8 %: avisa que puede ser musculo y que hacer",
+      _m["estado"] == "musculo" and "kcal" in _m["texto"], str(_m))
+_dfn59 = pd.DataFrame({"fecha": [pd.Timestamp(_h59 - timedelta(days=i)) for i in range(10)],
+                       "proteina_g": [120.0] * 10, "creatina": [1] * 10})
+check("si ademas comes poca proteina, lo dice con tu meta",
+      "súbela" in nut.grasa_o_musculo(_c59, _series59(-8.0), _peso59(-0.6), _dfn59, _h59)["texto"])
+check("la fuerza cae sin bajar de peso: cansancio, no la dieta",
+      nut.grasa_o_musculo(_c59, _series59(-8.0), _peso59(0.0), None, _h59)["estado"] == "fatiga")
+check("baja un poco (-3 %): atencion",
+      nut.grasa_o_musculo(_c59, _series59(-3.0), _peso59(-0.5), None, _h59)["estado"] == "atencion")
+check("sin pesajes pero con fuerza: pide la bascula",
+      nut.grasa_o_musculo(_c59, _series59(1.0), pd.DataFrame(columns=["fecha", "peso", "cintura"]), None,
+                          _h59)["estado"] == "solo_fuerza")
+check("sin series ni pesajes: no inventa",
+      nut.grasa_o_musculo(_c59, pd.DataFrame(), pd.DataFrame(columns=["fecha", "peso", "cintura"]), None,
+                          _h59)["estado"] == "pocos_datos")
+_ix = nut.indice_fuerza(_series59(5.0), _h59)
+check("indice de fuerza por semana: 100 al inicio y +5 % al final",
+      round(_ix["indice"].iloc[0]) == 100 and round(_ix["indice"].iloc[-1]) == 105, str(_ix))
+
+print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")
     sys.exit(1)

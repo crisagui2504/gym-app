@@ -421,6 +421,131 @@ def tendencia_cintura(dfp: pd.DataFrame) -> float | None:
     return float((cin["cintura"].iloc[-1] - cin["cintura"].iloc[0]) / dias * 7)
 
 
+# ── ¿Grasa o musculo? Cruza la bascula (Nutri) con la fuerza (GymTracker) ──────
+# Bajar de peso sin perder fuerza = se va grasa; si la fuerza cae mientras bajas,
+# probablemente se esta yendo musculo (deficit muy grande, poca proteina o poco
+# sueno). La fuerza se mide con el mejor e1RM (Epley) de las series principales
+# (Top Set y back-off del Bloque A) y se comparan BLOQUES de 3 semanas: asi una
+# semana de descarga del mesociclo no se confunde con una caida.
+BLOQUE_SEMANAS = 3
+CAIDA_FUERZA = -5.0     # % en 3 semanas: senal de perder musculo
+BAJA_FUERZA = -2.0      # % en 3 semanas: atencion
+BAJANDO = -0.2          # %/semana: la bascula va hacia abajo de verdad
+
+
+def _series_principales(dfh: pd.DataFrame) -> pd.DataFrame:
+    """Series con peso del Bloque A (Top Set / back-off) con su e1RM; si no hay, todas las que tienen peso."""
+    if dfh is None or dfh.empty or "peso_kg" not in dfh:
+        return pd.DataFrame(columns=["semana", "ejercicio", "e1rm"])
+    d = dfh.copy()
+    d["fecha_entreno"] = pd.to_datetime(d["fecha_entreno"], errors="coerce")
+    d["peso_kg"] = pd.to_numeric(d["peso_kg"], errors="coerce")
+    d["reps_hechas"] = pd.to_numeric(d["reps_hechas"], errors="coerce")
+    d = d.dropna(subset=["fecha_entreno", "peso_kg", "reps_hechas"])
+    d = d[(d["peso_kg"] > 0) & (d["reps_hechas"] > 0)]
+    tec = d["tecnica"].astype(str) if "tecnica" in d else pd.Series("", index=d.index)
+    blo = d["bloque"].astype(str) if "bloque" in d else pd.Series("", index=d.index)
+    principales = d[tec.isin(["Top Set", "Back-off"]) | blo.str.startswith("A")]
+    d = principales if not principales.empty else d
+    d = d.assign(e1rm=d["peso_kg"] * (1 + d["reps_hechas"].clip(upper=15) / 30),
+                 semana=d["fecha_entreno"].dt.to_period("W").dt.start_time)
+    return d.groupby(["semana", "ejercicio"], as_index=False)["e1rm"].max()
+
+
+def indice_fuerza(dfh: pd.DataFrame, hoy: date | None = None, semanas: int = 10) -> pd.DataFrame:
+    """Fuerza por semana (100 = tu mejor marca de cada ejercicio en sus primeras 3 semanas
+    de la ventana; la mediana de los ejercicios de esa semana)."""
+    hoy = hoy or date.today()
+    s = _series_principales(dfh)
+    s = s[s["semana"] >= pd.Timestamp(hoy - timedelta(weeks=semanas))]
+    if s.empty:
+        return pd.DataFrame(columns=["semana", "indice", "ejercicios"])
+    primera = s.groupby("ejercicio")["semana"].transform("min")
+    ref = s[s["semana"] < primera + pd.Timedelta(weeks=BLOQUE_SEMANAS)].groupby("ejercicio")["e1rm"].max()
+    s = s.assign(rel=s["e1rm"] / s["ejercicio"].map(ref) * 100)
+    out = s.groupby("semana").agg(indice=("rel", "median"), ejercicios=("ejercicio", "nunique")).reset_index()
+    return out.sort_values("semana")
+
+
+def cambio_fuerza(dfh: pd.DataFrame, hoy: date | None = None) -> tuple[float | None, int]:
+    """% de cambio del mejor e1RM de cada ejercicio principal: ultimas 3 semanas contra las
+    3 anteriores (mediana). (None, n) si hay menos de 2 ejercicios para comparar."""
+    hoy = hoy or date.today()
+    s = _series_principales(dfh)
+    lunes = pd.Timestamp(hoy - timedelta(days=hoy.weekday()))
+    corte = lunes - pd.Timedelta(weeks=BLOQUE_SEMANAS - 1)
+    ahora = s[(s["semana"] >= corte) & (s["semana"] <= lunes)].groupby("ejercicio")["e1rm"].max()
+    antes = s[(s["semana"] < corte) & (s["semana"] >= corte - pd.Timedelta(weeks=BLOQUE_SEMANAS))] \
+        .groupby("ejercicio")["e1rm"].max()
+    comunes = ahora.index.intersection(antes.index)
+    if len(comunes) < 2:
+        return None, len(comunes)
+    return float(((ahora[comunes] / antes[comunes] - 1) * 100).median()), len(comunes)
+
+
+def grasa_o_musculo(cfg: dict, dfh: pd.DataFrame, dfp: pd.DataFrame, dfn: pd.DataFrame | None = None,
+                    hoy: date | None = None) -> dict:
+    """¿Lo que bajas es grasa o musculo? Cruza la tendencia del peso y la cintura con la
+    fuerza de las ultimas 3 semanas y la proteina de las ultimas 2.
+
+    estado: 'pocos_datos' | 'solo_fuerza' | 'grasa' | 'recomposicion' | 'sin_cambio' |
+            'subiendo' | 'atencion' | 'musculo' | 'fatiga'"""
+    hoy = hoy or date.today()
+    enf = _enfoque(cfg)
+    m = metas(cfg)
+    fuerza, n_ej = cambio_fuerza(dfh, hoy)
+    peso = tendencia_pct_sem(dfp, hoy)
+    cintura = tendencia_cintura(dfp) if dfp is not None and not dfp.empty else None
+    prot = adherencia(dfn, m["proteina_min"], hoy, dias=14)
+    poca_prot = prot["promedio"] is not None and prot["promedio"] < m["proteina_min"] * 0.95
+    base = {"fuerza": fuerza, "ejercicios": n_ej, "peso": peso, "cintura": cintura, "proteina": prot["promedio"],
+            "proteina_dias": prot["dias_registrados"], "proteina_meta": m["proteina_min"], "enfoque": enf.nombre}
+    txt_prot = (f" Tu proteína de 2 semanas va en {prot['promedio']:.0f} g y tu meta es {m['proteina_min']} g: "
+                "súbela primero." if poca_prot else f" Llega a tus {m['proteina_min']} g de proteína diarios.")
+
+    if fuerza is None and peso is None:
+        return {**base, "estado": "pocos_datos", "titulo": "Faltan datos para saberlo",
+                "texto": "Necesito 2 bloques de 3 semanas con tus series principales y al menos 8 pesajes en "
+                         "3 semanas. Pésate en ayunas casi a diario en Nutri y sigue registrando tus series."}
+    if fuerza is not None and fuerza <= CAIDA_FUERZA:
+        if peso is not None and peso <= BAJANDO:
+            return {**base, "estado": "musculo", "titulo": "Cuidado: puede que estés perdiendo músculo",
+                    "texto": f"Tu fuerza bajó {abs(fuerza):.0f} % en 3 semanas mientras bajas {abs(peso):.2f} % de "
+                             "peso por semana. Suele ser un déficit muy grande: sube 150-200 kcal (mejor en "
+                             "carbohidratos antes de entrenar) y duerme 7-9 h." + txt_prot}
+        return {**base, "estado": "fatiga", "titulo": "La fuerza bajó, pero no por la dieta",
+                "texto": f"Tu fuerza bajó {abs(fuerza):.0f} % en 3 semanas sin que bajes de peso: suele ser "
+                         "cansancio, poco sueño o estrés. Si sigue así 2 semanas más, toca una semana de descarga."}
+    if fuerza is not None and fuerza <= BAJA_FUERZA:
+        return {**base, "estado": "atencion", "titulo": "La fuerza baja un poco",
+                "texto": f"−{abs(fuerza):.1f} % en 3 semanas. En déficit puede pasar unos días; para que no siga, "
+                         "mantén el peso de tus Top Sets y no bajes más de 1 % por semana." + txt_prot}
+    f_txt = (f"tu fuerza {'sube' if fuerza > 0.5 else 'se mantiene'} ({fuerza:+.1f} % en 3 semanas)"
+             if fuerza is not None else "aún no hay 6 semanas de series para medir tu fuerza")
+    if peso is None:
+        return {**base, "estado": "solo_fuerza", "titulo": "La fuerza va bien; falta la báscula",
+                "texto": f"Bien: {f_txt}. Pésate en ayunas casi a diario en Nutri para saber si lo que bajas "
+                         "es grasa (8 pesajes en 3 semanas)."}
+    if peso <= BAJANDO:
+        return {**base, "estado": "grasa", "titulo": "Pierdes grasa y conservas músculo",
+                "texto": f"Bajas {abs(peso):.2f} % de tu peso por semana y {f_txt}: lo que se va es grasa. "
+                         "Sigue así."}
+    if peso < 0.2:
+        if cintura is not None and cintura <= -0.2:
+            return {**base, "estado": "recomposicion", "titulo": "Recomposición: menos cintura, misma fuerza",
+                    "texto": f"La báscula casi no se mueve, pero la cintura baja {abs(cintura):.1f} cm por semana y "
+                             f"{f_txt}: cambias grasa por músculo."}
+        return {**base, "estado": "sin_cambio", "titulo": "Tu peso no se mueve",
+                "texto": f"Peso estable y {f_txt}. Si quieres bajar, revisa el check-in de Nutri: te dice cuántas "
+                         "calorías quitar."}
+    if enf.tendencia_sem[1] > 0:       # volumen: subir es lo que buscas
+        return {**base, "estado": "subiendo", "titulo": "Subes de peso con buena fuerza",
+                "texto": f"Subes {peso:.2f} % por semana y {f_txt}: va bien para ganar músculo."}
+    return {**base, "estado": "subiendo", "titulo": "Estás subiendo de peso",
+            "texto": f"Subes {peso:.2f} % por semana y {f_txt}. Para bajar, anota todo lo que comes en Nutri y "
+                     "aplica el ajuste del check-in."}
+
+
 def descargar_peso(sesion, base_url: str, token: str, dias: int = 3650) -> pd.DataFrame | None:
     """Todos los pesajes de MySQL. None si no se pudo (sin red, sin endpoint o el
     antibot de InfinityFree): entonces NO se toca la copia local."""
