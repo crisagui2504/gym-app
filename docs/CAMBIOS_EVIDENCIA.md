@@ -3101,6 +3101,60 @@ Volver a guardar duplicaba series, porque el servidor solo insertaba.
   - glucosa con integrales y fibra.
 - El barrido corre ahora las 7 dietas.
 
+## CS. PPL de 6 días sin básquet, sesiones de 80 min y reingreso con todas las series (2026-11-25)
+
+**Lo pediste así:** reiniciar el mesociclo de recomposición (bajar grasa sin perder músculo), sesiones de ~1 h 20, sin básquet, 6 días (Push/Piernas/Pull si es lo óptimo). Y al volver tras unos días sin ir, no tener tan pocas series.
+
+- **Config** (VM y PC): `ppl`, sin deporte, 80 min, recomposición; `MES_INICIO=2026-11-23`.
+  - PPL da a cada músculo 2 sesiones por semana (la frecuencia que mejor reparte el volumen; con volumen igualado la frecuencia importa poco, Schoenfeld 2016, 2019).
+  - Con 6 días cada sesión es más corta y se llega más fresco a cada grupo.
+  - Recomposición sí cumple "bajar grasa sin perder músculo": déficit moderado (200–400 kcal), proteína 1.8–2.2 g/kg y fuerza pesada. Es más lenta en la báscula que definición, pero en alguien que vuelve de pausas y no está muy entrenado se puede ganar músculo a la vez (Barakat et al. 2020).
+- **Reingreso con todas las series** (`planificar.py`):
+  - Antes, la 1a semana de vuelta era una descarga: 1 serie por ejercicio y sin Bloque C (~30 series a la semana en vez de ~108).
+  - Ahora las series no se tocan. Tras 1–3 semanas sin entrenar la fuerza y el músculo apenas se pierden (Bosquet et al. 2013: la fuerza se mantiene hasta ~3 semanas). Lo que se readapta es el tejido conectivo, y eso se cuida con la carga y el esfuerzo:
+    - semana 1: el peso que te tocaría (con tu fuerza estimada de todo tu historial reciente) −10 % y sin series al fallo;
+    - semana 2: −5 % y sin fallo;
+    - luego, normal.
+  - La nota ya no dice "Supera el Top Set" cuando la carga baja a propósito (pasaba también en la descarga).
+  - La bajada se redondea HACIA ABAJO a lo que se puede cargar: con "la mancuerna más cercana", 40 kg −10 % = 36 volvía a 40 (de 15 a 20 por mano) y la bajada se perdía.
+- **Tras una pausa el ciclo vuelve a S1** (`inicio_tras_pausa`):
+  - Antes, la pausa forzaba una descarga y después se seguía en la semana donde ibas: se podía volver directo a la S4 pico ("supera tus Top Sets").
+  - Ahora la semana en que regresas es una S1 nueva y el ciclo cuenta desde ahí. Si `MES_INICIO` es posterior, manda `MES_INICIO`.
+  - En el reingreso ya no salta el "deload reactivo" por RPE: esas dos semanas con datos son de antes de la pausa, que ya fue el descanso.
+- **El tiempo que sobra se usa** (`_rellenar_duracion`, el espejo de `_recortar_duracion`):
+  - Con PPL de recomposición la sesión salía de ~61–70 min y, sin el básquet, la pantorrilla quedaba en **4 series por semana**, debajo de su MEV (8).
+  - Ahora los minutos libres van a series de aislamiento (Bloque C, tradicionales) de lo que más vale por minuto (`volumen.valor_marginal`, Pelland et al. 2024): solo grupos que van cortos (debajo del inicio de su MAV) o tus prioridades.
+  - Topes:
+    - nunca por encima del MAV alto de un grupo;
+    - +3 series por sesión (lo mismo que la encuesta), +2 por ejercicio y 4 series como máximo;
+    - nada a un músculo que en la encuesta dijiste que no recuperas, ni a un ejercicio que te dolió;
+    - ni en la descarga ni en la 1a semana de vuelta;
+    - ni si tu RPE no informa (siempre el mismo número): sin esa señal no se sabe si te recuperas del extra. En el simulador, con RPE fijo en 8, las series imposibles subían de 6 % a 10 %.
+  - Resultado con tu historial (S1, 80 min):
+    - 19–23 series y 65–76 min por sesión;
+    - pantorrilla de 4 a 9 series, hombro posterior de 7 a 12, isquios de 9 a 10;
+    - ningún grupo pasa de su MAV alto.
+  - Cada serie extra lo explica en su nota ("te sobra tiempo y la pantorrilla va corta de volumen").
+- **80 min** como opción en el dashboard y la demo (tope de 9 ejercicios).
+- **Peso de partida desde el mismo ejercicio** (`estimar_peso`): si un ejercicio nunca se hizo como Top Set pero sí como serie normal (la prensa), se estima con su propio 1RM. Antes se saltaba y la prensa del Top Set salía sin peso teniendo historial.
+- **"Usar siempre" cambiaba solo el Top Set** (`feedback.aplicar_preferencias`): el Back-off "chocaba" con el Top Set ya cambiado y se quedaba con el ejercicio viejo (Top Set en máquina y Back-off con mancuernas). Ahora las filas del mismo ejercicio original cambian juntas.
+
+**Verificación.**
+
+- `test_motor` §22 y §29 reescritas:
+  - el reingreso conserva las series del plan y el Bloque C;
+  - Top Set ~10 % debajo del de una semana normal y la nota no pide superarlo;
+  - sin fallo en las dos fases;
+  - la pausa lleva a S1 y la semana siguiente a S2;
+  - una preferencia cambia el Top Set y su Back-off juntos.
+- `test_motor` §60, nueva:
+  - pantorrilla ≥ MEV;
+  - ninguna sesión pasa de 80 min;
+  - solo crecen aislamientos del Bloque C, con sus topes;
+  - ningún grupo pasa de su MAV alto;
+  - sin relleno en descarga, en la 1a semana de vuelta, a 60 min ni en un músculo que no recuperas.
+- `test_barrido`: ahora 19 200 semanas, con 80 min y el reingreso en S1 y S3.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
@@ -3111,6 +3165,8 @@ Volver a guardar duplicaba series, porque el servidor solo insertaba.
 - Pelland J et al. (2024). *The resistance training dose-response: meta-regressions of volume and hypertrophy/strength.*
 - Iraki J, Fitschen P, Espinar S, Helms E (2019). *Nutrition recommendations for bodybuilders in the off-season.* Sports (Basel).
 - Helms ER et al. (2014). *Evidence-based recommendations for natural bodybuilding contest preparation: nutrition and supplementation.* JISSN.
+- Bosquet L et al. (2013). *Effect of training cessation on muscular performance: a meta-analysis.* Scand J Med Sci Sports (la fuerza se mantiene ~3 semanas sin entrenar).
+- Barakat C et al. (2020). *Body recomposition: can trained individuals build muscle and lose fat at the same time?* Strength Cond J.
 - Schoenfeld BJ, Aragon AA (2018). *How much protein can the body use in a single meal for muscle-building?* JISSN (distribución de proteína por comida).
 - Maeo S et al. (2021). *Greater hamstrings muscle hypertrophy but similar damage protection after training at long versus short muscle lengths.* Med Sci Sports Exerc (curl sentado > tumbado).
 - Maeo S et al. (2023). *Greater triceps brachii hypertrophy after overhead versus lying triceps extension training.* Eur J Sport Sci (cabeza larga en posición elongada).

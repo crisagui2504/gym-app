@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Barrido de invariantes sobre TODAS las combinaciones de config y semana.
 
-5 enfoques x 4 splits x con/sin deporte x 12 ciclos x 4 duraciones x 7 variantes
-de semana (S1-S5, deload, reingreso 1 y 2) = 13.440 semanas con un historial
+5 enfoques x 4 splits x con/sin deporte x 12 ciclos x 5 duraciones x 8 variantes
+de semana (S1-S5, reingreso 1 en S1 y S3, reingreso 2) = 19.200 semanas con un historial
 sintetico, comprobando reglas que deben cumplirse SIEMPRE: sin excepciones, sin
 el mismo ejercicio en dos bloques, sin fallo en deload/reingreso ni en S1-S2,
 sin peso libre peligroso al fallo, sin cardio sobre el deporte, sesiones dentro
@@ -56,14 +56,14 @@ VACIO = pd.DataFrame(columns=HIST.columns)
 DEP = {"nombre": "Basquetbol", "dias": [2, 4], "minutos": 90}
 combos = 0
 for e_, sp, dep, ciclo, dur in itertools.product(
-        enf.ENFOQUES, enf.SPLITS, (None, DEP), range(12), (60, 75, 90, 120)):
+        enf.ENFOQUES, enf.SPLITS, (None, DEP), range(12), (60, 75, 80, 90, 120)):
     cfg = {"enfoque": e_, "split": sp, "prioridades": ["hombros", "dorsales"],
            "duracion_min": dur, "deporte": dep}
     try:
         plan = gen.generar_plan(cfg, ciclo)
     except Exception as ex:
         mal("generar_plan lanza excepcion", f"{e_}/{sp}/c{ciclo}", repr(ex)); continue
-    for sem, fase in ((1,0),(2,0),(3,0),(4,0),(5,0),(5,1),(1,2)):
+    for sem, fase in ((1,0),(2,0),(3,0),(4,0),(5,0),(1,1),(3,1),(2,2)):
         combos += 1
         tag = f"{e_}/{sp}/dep={'si' if dep else 'no'}/c{ciclo}/S{sem}/re{fase}/{dur}min"
         try:

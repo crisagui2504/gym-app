@@ -238,11 +238,11 @@ Las seis corren en el CI antes de cada despliegue. Si una falla, no se sube nada
 
 | Suite | Qué comprueba |
 |---|---|
-| `test_motor.py` | Las reglas del motor, una por una (56 secciones) |
+| `test_motor.py` | Las reglas del motor, una por una (60 secciones) |
 | `test_menu.py` | Menú de ~50 opciones por tiempo: dietas DASH y mediterránea, más proteína o carbohidratos, estrategias para músculo o pérdida de grasa |
 | `test_funcional.py` | Dashboard, helpers, aislamiento del modo demo y su API |
 | `test_plan_qa.py` | Calidad del plan generado (35 criterios) |
-| `test_barrido.py` | 13 440 semanas: todas las combinaciones sin violar ningún tope |
+| `test_barrido.py` | 19 200 semanas: todas las combinaciones sin violar ningún tope |
 | `test_simulacion.py` | El motor como entrenador: 9 perfiles de atleta virtual progresan con cargas realistas |
 | `app/tests/semana-plan.test.ts` | Mover días en la app: lo demás se acomoda para que cada músculo descanse (corre en el CI después de compilar) |
 

@@ -287,18 +287,17 @@ def fase_reingreso(df: pd.DataFrame, objetivo: date, umbral: int = 10) -> int:
     """En que semana de la vuelta estamos tras una pausa larga.
 
     0 = sin reingreso en curso (entrenamiento normal)
-    1 = primera semana de vuelta  -> ~1/3 del volumen, carga -10%
-    2 = segunda semana de vuelta  -> ~2/3 del volumen, carga -5%
+    1 = primera semana de vuelta  -> todas las series, carga -10%, sin fallo
+    2 = segunda semana de vuelta  -> todas las series, carga -5%, sin fallo
 
-    Por que una RAMPA y no un deload: un deload y un reingreso son problemas
-    distintos. El deload llega tras semanas duras y sirve para DISIPAR fatiga
-    acumulada, asi que cortar el volumen a fondo es el objetivo. Tras dos meses
-    de pausa no hay fatiga que disipar: estas descansado y DESENTRENADO. Lo que
-    hace falta es carga baja (tejido conectivo, agujetas) pero volumen
-    suficiente para recuperar estimulo y habito. Antes `reingreso` reutilizaba
-    la semana de deload tal cual, asi que la vuelta era un ACANTILADO: 1/3 del
-    volumen una semana y 100% la siguiente (x3 de golpe), que es justo el salto
-    donde se lesiona uno o lo vuelve a dejar."""
+    Por que no es un deload: el deload llega tras semanas duras y sirve para
+    DISIPAR fatiga acumulada, asi que cortar el volumen es el objetivo. Tras una
+    pausa no hay fatiga que disipar: estas descansado. Lo que se readapta es el
+    tejido conectivo (y vuelven las agujetas), y eso se cuida con carga mas baja
+    y reps en reserva. Primero fue un deload (1 serie por ejercicio), luego una
+    rampa de volumen (1/3 -> 2/3 -> 100%); ahora el volumen se queda entero y la
+    rampa es solo de carga: la vuelta con 1 serie por ejercicio se sentia vacia
+    y no hace falta para cuidar las articulaciones."""
     if df.empty or "fecha_entreno" not in df or df["fecha_entreno"].notna().sum() == 0:
         return 0
     fechas = sorted({d.date() for d in df["fecha_entreno"].dropna()})
@@ -313,6 +312,30 @@ def fase_reingreso(df: pd.DataFrame, objetivo: date, umbral: int = 10) -> int:
     lunes_reinicio = reinicio - timedelta(days=reinicio.weekday())
     fase = (objetivo - lunes_reinicio).days // 7 + 1
     return fase if fase in (1, 2) else 0
+
+
+def inicio_tras_pausa(df: pd.DataFrame, objetivo: date, inicio: date, umbral: int = 10) -> date:
+    """Lunes desde el que cuenta el ciclo: tras una pausa larga se vuelve a la S1.
+
+    Volver de 2 semanas sin entrenar directo a la S4 (pico: "supera tus Top
+    Sets") o a una descarga no tiene sentido: la pausa ya fue el descanso y lo
+    que toca es reconstruir la base. Asi que la semana en que regresas es una
+    S1 nueva y el ciclo sigue contando desde ahi. Si MES_INICIO es posterior
+    (lo reiniciaste a mano), manda MES_INICIO."""
+    if df is None or df.empty or "fecha_entreno" not in df or df["fecha_entreno"].notna().sum() == 0:
+        return inicio
+    lunes_obj = objetivo - timedelta(days=objetivo.weekday())
+    # solo hasta la semana objetivo: lo de despues no existia al planearla
+    fechas = sorted(d for d in {x.date() for x in df["fecha_entreno"].dropna()}
+                    if d < lunes_obj + timedelta(days=7))
+    antes = [d for d in fechas if d < lunes_obj]
+    if antes and (lunes_obj - antes[-1]).days > umbral:
+        return max(inicio, lunes_obj)        # la pausa sigue abierta: esta semana es la S1
+    reinicio = next((b for a, b in reversed(list(zip(fechas, fechas[1:])))
+                     if (b - a).days > umbral), None)
+    if reinicio is None:
+        return inicio
+    return max(inicio, reinicio - timedelta(days=reinicio.weekday()))
 
 
 def fatiga_global(df: pd.DataFrame) -> bool:
@@ -687,6 +710,15 @@ def estimar_peso(nombre: str, familia: str, ultima: dict, modelo=None,
         return None
     def _compuesto(e) -> bool:          # entra en Bloque A/B = multiarticular
         return any(x in e.bloques for x in ("A", "B"))
+    # el MISMO ejercicio con otro tipo de serie (p. ej. prensa hecha como serie
+    # normal y ahora toca de Top Set): su 1RM estimado vale mas que un analogo.
+    # Antes se saltaba y la prensa del Top Set salia sin peso teniendo historial.
+    propio = modelo.estado(ej.nombre) if modelo is not None else None
+    if propio is not None and reps_obj:
+        from entrenador import carga_para
+        est = redondear(carga_para(propio.tendencia * MARGEN_ESTIMACION, reps_obj, 7.0))
+        if est > 0:
+            return est, "tus otras series de este ejercicio"
     candidatos: list[tuple[int, float, str]] = []
     for (n_norm, fam), lp in ultima.items():
         an = por_norm.get(n_norm)
@@ -739,8 +771,9 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                   avisos: list[str] | None = None,
                   hoy: date | None = None,
                   preferencias: dict[str, str] | None = None) -> list[dict]:
-    """reingreso: 0/False normal, 1 = primera semana de vuelta (~1/3 del
-    volumen, -10% carga), 2 = segunda (~2/3, -5%). Ver fase_reingreso().
+    """reingreso: 0/False normal, 1 = primera semana de vuelta (todas las
+    series, el peso que tocaria -10%, sin fallo), 2 = segunda (-5%, sin
+    fallo). Ver fase_reingreso().
     ajustes/dolor: la encuesta de la sesion (feedback.py): series por musculo y
     sesiones con dolor articular por ejercicio. Los avisos se anaden a `avisos`."""
     import feedback as _fb
@@ -797,9 +830,9 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
 
         # S5 Deload: cero series al fallo. Las tecnicas de intensidad se
         # sustituyen por trabajo tradicional lejos del fallo (RIR 3-4).
-        # La fase 2 del reingreso tampoco lleva fallo: volver de una pausa larga
-        # y buscar el fallo en la 2da semana es como se acaba con una lesion.
-        if (semana == 5 or _fase == 2) and _es(f.tecnica, "amrap", "rest", "drop"):
+        # El reingreso (las 2 semanas) tampoco lleva fallo: conserva TODAS las
+        # series, asi que lo que se suaviza es el esfuerzo y la carga.
+        if (semana == 5 or _fase) and _es(f.tecnica, "amrap", "rest", "drop"):
             tecnica_out = "Tradicional"
             nota = ("S5 DELOAD: sin fallo, deja 3-4 reps en reserva." if semana == 5
                     else "REINGRESO: sin fallo todavia, deja 2-3 reps en reserva.")
@@ -808,11 +841,15 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
 
         if _es(f.tecnica, "top set"):
             if semana == 5:
-                # Deload: mantener peso de la ultima sesion, sin progression
+                # Deload: mantener peso de la ultima sesion, sin progresion
                 peso = redondear(lp[0]) if lp else f.peso_base
             else:
                 peso = peso_top_set(f, lp, record.get(clave), micro, semana_prog, clave in estancados)
-            nota = f"{marca} {f.notas or ''} {nota_semana(semana)}".strip()
+            _nota_plan = f.notas or ""
+            if semana == 5 or _fase == 1:
+                # ahi la carga baja a proposito: "supera el Top Set" se contradecia
+                _nota_plan = _nota_plan.replace("Supera el Top Set de la semana pasada.", "")
+            nota = re.sub(r"\s+", " ", f"{marca} {_nota_plan} {nota_semana(semana)}").strip()
             if peso is None:
                 _est = estimar_peso(f.ejercicio, clave[1], ultima, modelo, f.reps_max)
                 if _est:
@@ -842,7 +879,10 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
         # converge en 1-2 sesiones desde una carga mal estimada, baja si no se
         # llega al rango, y el Back-off sale del 1RM real y no de "80% del Top
         # Set" (con mas reps que el Top Set, el 80% dejaba 8-10 reps en reserva).
-        # El deload (S5) no pasa por aqui: ahi la carga baja a proposito.
+        # El deload (S5) no pasa por aqui: ahi la carga baja a proposito. El
+        # reingreso SI: el modelo ve todo tu historial reciente (no solo la ultima
+        # serie de ese tipo, que puede ser de hace meses) y luego se le quita el
+        # 10 % o el 5 %.
         if (semana != 5 and peso and peso > 0 and f.tecnica and f.reps_max
                 and _es(f.tecnica, "top set", "back-off", "back off", "tradicional", "amrap",
                         "drop", "rest-pause", "rest pause", "superserie")):
@@ -932,23 +972,25 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                 reps_max_out = f.reps_max + delta
                 nota = f"Sube el objetivo: {reps_min_out}-{reps_max_out} reps. {nota or ''}".strip()
 
-        # ── REINGRESO en RAMPA: fase 1 = -10% de carga, fase 2 = -5% ────────
-        # La carga baja protege tejido conectivo mientras se readapta; el
-        # volumen lo gradua `series_real` mas abajo.
+        # ── REINGRESO en RAMPA de CARGA: fase 1 = -10%, fase 2 = -5% ────────
+        # Las SERIES no se tocan: tras 1-3 semanas sin entrenar la fuerza y el
+        # musculo apenas se pierden (Bosquet et al. 2013: la fuerza se mantiene
+        # hasta ~3 semanas) y se recuperan rapido. Lo que se readapta es el
+        # tejido conectivo y las agujetas, y eso se cuida con la carga y dejando
+        # reps en reserva, no quitando series. Antes la 1a semana bajaba a 1
+        # serie por ejercicio y sin Bloque C: la vuelta se sentia vacia.
         if _fase and peso and peso > 0:
             factor, pct = (0.9, 10) if _fase == 1 else (0.95, 5)
-            peso = redondear(peso * factor)
-            sig = ("Semana 2 de la vuelta: sube el volumen." if _fase == 1
+            # HACIA ABAJO a lo que se puede cargar: con la mancuerna "mas cercana"
+            # 40 kg -10% = 36 volvia a 40 (de 15 a 20 por mano) y la bajada se perdia
+            peso = cargable_abajo(f.ejercicio, redondear(peso * factor))
+            sig = ("Mismas series, deja 2-3 reps en reserva." if _fase == 1
                    else "Ultima semana suave: la proxima ya es normal.")
             nota = f"REINGRESO: -{pct}% de carga. {sig} {nota or ''}".strip()[:255]
 
-        # ── Volumen: deload y fase 1 a 1 serie; fase 2 a dos tercios ────────
-        # La fase 2 SI conserva el Bloque C (semana != 5): es una rampa, no una
-        # descarga. Techo en 1 serie para no dejar un ejercicio en cero.
-        if (semana == 5 or _fase == 1) and "C -" not in f.bloque and f.tecnica:
+        # ── Volumen: solo el deload baja a 1 serie (y ya quito el Bloque C) ─
+        if semana == 5 and "C -" not in f.bloque and f.tecnica:
             series_real = 1
-        elif _fase == 2 and f.tecnica:
-            series_real = max(1, round(f.series * 2 / 3))
         else:
             series_real = f.series
 
@@ -987,12 +1029,25 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
         duracion_min = int(cargar_config().get("duracion_min", 90))
     if _asist:
         a_ayuda(filas, _asist, _pc)
-    return _recortar_duracion(filas, int(duracion_min))
+    filas = _recortar_duracion(filas, int(duracion_min))
+    # ...y el tiempo que SOBRA va a los grupos cortos de volumen. No en la
+    # descarga (bajar volumen es su objetivo) ni en la 1a semana de vuelta, ni
+    # si tu RPE no informa (siempre el mismo numero): sin esa senal el motor no
+    # sabe si te recuperas del volumen extra (simulador: con RPE fijo en 8 las
+    # series imposibles subian de 6 % a 10 %).
+    if semana != 5 and _fase != 1 and modelo.rpe_ok:
+        _rellenar_duracion(filas, int(duracion_min), ajustes=_ajustes, dolor=dolor)
+    return filas
 
 
 # Tope duro de ejercicios (movimientos) de pesas por dia: cambiar de maquina
 # tambien cuesta. Lo que decide es el TIEMPO estimado (ver _minutos_dia).
-_CAP_MOVIMIENTOS = {60: 6, 75: 8, 90: 10, 120: 12}
+_CAP_MOVIMIENTOS = {60: 6, 75: 8, 80: 9, 90: 10, 120: 12}
+
+# Relleno del tiempo que sobra (ver _rellenar_duracion)
+RELLENO_MAX_DIA = 3        # una sesion crece como mucho 3 series (lo mismo que la encuesta)
+RELLENO_MAX_FILA = 2       # un ejercicio crece como mucho +2 series...
+RELLENO_TOPE_SERIES = 4    # ...y nunca pasa de 4 series
 CALENTAMIENTO_MIN = 10       # general + series de aproximacion
 CAMBIO_MIN = 1.0             # preparar la siguiente maquina / barra
 
@@ -1109,6 +1164,86 @@ def _recortar_duracion(filas: list[dict], duracion_min: int,
     return [f for f in filas if f["ejercicio"] not in quitar.get(f["dia_semana"], set())]
 
 
+def _rellenar_duracion(filas: list[dict], duracion_min: int,
+                       prioridades: list[str] | None = None,
+                       ajustes: dict[str, int] | None = None,
+                       dolor: dict[str, int] | None = None) -> None:
+    """El espejo de _recortar_duracion: si la sesion sale mas corta que tu
+    duracion, el tiempo que sobra va a series de AISLAMIENTO (Bloque C) de los
+    grupos que van cortos de volumen. Modifica `filas` en sitio.
+
+    Antes la duracion solo recortaba: con PPL la sesion de recomposicion sale de
+    ~60-70 min y, sin el basquet, la pantorrilla quedaba en 4 series/semana
+    (debajo de su MEV, 8) aunque sobraban 10-20 minutos por sesion. Reglas:
+      - se suma la serie que MAS vale por minuto (volumen.valor_marginal, doble si
+        es tu prioridad), y solo si va CORTO (bajo el inicio de su MAV) o es tu
+        prioridad: dentro del rango ya no hace falta;
+      - ninguna suma lleva un grupo por encima de su MAV alto (el tope del rango
+        productivo): el relleno nunca mete volumen basura;
+      - solo aislamientos tradicionales; nada a un musculo que en la encuesta
+        dijiste que no recuperas ni a un ejercicio que te dolio;
+      - topes: +3 series por sesion (como la encuesta), +2 por ejercicio y 4
+        series como maximo."""
+    import ejercicios_db as _db
+    import volumen as vol
+    if prioridades is None:
+        from config_usuario import cargar_config
+        prioridades = cargar_config().get("prioridades") or []
+    pri = {g for p in prioridades for g in vol.PRIORIDAD_A_GRUPOS.get(p, [])}
+    cat = {_norm(e.nombre): e for e in _db.EJERCICIOS}
+    no_recupera = {m for m, k in (ajustes or {}).items() if k < 0}
+    duele = {m for m, k in (dolor or {}).items() if k > 0}
+
+    por_dia: dict[int, list[dict]] = {}
+    for f in filas:
+        por_dia.setdefault(f["dia_semana"], []).append(f)
+    semana = vol.series_de_filas([f for f in filas if _es_bloque_pesas(f["bloque"]) and f["tecnica"]])
+
+    def candidata(f: dict) -> bool:
+        e = cat.get(_norm(_db.nombre_canonico(f["ejercicio"])))
+        return ((f["bloque"] or "").startswith("C -") and _es(f["tecnica"], "tradicional")
+                and f.get("reps_max") and e is not None and e.musculo not in no_recupera
+                and _norm(f["ejercicio"]) not in duele)
+
+    cand = [f for f in filas if candidata(f)]
+    base = {id(f): int(float(f["series_objetivo"] or 0)) for f in cand}
+    extra_dia: dict[int, int] = {}
+
+    def valor(f: dict) -> float:
+        ap = vol.aporte_por_grupo(f["ejercicio"], 1.0)
+        if not ap or any(semana[g] + v > vol.LANDMARKS[g][2] + 1e-9 for g, v in ap.items()):
+            return 0.0
+        return sum(v * (2.0 if g in pri else 1.0) * vol.valor_marginal(g, semana[g]) for g, v in ap.items())
+
+    while True:
+        opciones = []
+        for f in cand:
+            d, s = f["dia_semana"], int(float(f["series_objetivo"] or 0))
+            una = _minutos_serie({**f, "series_objetivo": 1})
+            if (s >= RELLENO_TOPE_SERIES or s - base[id(f)] >= RELLENO_MAX_FILA
+                    or extra_dia.get(d, 0) >= RELLENO_MAX_DIA
+                    or _minutos_dia(por_dia[d], set()) + una > duracion_min):
+                continue
+            v = valor(f)
+            if v >= 2.0:      # solo lo que va CORTO (bajo el inicio de su MAV) o es tu prioridad
+                opciones.append((v / una, f))
+        if not opciones:
+            break
+        _, f = max(opciones, key=lambda x: x[0])
+        f["series_objetivo"] = int(float(f["series_objetivo"])) + 1
+        extra_dia[f["dia_semana"]] = extra_dia.get(f["dia_semana"], 0) + 1
+        for g, v in vol.aporte_por_grupo(f["ejercicio"], 1.0).items():
+            semana[g] += v
+
+    for f in cand:
+        n = int(f["series_objetivo"]) - base[id(f)]
+        if n > 0:
+            ap = vol.aporte_por_grupo(f["ejercicio"], 1.0)
+            grupo = max(ap, key=ap.get).lower() if ap else "este musculo"
+            txt = f"+{n} serie{'s' if n > 1 else ''}: te sobra tiempo y {grupo} va corto de volumen."
+            f["notas"] = f"{txt} {f['notas'] or ''}".strip()[:255]
+
+
 def sincronizar_plan(sesion: requests.Session, base_url: str, token: str, semana_inicio: str, filas: list[dict]) -> None:
     payload = {"semana_inicio": semana_inicio, "rutina": filas}
     r = sesion.post(
@@ -1136,24 +1271,29 @@ def decidir_semana(historial: pd.DataFrame, objetivo: date, inicio: date,
     # el ciclo avanza con semanas ENTRENADAS (ver semana_por_entrenos)
     if dias_gym is None:
         dias_gym = dias_gym_plan()
+    # tras una pausa larga el ciclo arranca de nuevo en S1 (ver inicio_tras_pausa)
+    inicio = inicio_tras_pausa(historial, objetivo, inicio)
     semana, no_contaron = semana_por_entrenos(historial, objetivo, inicio, dias_gym)
     pasada = objetivo - timedelta(days=objetivo.weekday() + 7)
     if no_contaron and no_contaron[-1][0] == pasada:
         hechas = no_contaron[-1][1]
         avisos.append(f"CICLO EN PAUSA: la semana pasada hiciste {hechas} de {dias_gym} sesiones de gym. "
                       f"Repites la S{semana} en vez de avanzar: la progresion se gana entrenando.")
-    # RAMPA de reingreso tras una pausa larga (no un acantilado del 33% al 100%)
+    # Reingreso tras una pausa larga: TODAS las series; se suaviza la carga y el
+    # esfuerzo (sin fallo). El ciclo ya volvio a S1 (inicio_tras_pausa).
     reingreso = fase_reingreso(historial, objetivo)
     if reingreso == 1:
         gap = dias_desde_ultimo(historial, objetivo)
-        avisos.append(f"REINGRESO 1/2: {gap} dias desde el ultimo entreno. "
-                      "Vuelta suave (~1/3 del volumen, carga -10%, sin fallo).")
-        semana = 5
+        _gap = f"{gap} dias desde el ultimo entreno. " if gap and gap > 0 else ""
+        avisos.append(f"REINGRESO 1/2: {_gap}El ciclo vuelve a S1 con TODAS tus series: "
+                      "carga -10% y sin fallo (deja 2-3 reps en reserva).")
     elif reingreso == 2:
-        avisos.append("REINGRESO 2/2: segunda semana de vuelta "
-                      "(~2/3 del volumen, carga -5%, sin fallo). La proxima ya es normal.")
-    # Deload reactivo global: RPE semanal >= 9 dos semanas seguidas
-    if semana != 5 and fatiga_global(historial):
+        avisos.append("REINGRESO 2/2: segunda semana de vuelta (todas las series, carga -5%, "
+                      "sin fallo). La proxima ya es normal.")
+    # Deload reactivo global: RPE semanal >= 9 dos semanas seguidas. No en el
+    # reingreso: esas 2 semanas con datos son de ANTES de la pausa, que ya fue
+    # el descanso.
+    if semana != 5 and not reingreso and fatiga_global(historial):
         avisos.append("DELOAD REACTIVO: RPE promedio semanal >= 9 las ultimas 2 semanas. "
                       "Se adelanta la semana de descarga.")
         semana = 5

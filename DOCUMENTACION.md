@@ -307,7 +307,7 @@ No se versionan:
 | `ejercicios_db.py` | 98 ejercicios con patrón, músculo, equipo, bloque y estímulo por submúsculo. |
 | `enfoques.py` | 5 enfoques (reps, técnicas, macros en g/kg, tendencia de peso objetivo) y 4 splits. |
 | `generador.py` | Arma el plan: ganancia marginal por submúsculo, topes por región, bisagras axiales, rotación, deporte y duración. |
-| `planificar.py` | Motor semanal: semana del mesociclo (por semanas entrenadas), recorte por tiempo según volumen y prioridades, descargas (rendimiento, bienestar, reingreso), progresión por ejercicio, redondeo a pesos reales, preferencias y encuesta. Sube el plan, la meta de nutrición y el menú. Incluye helpers de API y antibot. |
+| `planificar.py` | Motor semanal: semana del mesociclo (por semanas entrenadas; tras una pausa vuelve a S1), recorte por tiempo según volumen y prioridades y relleno del tiempo que sobra, descargas (rendimiento, bienestar), reingreso tras pausas (todas las series, carga −10 % y −5 %), progresión por ejercicio, redondeo a pesos reales, preferencias y encuesta. Sube el plan, la meta de nutrición y el menú. Incluye helpers de API y antibot. |
 | `entrenador.py` | `ModeloFuerza`: e1RM por ejercicio con RPE, tendencia, desentrenamiento y calibración. |
 | `feedback.py` | Encuesta por músculo, dolor, días malos y preferencias "Usar siempre". |
 | `volumen.py` | Series efectivas por músculo (las indirectas cuentan la mitad) contra MEV/MAV/MRV. |
@@ -456,11 +456,11 @@ Cada push a `main` que toque `app/`, `infinityfree/`, `python-engine/` o `instan
 
    | Suite | Qué comprueba |
    |---|---|
-   | `test_motor.py` | Reglas del motor, nutrición, menú, calorías por día, presupuesto, peso corporal, ciclo por semanas entrenadas, plan contra landmarks (56 secciones). |
+   | `test_motor.py` | Reglas del motor, nutrición, menú, calorías por día, presupuesto, peso corporal, ciclo por semanas entrenadas, plan contra landmarks, reingreso y relleno de tiempo (60 secciones). |
    | `test_menu.py` | Menú de 50 opciones: reglas DASH (con la sal de cocinar) y mediterránea, énfasis, estrategias (músculo, saciedad), variedad, lista corta, "no me gusta", barrido de 108 perfiles. |
    | `test_funcional.py` | Dashboard y helpers, aislamiento del modo demo y su API, menú en demo, **selectores CSS duplicados** en `app/src/styles.css`. |
    | `test_plan_qa.py` | 35 criterios de calidad del plan. |
-   | `test_barrido.py` | 13 440 semanas sin violar topes. |
+   | `test_barrido.py` | 19 200 semanas sin violar topes. |
    | `test_simulacion.py` | 9 atletas virtuales progresan con cargas realistas. |
    | `app/tests/semana-plan.test.ts` | Acomodo de la semana con la semana real del 19 oct 2026: nunca torso ni pierna dos días seguidos, no toca días pasados ni el deporte, no mueve nada si el plan ya estaba bien. Corre con esbuild + Node después de compilar. |
 

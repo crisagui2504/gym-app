@@ -437,7 +437,7 @@ for c in (0,1,2):
     rangos_ts[c] = (ts.reps_min, ts.reps_max)
 check("el Top Set real cambia de rango entre ciclos", len(set(rangos_ts.values())) >= 2, f"{rangos_ts}")
 
-print("\n== 22. Deload de reingreso tras >10 dias de pausa ==")
+print("\n== 22. Reingreso tras >10 dias de pausa: carga -10% ==")
 hoy2 = date.today()
 # El plan se pasa EXPLICITO y el ejercicio se saca de ese plan: antes la prueba
 # llamaba a generar_filas() sin `plan`, asi que usaba config_usuario.json y se
@@ -454,11 +454,15 @@ def df_gap(dias):
                         "tonelaje_serie":320}])
     df["fecha_entreno"]=pd.to_datetime(df["fecha_entreno"]); return df
 check("gap >10 dias se detecta", pl.dias_desde_ultimo(df_gap(15), hoy2) == 15)
-filas_re = pl.generar_filas(df_gap(15), hoy2.isoformat(), 5, plan=plan_re, reingreso=True)
+filas_re = pl.generar_filas(df_gap(15), hoy2.isoformat(), 1, plan=plan_re, reingreso=True)
 top_re = [f for f in filas_re if f["ejercicio"] == ej_top
           and "top" in (f["tecnica"] or "").lower()]
-check("reingreso reduce la carga ~10%", top_re and top_re[0]["peso_sugerido"] == pl.redondear(40*0.9),
-      f"{top_re[0]['peso_sugerido'] if top_re else 'sin fila'} ({ej_top})")
+top_n = [f for f in pl.generar_filas(df_gap(15), hoy2.isoformat(), 1, plan=plan_re)
+         if f["ejercicio"] == ej_top and "top" in (f["tecnica"] or "").lower()]
+check("reingreso reduce la carga ~10%",
+      top_re and top_n and 0.8 * top_n[0]["peso_sugerido"] <= top_re[0]["peso_sugerido"] < top_n[0]["peso_sugerido"],
+      f"{top_re[0]['peso_sugerido'] if top_re else 'sin fila'} vs normal "
+      f"{top_n[0]['peso_sugerido'] if top_n else '?'} ({ej_top})")
 check("reingreso avisa en la nota", top_re and "REINGRESO" in (top_re[0]["notas"] or ""))
 
 print("\n== 23. Sinergia: prioridades del mismo patron alternan entre dias A/B ==")
@@ -637,39 +641,53 @@ _p_ppl = generar_plan({"enfoque": "recomposicion", "split": "ppl",
 check("si el deporte choca con un dia de pesas, la nota avisa",
       any("OJO" in (f.notas or "") for f in _p_ppl if f.bloque == "Deporte"))
 
-print("\n== 29. Reingreso en RAMPA, no en acantilado ==")
+print("\n== 29. Reingreso: TODAS las series; se suaviza la carga, no el volumen ==")
 def _es_tec(t):  # tecnica que lleva al fallo
     return any(k in (t or "").lower() for k in ("amrap", "rest", "drop"))
 _plan_r = generar_plan({"enfoque": "recomposicion", "split": "upper_lower",
                         "prioridades": [], "duracion_min": 75}, ciclo=0)
-def _series(df_, semana_, fase_):
-    fs = pl.generar_filas(df_, "2026-09-28", semana_, plan=_plan_r, reingreso=fase_)
-    return sum(float(f["series_objetivo"] or 0) for f in fs if f["tecnica"])
 def _df_fechas(fechas):
     d = pd.DataFrame([{"fecha_entreno": pd.Timestamp(x), "ejercicio": "Press de Banca con Barra",
                        "tecnica": "Top Set", "numero_serie": 1, "peso_kg": 40.0,
                        "reps_hechas": 8, "rpe": 8, "tonelaje_serie": 320} for x in fechas])
     d["fecha_entreno"] = pd.to_datetime(d["fecha_entreno"]); return d
 
-_f1, _f2, _f0 = _series(df1, 5, 1), _series(df1, 1, 2), _series(df1, 1, 0)
-check("fase 1 < fase 2 < normal (es una rampa)", _f1 < _f2 < _f0,
-      f"fase1={_f1} fase2={_f2} normal={_f0}")
-check("la fase 2 no es un salto brutal: queda por encima del 50% del normal",
-      _f2 >= _f0 * 0.5, f"fase2={_f2} vs normal={_f0}")
-check("la fase 1 SI recorta a fondo (es la primera semana de vuelta)",
-      _f1 <= _f0 * 0.45, f"fase1={_f1} vs normal={_f0}")
-# el Bloque C vuelve en fase 2: es una rampa, no una descarga
-_c2 = [f for f in pl.generar_filas(df1, "2026-09-28", 1, plan=_plan_r, reingreso=2)
-       if f["tecnica"] and "C -" in f["bloque"]]
-_c1 = [f for f in pl.generar_filas(df1, "2026-09-28", 5, plan=_plan_r, reingreso=1)
-       if f["tecnica"] and "C -" in f["bloque"]]
-check("fase 1 sin Bloque C, fase 2 CON Bloque C", not _c1 and bool(_c2),
-      f"c_fase1={len(_c1)} c_fase2={len(_c2)}")
+# cada fila conserva las series del plan (el usuario: "no me gusta volver con pocas series")
+_series_plan = {(f.dia, f.ejercicio, f.tecnica): f.series for f in _plan_r if f.tecnica}
+for _fa in (1, 2):
+    _fs = [f for f in pl.generar_filas(df1, "2026-09-28", 1, plan=_plan_r, reingreso=_fa,
+                                       duracion_min=75) if f["tecnica"]]
+    _menos = [(f["ejercicio"], f["series_objetivo"]) for f in _fs
+              if (f["dia_semana"], f["ejercicio"], f["tecnica"]) in _series_plan
+              and float(f["series_objetivo"]) < _series_plan[(f["dia_semana"], f["ejercicio"], f["tecnica"])]]
+    check(f"reingreso fase {_fa}: ninguna fila con menos series que el plan", not _menos, str(_menos[:3]))
+    check(f"reingreso fase {_fa}: conserva el Bloque C",
+          any("C -" in f["bloque"] for f in _fs))
+# la 1a semana de vuelta: el peso que te tocaria (con tu fuerza estimada) -10%
+_ej_b = next(f for f in _plan_r if f.tecnica == "Top Set")
+_df_b = pd.DataFrame([{"fecha_entreno": pd.Timestamp("2026-09-10"), "ejercicio": _ej_b.ejercicio,
+                       "tecnica": "Top Set", "numero_serie": 1, "peso_kg": 50.0, "reps_hechas": 8,
+                       "rpe": 7, "tonelaje_serie": 400}])
+_top1 = next(f for f in pl.generar_filas(_df_b, "2026-09-28", 1, plan=_plan_r, reingreso=1)
+             if f["ejercicio"] == _ej_b.ejercicio and f["tecnica"] == "Top Set")
+_top0 = next(f for f in pl.generar_filas(_df_b, "2026-09-28", 1, plan=_plan_r)
+             if f["ejercicio"] == _ej_b.ejercicio and f["tecnica"] == "Top Set")
+check("fase 1: Top Set ~10% por debajo del de una semana normal",
+      0.8 * _top0["peso_sugerido"] <= _top1["peso_sugerido"] < _top0["peso_sugerido"],
+      f"fase1={_top1['peso_sugerido']} normal={_top0['peso_sugerido']}")
+check("fase 1: la nota no pide superar el Top Set (la carga baja a proposito)",
+      "Supera el Top Set" not in (_top1["notas"] or "") and "REINGRESO" in (_top1["notas"] or ""),
+      _top1["notas"])
+# el deload SI sigue bajando a 1 serie y sin Bloque C (eso no cambia)
+_des = [f for f in pl.generar_filas(df1, "2026-09-28", 5, plan=_plan_r)
+        if f["tecnica"] and pl._es_bloque_pesas(f["bloque"])]
+check("deload: 1 serie en A/B y sin Bloque C",
+      all(float(f["series_objetivo"]) == 1 for f in _des) and not any("C -" in f["bloque"] for f in _des))
 # ninguna fase del reingreso lleva trabajo al fallo
-for _fa, _se in ((1, 5), (2, 1)):
+for _fa, _se in ((1, 1), (1, 3), (2, 3)):
     _fallo = [f for f in pl.generar_filas(df1, "2026-09-28", _se, plan=_plan_r, reingreso=_fa)
               if f["tecnica"] and _es_tec(f["tecnica"])]
-    check(f"reingreso fase {_fa}: cero series al fallo", not _fallo, str(_fallo[:2]))
+    check(f"reingreso fase {_fa} en S{_se}: cero series al fallo", not _fallo, str(_fallo[:2]))
 # deteccion de fase a partir del historial
 check("pausa abierta >10 dias -> fase 1",
       pl.fase_reingreso(_df_fechas(["2026-07-22"]), date(2026, 9, 21)) == 1)
@@ -683,6 +701,21 @@ check("dos semanas entrenadas -> ya normal (fase 0)",
 check("historial continuo sin pausas -> fase 0",
       pl.fase_reingreso(_df_fechas(["2026-09-21", "2026-09-23", "2026-09-25"]),
                         date(2026, 9, 28)) == 0)
+# tras una pausa larga el ciclo vuelve a S1 (no a la S4 pico ni a una descarga)
+_ini = date(2026, 8, 31)   # ciclo que iba por la S4 cuando llego la pausa
+_hist_p = _df_fechas([f"2026-09-{d:02d}" for d in (1, 3, 5, 8, 10, 12, 15, 17, 19, 22, 24, 26)])
+check("sin pausa el ciclo sigue contando (S5 tras 4 semanas hechas)",
+      pl.decidir_semana(_hist_p, date(2026, 9, 28), _ini, dias_gym=3)[0] == 5)
+_sem_p, _re_p, _av_p = pl.decidir_semana(_hist_p, date(2026, 10, 12), _ini, dias_gym=3)
+check("pausa de 16 dias -> S1 en fase 1 de reingreso", (_sem_p, _re_p) == (1, 1), f"S{_sem_p} fase {_re_p}")
+check("el aviso dice que conservas todas tus series",
+      any("TODAS tus series" in a for a in _av_p), str(_av_p))
+_hist_v = _df_fechas([x.isoformat() for x in _hist_p["fecha_entreno"].dt.date]
+                     + ["2026-10-12", "2026-10-14", "2026-10-16"])
+check("la semana despues de volver -> S2 en fase 2",
+      pl.decidir_semana(_hist_v, date(2026, 10, 19), _ini, dias_gym=3)[:2] == (2, 2))
+check("MES_INICIO puesto a mano DESPUES de la pausa manda",
+      pl.inicio_tras_pausa(_hist_v, date(2026, 10, 19), date(2026, 10, 19)) == date(2026, 10, 19))
 
 print("\n== 30. Coherencia RIR prescrito <-> filtro de progresion por RPE ==")
 # El invariante: si el plan pide cerrar a RIR N, el RPE resultante (10 - N) debe
@@ -831,7 +864,7 @@ check("el dashboard usa decidir_semana (no reimplementa la semana)",
       "decidir_semana" in _insp.getsource(_dsh._tabla_plan))
 _df_pausa = _hist([("2026-07-22", 30, 8)])
 _sem, _fase, _ = pl.decidir_semana(_df_pausa, date(2026, 9, 21), date(2026, 9, 28))
-check("tras una pausa larga, decidir_semana aplica el reingreso", _fase == 1 and _sem == 5,
+check("tras una pausa larga, decidir_semana aplica el reingreso (y el ciclo vuelve a S1)", _fase == 1 and _sem == 1,
       f"S{_sem} fase{_fase}")
 
 print("")
@@ -1847,6 +1880,87 @@ check("sin series ni pesajes: no inventa",
 _ix = nut.indice_fuerza(_series59(5.0), _h59)
 check("indice de fuerza por semana: 100 al inicio y +5 % al final",
       round(_ix["indice"].iloc[0]) == 100 and round(_ix["indice"].iloc[-1]) == 105, str(_ix))
+
+print("== 60. El tiempo que sobra va a lo que esta corto de volumen ==")
+# PPL de recomposicion sin deporte: la sesion sale de ~60-70 min y la
+# pantorrilla quedaba en 4 series/semana (MEV 8) aunque sobraba tiempo.
+import volumen as _vol60
+_plan60 = generar_plan({"enfoque": "recomposicion", "split": "ppl", "prioridades": ["hombros", "dorsales"],
+                        "deporte": None, "duracion_min": 80}, ciclo=0)
+def _fs60(semana_, fase_=0, dur_=80, ajustes_=None, prio_=("hombros", "dorsales")):
+    fs = pl.generar_filas(df1, "2026-11-23", semana_, plan=_plan60, reingreso=fase_, duracion_min=dur_,
+                          ajustes=ajustes_)
+    return fs
+def _vol(fs):
+    return _vol60.series_de_filas([f for f in fs if pl._es_bloque_pesas(f["bloque"]) and f["tecnica"]])
+def _dias60(fs):
+    por = {}
+    for f in fs:
+        por.setdefault(f["dia_semana"], []).append(f)
+    return {d: v for d, v in por.items() if any(pl._es_bloque_pesas(x["bloque"]) for x in v)}
+_s1 = _fs60(1)
+_base = {(f.dia, f.ejercicio, f.tecnica): f.series for f in _plan60 if f.tecnica}
+_v1 = _vol(_s1)
+check("pantorrilla llega a su MEV (8) con el tiempo que sobra", _v1["Pantorrilla"] >= 8, f"{_v1['Pantorrilla']:.1f}")
+check("ninguna sesion pasa de la duracion pedida",
+      all(pl._minutos_dia(v, set()) <= 80 + 1e-9 for v in _dias60(_s1).values()),
+      str({d: round(pl._minutos_dia(v, set())) for d, v in _dias60(_s1).items()}))
+_crec = [f for f in _s1 if f["tecnica"] and (f["dia_semana"], f["ejercicio"], f["tecnica"]) in _base
+         and f["series_objetivo"] > _base[(f["dia_semana"], f["ejercicio"], f["tecnica"])]]
+check("solo crecen aislamientos tradicionales del Bloque C",
+      bool(_crec) and all(f["bloque"].startswith("C -") and f["tecnica"] == "Tradicional" for f in _crec),
+      str([(f["ejercicio"], f["bloque"]) for f in _crec][:4]))
+check("topes: +2 por ejercicio, 4 series maximo y +3 por sesion",
+      all(f["series_objetivo"] <= pl.RELLENO_TOPE_SERIES
+          and f["series_objetivo"] - _base[(f["dia_semana"], f["ejercicio"], f["tecnica"])] <= pl.RELLENO_MAX_FILA
+          for f in _crec)
+      and all(sum(f["series_objetivo"] - _base[(f["dia_semana"], f["ejercicio"], f["tecnica"])]
+                  for f in _crec if f["dia_semana"] == d) <= pl.RELLENO_MAX_DIA for d in range(1, 8)))
+_sub = {g for f in _crec for g in _vol60.aporte_por_grupo(f["ejercicio"], 1.0)}
+check("el relleno no lleva ningun grupo por encima de su MAV alto",
+      all(_v1[g] <= _vol60.LANDMARKS[g][2] + 1e-9 for g in _sub),
+      str({g: round(_v1[g], 1) for g in _sub if _v1[g] > _vol60.LANDMARKS[g][2]}))
+check("la nota explica la serie extra", all("te sobra tiempo" in (f["notas"] or "") for f in _crec))
+# no rellena en la descarga ni en la 1a semana de vuelta
+_s5 = _fs60(5)
+check("deload: sin series extra", not any("te sobra tiempo" in (f["notas"] or "") for f in _s5))
+_r1 = _fs60(1, fase_=1)
+check("1a semana de vuelta: sin series extra (pero con las del plan)",
+      not any("te sobra tiempo" in (f["notas"] or "") for f in _r1)
+      and all(f["series_objetivo"] == _base[(f["dia_semana"], f["ejercicio"], f["tecnica"])]
+              for f in _r1 if f["tecnica"] and (f["dia_semana"], f["ejercicio"], f["tecnica"]) in _base))
+check("2a semana de vuelta: ya rellena", any("te sobra tiempo" in (f["notas"] or "") for f in _fs60(2, fase_=2)))
+# un musculo que en la encuesta dijiste que no recuperas no recibe series extra
+_mus_pant = next(e.musculo for e in db.EJERCICIOS if "Pantorrilla" in e.nombre)
+_aj = _fs60(1, ajustes_={_mus_pant: -1})
+check("encuesta 'no recupero' -> ese musculo no se rellena",
+      not any("te sobra tiempo" in (f["notas"] or "") and "pantorrilla" in (f["notas"] or "").lower()
+              for f in _aj))
+# con poco tiempo manda el recorte: lo que se rellene cabe en los 60 min
+_s60 = _fs60(1, dur_=60)
+check("a 60 min el relleno respeta el recorte: ninguna sesion pasa de 60",
+      all(pl._minutos_dia(v, set()) <= 60 + 1e-9 for v in _dias60(_s60).values()),
+      str({d: round(pl._minutos_dia(v, set())) for d, v in _dias60(_s60).items()}))
+check("80 min tiene su tope de ejercicios", pl._CAP_MOVIMIENTOS.get(80) == 9)
+# con un RPE que no informa (siempre 8) el motor no sabe si recuperas el extra: no rellena
+# (14 series: con menos de 12 el motor aun no juzga si el RPE informa)
+_df8 = df_historial([(lunes_pasado - timedelta(days=2 * i), "Press de Banca con Barra", "Tradicional", 1,
+                      40.0, 10, 8) for i in range(14)])
+check("RPE siempre igual -> sin relleno",
+      not any("te sobra tiempo" in (f["notas"] or "")
+              for f in pl.generar_filas(_df8, "2026-11-23", 1, plan=_plan60, duracion_min=80)))
+# "Usar siempre" cambia el Top Set Y su Back-off (antes el Back-off se quedaba con
+# el ejercicio viejo porque "chocaba" con el Top Set ya cambiado)
+import feedback as _fb60
+_top60 = next(f for f in _plan60 if f.tecnica == "Top Set")
+_alt60 = next(e for e in db.EJERCICIOS if e.patron == next(x for x in db.EJERCICIOS
+              if x.nombre == _top60.ejercicio).patron and e.nombre != _top60.ejercicio
+              and not any(g.dia == _top60.dia and g.ejercicio == e.nombre for g in _plan60))
+_pp, _ = _fb60.aplicar_preferencias(_plan60, {_top60.ejercicio.strip().lower(): _alt60.nombre})
+_pares = [(f.tecnica, f.ejercicio) for f in _pp if f.dia == _top60.dia and f.bloque == _top60.bloque
+          and f.tecnica in ("Top Set", "Back-off") and f.orden in (_top60.orden, _top60.orden + 1)]
+check("preferencia: Top Set y Back-off cambian juntos",
+      len(_pares) == 2 and all(e == _alt60.nombre for _, e in _pares), str(_pares))
 
 print()
 if FALLOS:

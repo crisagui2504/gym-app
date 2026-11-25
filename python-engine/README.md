@@ -48,7 +48,7 @@ python tests/test_motor.py        # reglas del motor, nutrición y menú
 python tests/test_menu.py         # menú: 50 opciones, DASH, mediterránea, énfasis
 python tests/test_funcional.py    # dashboard, modo demo, estilos de la app
 python tests/test_plan_qa.py      # calidad del plan (35 criterios)
-python tests/test_barrido.py      # 13 440 semanas sin violar topes
+python tests/test_barrido.py      # 19 200 semanas sin violar topes
 python tests/test_simulacion.py   # el motor como entrenador (9 atletas virtuales)
 ```
 

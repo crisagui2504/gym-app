@@ -25,7 +25,7 @@ import enfoques as enf
 SEMANAS_PREVIAS = 10            # dos mesociclos completos de historial
 INICIO = date(2026, 1, 5)       # fijo: escenarios deterministas (y cacheables)
 DIAS_HISTORIAL_APP = 35
-DURACIONES = (60, 75, 90, 120)
+DURACIONES = (60, 75, 80, 90, 120)
 PRIORIDADES = tuple(mid for mid, _ in enf.MUSCULOS_PRIORIZABLES)
 DEPORTE = {"nombre": "Basquetbol", "dias": [2], "minutos": 90}
 

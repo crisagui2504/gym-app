@@ -300,6 +300,7 @@ def aplicar_preferencias(plan: list, prefs: dict[str, str]) -> tuple[list, list[
     avisos: list[str] = []
     descartadas: set[str] = set()
     nuevo = list(plan)
+    origen = [_norm(f.ejercicio) for f in plan]
     for i, f in enumerate(plan):
         n = _norm(f.ejercicio)
         reemplazo = prefs.get(n)
@@ -312,8 +313,13 @@ def aplicar_preferencias(plan: list, prefs: dict[str, str]) -> tuple[list, list[
                 avisos.append(f"Preferencia ignorada: {reemplazo} no sustituye a {f.ejercicio} "
                               f"(no esta en el catalogo o es otro patron de movimiento)")
             continue
-        choca = any(g.dia == f.dia and _norm(g.ejercicio) == _norm(alt.nombre) and _comparten(g.semanas, f.semanas)
-                    for g in nuevo)
+        # las filas que vienen del MISMO ejercicio original (Top Set + Back-off)
+        # no chocan entre si: antes se cambiaba el Top Set, el Back-off "chocaba"
+        # con el y se quedaba con el ejercicio viejo (Top Set en maquina y
+        # Back-off con mancuernas)
+        choca = any(g.dia == f.dia and _norm(g.ejercicio) == _norm(alt.nombre) and origen[j] != n
+                    and _comparten(g.semanas, f.semanas)
+                    for j, g in enumerate(nuevo))
         if not choca:
             nota = f"PREFERENCIA: usas {alt.nombre} en lugar de {f.ejercicio}. {f.notas or ''}".strip()
             nuevo[i] = replace(f, ejercicio=alt.nombre, notas=nota[:255])

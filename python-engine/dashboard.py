@@ -1212,6 +1212,7 @@ def _tab_config_children(estado: str = "real") -> html.Div:
                         options=[
                             {"label": "~60 min (corto)", "value": 60},
                             {"label": "~75 min", "value": 75},
+                            {"label": "~80 min (1 h 20)", "value": 80},
                             {"label": "~90 min", "value": 90},
                             {"label": "~120 min (completo)", "value": 120},
                         ],
