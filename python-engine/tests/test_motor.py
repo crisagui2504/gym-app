@@ -1962,6 +1962,132 @@ _pares = [(f.tecnica, f.ejercicio) for f in _pp if f.dia == _top60.dia and f.blo
 check("preferencia: Top Set y Back-off cambian juntos",
       len(_pares) == 2 and all(e == _alt60.nombre for _, e in _pares), str(_pares))
 
+print("\n== 61. El reloj (Amazfit via Salud): recuperacion, ritmo real, pasos y peso ==")
+import reloj as rlj
+import tempfile as _tmp61
+def _dias61(filas):
+    """filas: (fecha, sueno_min, pulso_noche, pasos, peso)"""
+    return rlj.normalizar(pd.DataFrame([{"fecha": f, "sueno_min": s, "pulso_noche": pn, "pulso_reposo": None,
+                                         "hrv": None, "pasos": pa, "peso": kg} for f, s, pn, pa, kg in filas]),
+                          None)[0]
+def _entr61(filas):
+    """filas: (inicio, minutos, tipo)"""
+    return rlj.normalizar(None, pd.DataFrame([{"inicio": i, "fin": i, "tipo": t, "minutos": m, "pulso_prom": None}
+                                              for i, m, t in filas]))[1]
+_o61 = date(2026, 10, 12)                                     # lunes que se planea
+# base de pulso: 4 semanas antes de la semana evaluada con ~52 lpm
+_basep = [((_o61 - timedelta(days=d)).isoformat(), 400, 52 + (d % 2), 8000, None) for d in range(8, 30)]
+_d61 = _dias61(_basep + [("2026-10-06", 280, 53, 8000, None),     # 4.7 h: noche corta
+                         ("2026-10-07", 100, 70, 8000, None),     # 1.7 h: el reloj no se uso toda la noche
+                         ("2026-10-08", 420, 59, 8000, None),     # 7 h pero pulso +6 sobre la base
+                         ("2026-10-09", 410, 54, 8000, None)])
+_m61 = rlj.dias_malos(_d61, _o61)
+check("noche completa de menos de 5 h -> dia malo", date(2026, 10, 6) in _m61, str(_m61))
+check("noche de menos de 3 h (reloj sin usar) NO cuenta, ni su pulso", date(2026, 10, 7) not in _m61, str(_m61))
+check("pulso nocturno 5+ lpm sobre tu base -> dia malo", date(2026, 10, 8) in _m61 and "base" in _m61[date(2026, 10, 8)],
+      str(_m61))
+check("una noche normal no cuenta", date(2026, 10, 9) not in _m61)
+_sin_base = _dias61([("2026-10-08", 420, 75, 8000, None)])
+check("sin 7 noches de base el criterio del pulso no se usa", rlj.dias_malos(_sin_base, _o61) == {})
+check("sin reloj: nada", rlj.dias_malos(None, _o61) == {} and rlj.aviso_sueno(None, _o61) is None)
+# decidir_semana: encuesta + reloj se suman; un mismo dia cuenta una vez
+_hb61 = _h45([(f, "Press de Banca con Barra", "Tradicional", 1, 60, 10, 8)
+              for f in ("2026-09-22", "2026-09-24", "2026-09-26", "2026-09-29", "2026-10-01", "2026-10-03",
+                        "2026-10-06", "2026-10-08", "2026-10-10")])
+_ini61 = date(2026, 9, 21)                                       # semana 4 del mesociclo
+_enc61 = _fb42([("2026-10-09", "dia", "energia", None, 3, None, None),
+                ("2026-10-10", "dia", "sueno", None, 3, None, None)])
+_s61, _, _av61 = pl.decidir_semana(_hb61, _o61, _ini61, _enc61, reloj=_d61)
+check("2 dias malos de la encuesta + 2 noches malas del reloj -> se adelanta la descarga",
+      _s61 == 5 and any("reloj" in a for a in _av61 if a.startswith("DELOAD")), str(_av61))
+_enc_mismo = _fb42([("2026-10-06", "dia", "sueno", None, 3, None, None),
+                    ("2026-10-08", "dia", "sueno", None, 3, None, None)])
+_s61b, _, _av61b = pl.decidir_semana(_hb61, _o61, _ini61, _enc_mismo, reloj=_d61)
+check("el mismo dia malo en la encuesta y en el reloj cuenta UNA vez (2 dias: solo aviso)",
+      _s61b != 5 and any(a.startswith("BIENESTAR") for a in _av61b), str(_av61b))
+check("sin reloj, decidir_semana da lo mismo que antes",
+      pl.decidir_semana(_hb61, _o61, _ini61, _enc61)[:2] == pl.decidir_semana(_hb61, _o61, _ini61, _enc61, reloj=None)[:2])
+_corto = _dias61([(f"2026-10-0{d}", 340, None, None, None) for d in range(5, 10)])
+check("dormir 5.7 h de promedio -> aviso de sueno (no cambia el plan)",
+      (rlj.aviso_sueno(_corto, _o61) or "").startswith("SUENO: promedio 5.7 h"), str(rlj.aviso_sueno(_corto, _o61)))
+check("con 2 noches no hay aviso de sueno", rlj.aviso_sueno(_corto.head(2), _o61) is None)
+
+# ritmo real: 3 sesiones de 12 series (4 ejercicios) que el motor estima en
+# 12 x (120 + 45) s + 10 calentamiento + 4 cambios = 47 min y duraron 25 % mas
+def _ses61(fecha):
+    return [(fecha, f"Ejercicio {k}", "Tradicional", n, 40, 10, 8) for k in range(4) for n in range(1, 4)]
+_h61 = _h45(sum((_ses61(f) for f in ("2026-10-01", "2026-10-03", "2026-10-06")), []))
+_h61["bloque"] = "B - Volumen"
+_est = rlj.minutos_estimados(_h61[_h61["fecha_entreno"] == "2026-10-01"])
+check("minutos estimados de una sesion anotada = la cuenta del motor (47)", abs(_est - 47) < 0.01, f"{_est:.2f}")
+_e61 = _entr61([(f"{f} 18:00:00", 47 * 1.25, "TraditionalStrengthTraining")
+                for f in ("2026-10-01", "2026-10-03", "2026-10-06")])
+check("3 sesiones 25 % mas largas -> ritmo 1.25", rlj.ritmo_sesiones(_e61, _h61, _o61) == (1.25, 3),
+      str(rlj.ritmo_sesiones(_e61, _h61, _o61)))
+check("con 2 sesiones aun no se calibra", rlj.ritmo_sesiones(_e61.head(2), _h61, _o61)[0] == 1.0)
+_e61x = _entr61([(f"{f} 18:00:00", 47 * 2.5, "TraditionalStrengthTraining") for f in ("2026-10-01", "2026-10-03")]
+                + [("2026-10-06 18:00:00", 47 * 1.25, "TraditionalStrengthTraining")])
+check("sesiones absurdas (reloj olvidado prendido) se ignoran", rlj.ritmo_sesiones(_e61x, _h61, _o61)[0] == 1.0)
+_e61t = _entr61([(f"{f} 18:00:00", 47 * 1.6, "TraditionalStrengthTraining")
+                 for f in ("2026-10-01", "2026-10-03", "2026-10-06")])
+check("el ajuste tiene tope (+30 %)", rlj.ritmo_sesiones(_e61t, _h61, _o61)[0] == 1.3)
+_e61b = _entr61([(f"{f} 18:00:00", 47 * 1.25, "Basketball") for f in ("2026-10-01", "2026-10-03", "2026-10-06")])
+check("el basquet no calibra la duracion de las pesas", rlj.ritmo_sesiones(_e61b, _h61, _o61)[0] == 1.0)
+# el plan con ritmo 1.25 se recorta para caber en los 80 min REALES
+_r1 = pl.generar_filas(df1, "2026-11-23", 1, plan=_plan60, duracion_min=80)
+_r125 = pl.generar_filas(df1, "2026-11-23", 1, plan=_plan60, duracion_min=80, ritmo=1.25)
+_tot = lambda fs: sum(float(f["series_objetivo"] or 0) for f in fs if pl._es_bloque_pesas(f["bloque"]) and f["tecnica"])
+check("ritmo 1.25 -> cada sesion cabe en 80 min reales (estimado x 1.25)",
+      all(pl._minutos_dia(v, set()) * 1.25 <= 80 + 1e-9 for v in _dias60(_r125).values()),
+      str({d: round(pl._minutos_dia(v, set()) * 1.25) for d, v in _dias60(_r125).items()}))
+check("ritmo 1.25 -> menos series que con el estimado normal", _tot(_r125) < _tot(_r1), f"{_tot(_r1)} -> {_tot(_r125)}")
+check("ritmo 1.0 = el plan de siempre",
+      _tot(pl.generar_filas(df1, "2026-11-23", 1, plan=_plan60, duracion_min=80, ritmo=1.0)) == _tot(_r1))
+check("aviso de ritmo en palabras", "25 % mas" in (rlj.aviso_ritmo(1.25, 3, 80) or "") and rlj.aviso_ritmo(1.0, 0, 80) is None)
+# entrenos sin anotar
+_e61s = _entr61([("2026-10-02 18:00:00", 55, "TraditionalStrengthTraining"),   # sin series en la app
+                 ("2026-10-03 18:00:00", 60, "TraditionalStrengthTraining"),   # con series
+                 ("2026-10-04 18:00:00", 50, "Basketball"),                    # no es fuerza
+                 ("2026-10-05 18:00:00", 10, "TraditionalStrengthTraining")])  # 10 min: no cuenta
+_sa = rlj.entrenos_sin_anotar(_e61s, _h61, _o61)
+check("fuerza en el reloj sin series en la app -> aviso; basquet y sesiones cortas no",
+      _sa == [(date(2026, 10, 2), 55.0)], str(_sa))
+check("aviso de sin anotar menciona el dia", "vie 2 (55 min)" in (rlj.aviso_sin_anotar(_sa) or ""))
+_tt = rlj.texto_telefono(_corto, _o61, 1.25, 3, _sa) or ""
+check("notificacion: sueno, ritmo y entrenos sin anotar, con acentos",
+      "5.7 h" in _tt and "25 % más" in _tt and "vie 2" in _tt, _tt)
+check("sin nada que decir no hay notificacion", rlj.texto_telefono(None, _o61, 1.0, 0, []) is None)
+
+# pasos -> check-in de nutricion: definicion con la bascula quieta pide bajar kcal,
+# pero si los pasos cayeron 15 %+ primero se recuperan los pasos
+_p61 = _dias61([((_hoy49 - timedelta(days=d)).isoformat(), None, None, 6000 if d < 7 else 9000, None)
+                for d in range(28)])
+_ps = rlj.pasos_semana(_p61, _hoy49)
+check("pasos de la semana contra las 3 previas", _ps == {"semana": 6000, "antes": 9000, "cambio": -0.333}, str(_ps))
+_ev61 = nut.evaluar({"enfoque": "definicion", "peso_corporal": 80}, _pesos(80, 0.0), hoy=_hoy49, pasos=_ps)
+check("bascula quieta + pasos cayeron -> 'pasos': no bajar kcal todavia",
+      _ev61["estado"] == "pasos" and _ev61["kcal_delta"] == 0 and "pasos" in nut.consejo_calorias(_ev61), str(_ev61))
+_ps_ok = {"semana": 9000, "antes": 9100, "cambio": -0.011}
+check("pasos estables -> se baja kcal como siempre",
+      nut.evaluar({"enfoque": "definicion", "peso_corporal": 80}, _pesos(80, 0.0), hoy=_hoy49, pasos=_ps_ok)["estado"] == "bajar")
+check("si toca SUBIR kcal, los pasos no frenan nada",
+      nut.evaluar({"enfoque": "volumen", "peso_corporal": 70}, _pesos(70, 0.0), hoy=_hoy49, pasos=_ps)["estado"] == "subir")
+check("pocos dias con pasos -> sin dato", rlj.pasos_semana(_p61.tail(3), _hoy49) is None)
+_ci61 = nut.checkin({"enfoque": "definicion", "peso_corporal": 80}, _pesos(80, 0.0), pd.DataFrame(), hoy=_hoy49, pasos=_ps)
+check("el check-in de la app lleva los pasos", _ci61["pasos"] == _ps and _ci61["estado"] == "pasos")
+# peso del reloj -> Nutri solo en dias sin pesaje tuyo
+_pw = _dias61([("2026-10-10", None, None, None, 77.4), ("2026-10-11", None, None, None, 77.2),
+               ("2026-08-01", None, None, None, 79.0)])
+_srv = pd.DataFrame({"fecha": [pd.Timestamp("2026-10-11")], "peso": [77.0], "cintura": [None]})
+check("peso del reloj: solo fechas sin pesaje y de los ultimos 30 dias (el tuyo manda)",
+      rlj.pesos_nuevos(_pw, _srv, _o61) == [(date(2026, 10, 10), 77.4)], str(rlj.pesos_nuevos(_pw, _srv, _o61)))
+with _tmp61.TemporaryDirectory() as _t61:
+    rlj.guardar_csv(_d61, _e61s, _t61)
+    _rd, _re = rlj.leer_csv(_t61)
+    check("copia local (dashboard): ida y vuelta sin perder datos",
+          len(_rd) == len(_d61) and len(_re) == len(_e61s) and _re["tipo"].tolist() == _e61s["tipo"].tolist())
+    check("sin copia local: tablas vacias", all(x.empty for x in rlj.leer_csv(pathlib.Path(_t61) / "no")))
+
 print()
 if FALLOS:
     print(f"RESULTADO: {len(FALLOS)} pruebas FALLARON: {FALLOS}")

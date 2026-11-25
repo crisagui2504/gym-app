@@ -3155,6 +3155,74 @@ Volver a guardar duplicaba series, porque el servidor solo insertaba.
   - sin relleno en descarga, en la 1a semana de vuelta, a 60 min ni en un músculo que no recuperas.
 - `test_barrido`: ahora 19 200 semanas, con 80 min y el reingreso en S1 y S3.
 
+## CT. El reloj entra al motor y la barra de abajo deja de trabarse (2026-11-25)
+
+**Lo pediste así:** conectar el Amazfit (Zepp → Apple Salud) al motor, sin mover tu entreno mientras entrenabas: el sueño y el pulso para la recuperación, los entrenos del reloj para la duración real y los entrenos sin anotar, y los pasos para nutrición. Y arreglar la barra inferior, que se quedaba a media pantalla después de escribir una nota.
+
+- **Barra trabada en iPhone** (`app.component.ts`, `styles.css`):
+  - En tus capturas la barra no estaba "encogida": se movía junto con el contenido, anclada donde estaba el teclado al cerrarse. Es la regresión de WebKit en iOS 26 con `position: fixed` tras el teclado.
+  - El reparador anterior (ocultar y mostrar la app) se saltaba justo ese caso: al bajar el teclado las medidas del viewport ya decían que todo estaba bien.
+  - Arreglo de fondo: con la app instalada, el que se desplaza es el `body` y no la página (`html.app-inicio`). La página nunca se mueve, así que iOS no tiene un viewport "corrido" con el que descolocar la barra. Es el remedio que reportan como estable en PWAs con iOS 26.
+  - Red de seguridad: el reparador ahora también actúa si la barra quedó despegada del borde inferior, hace una segunda pasada cuando el teclado terminó de bajar, y revisa al terminar cada desplazamiento (como mucho una vez cada 1.5 s).
+  - Un selector de archivo o un slider ya no cuentan como "teclado abierto" (escondían la barra sin motivo).
+- **El reloj, leído en el teléfono** (`salud.ts`):
+  - Historial → ⌚ Tu reloj → "Importar de Salud (.zip)". El .zip de "Exportar todos los datos de salud" (cientos de MB) se lee en streaming en el teléfono: tu export real, de 200 MB, tarda ~1 s en la PC.
+  - Al servidor solo suben los totales por día: horas dormidas, pulso nocturno, pulso en reposo, HRV, pasos, peso y los entrenos (inicio, fin, tipo, minutos y pulso promedio). El pulso minuto a minuto nunca sale del teléfono.
+  - Sueño:
+    - se unen las etapas (ligero, profundo y REM); "en cama" y "despierto" no cuentan;
+    - la noche cuenta para el día en que despiertas;
+    - si reloj y teléfono registran la misma noche, gana el que tiene más minutos (sumarlos la contaría doble).
+  - Pulso nocturno: percentil 10 del pulso mientras dormías, solo dentro de los tramos dormido. El mínimo suelto es ruido del sensor.
+  - Pasos: de la fuente con más pasos, no la suma de teléfono + reloj (son los mismos pasos).
+  - Nuevas tablas `reloj_dias` y `reloj_entrenos` (`guardar_reloj.php`, `get_reloj.php`). Se crean solas, y reimportar es seguro.
+- **Recuperación** (`reloj.py` + `decidir_semana`):
+  - Cuentan como "día malo", igual que contestar "dormí mal":
+    - una noche completa de menos de 5 h;
+    - o el pulso nocturno 5+ lpm por encima de tu base (mediana de las 4 semanas previas, con al menos 7 noches). El pulso en reposo que sube sobre tu propia base es la señal clásica de fatiga acumulada o de una enfermedad que empieza (Buchheit 2014; Radin et al. 2020).
+  - Encuesta y reloj se suman, y un mismo día cuenta una vez. Con 3 en la semana se adelanta la descarga (la regla de siempre, Saw et al. 2016).
+  - Las noches de menos de 3 h no cuentan, ni su pulso: casi siempre es el reloj sin usar toda la noche (tus noches del 19 y 21 de noviembre).
+  - Tus noches completas rondan 5.5–6.5 h. Por eso el umbral de "noche mala" es 5 h y no 6: con 6 h casi todas tus semanas adelantarían la descarga, y lo que hace falta es dormir más, no descansar del gym cada semana.
+  - En vez de eso, un aviso de sueño si el promedio de la semana baja de 7 h (consenso AASM/SRS, Watson et al. 2015). En déficit, dormir 5.5 h en vez de 8.5 h hizo perder 55 % menos grasa y 60 % más masa magra con la misma dieta (Nedeltcheva et al. 2010).
+- **Duración real** (`ritmo_sesiones` → `_recortar_duracion` / `_rellenar_duracion`):
+  - Si inicias un entreno de Fuerza en el reloj, el motor compara lo que duró contra lo que estima para las series que anotaste ese día. La cuenta es la misma del recorte: 45 s de trabajo + descanso por serie, 10 min de calentamiento y 1 min por cambio de ejercicio.
+  - Con 3+ sesiones válidas en 6 semanas, el recorte y el relleno usan tu ritmo real. Por ejemplo, si tardas 25 % más, una sesión de 80 min se arma como si cupieran 64 estimados.
+  - Tope de −20 % / +30 %, en pasos de 5 %. Se ignoran sesiones absurdas (reloj olvidado prendido) y las de menos de 6 series anotadas. El básquet y el cardio no calibran las pesas.
+- **Entrenos sin anotar:** fuerza de 20+ min en el reloj un día sin series en la app genera un aviso.
+- **Te llega al teléfono:** los avisos del motor salían solo en la consola. Ahora, después de subir la semana, una notificación "⌚ Lo que vio tu reloj" resume sueño, noches malas, ritmo y entrenos sin anotar. Si no hay nada que decir, no llega.
+- **Pasos → check-in de nutrición** (`nutricion.evaluar`):
+  - Si la báscula se frena (tocaría bajar calorías) y tus pasos de la semana cayeron 15 %+ contra las 3 previas, el check-in dice "recupera tus pasos antes de bajar calorías" (estado `pasos`) y no recorta kcal.
+  - En déficit, lo que más cae sin que te des cuenta es la actividad fuera del gym (NEAT; Rosenbaum & Leibel 2010). 3-4 mil pasos valen lo mismo que el ajuste mínimo de 100–150 kcal.
+  - Si toca subir calorías, los pasos no frenan nada.
+  - Nutri muestra una tarjeta "👟 Tus pasos". El dashboard y el aviso del domingo usan la misma evaluación.
+- **Peso del reloj → Nutri:** los pesajes de Zepp pasan a Nutri solo los días sin pesaje tuyo (el que anotas siempre manda) y de los últimos 30 días.
+- **Lo que no se usa:**
+  - las calorías del reloj (error de 20–40 % en gasto energético, Shcherbina et al. 2017);
+  - el SpO₂ y la respiración.
+
+**Verificación.**
+
+- `test_motor` §61, nueva:
+  - noche corta, noche incompleta y pulso alto contra la base;
+  - encuesta y reloj suman sin contar doble;
+  - aviso de sueño;
+  - ritmo real 1.25 → cada sesión cabe en 80 min reales y con menos series, con tope, sesiones absurdas ignoradas y el básquet fuera;
+  - entrenos sin anotar y la notificación;
+  - pasos → estado `pasos` sin recortar kcal;
+  - peso del reloj solo en días sin pesaje;
+  - copia local de ida y vuelta.
+  - La prueba atrapó un error antes de subirlo: el pulso de una noche de 1.7 h contaba como "pulso alto".
+- `app/tests/salud.test.ts`, nueva y en el CI. Con un .zip sintético armado en la prueba (cabeceras locales con campo extra y descriptor de datos, como los de iOS) prueba:
+  - etapas unidas sin contar doble, reloj contra teléfono y percentil del pulso con lecturas basura;
+  - pasos sin sumar fuentes y libras a kg;
+  - entrenos de varias líneas y de una;
+  - que no se lea `export_cda.xml`, el .xml suelto y los errores claros.
+- La barra, probada en el navegador a 375 px:
+  - en modo instalada la página se queda en 0 y el `body` se desplaza; la cabecera queda fija arriba y la barra pegada abajo;
+  - con la barra despegada a propósito, el reparador la corrige dos veces y conserva la posición del scroll;
+  - en modo navegador todo sigue igual.
+  - En el iPhone real no se puede probar desde aquí.
+- El importador, probado en modo demo (no escribe nada en tu cuenta) con un .zip sintético.
+
 ## Referencias principales
 
 - Refalo MC et al. (2023). *Influence of resistance training proximity-to-failure on skeletal muscle hypertrophy: systematic review with meta-analysis.* Sports Med.
@@ -3167,6 +3235,13 @@ Volver a guardar duplicaba series, porque el servidor solo insertaba.
 - Helms ER et al. (2014). *Evidence-based recommendations for natural bodybuilding contest preparation: nutrition and supplementation.* JISSN.
 - Bosquet L et al. (2013). *Effect of training cessation on muscular performance: a meta-analysis.* Scand J Med Sci Sports (la fuerza se mantiene ~3 semanas sin entrenar).
 - Barakat C et al. (2020). *Body recomposition: can trained individuals build muscle and lose fat at the same time?* Strength Cond J.
+- Buchheit M (2014). *Monitoring training status with HR measures: do all roads lead to Rome?* Front Physiol (pulso en reposo sobre la base individual).
+- Radin JM et al. (2020). *Harnessing wearable device data to improve state-level real-time surveillance of influenza-like illness in the USA.* Lancet Digit Health (pulso en reposo elevado de los relojes).
+- Saw AE, Main LC, Gastin PB (2016). *Monitoring the athlete training response: subjective self-reported measures trump commonly used objective measures.* Br J Sports Med.
+- Watson NF et al. (2015). *Recommended amount of sleep for a healthy adult: a joint consensus statement of the AASM and SRS.* Sleep (7 h o más).
+- Nedeltcheva AV et al. (2010). *Insufficient sleep undermines dietary efforts to reduce adiposity.* Ann Intern Med.
+- Rosenbaum M, Leibel RL (2010). *Adaptive thermogenesis in humans.* Int J Obes (la actividad espontánea cae en déficit).
+- Shcherbina A et al. (2017). *Accuracy in wrist-worn, sensor-based measurements of heart rate and energy expenditure in a diverse cohort.* J Pers Med.
 - Schoenfeld BJ, Aragon AA (2018). *How much protein can the body use in a single meal for muscle-building?* JISSN (distribución de proteína por comida).
 - Maeo S et al. (2021). *Greater hamstrings muscle hypertrophy but similar damage protection after training at long versus short muscle lengths.* Med Sci Sports Exerc (curl sentado > tumbado).
 - Maeo S et al. (2023). *Greater triceps brachii hypertrophy after overhead versus lying triceps extension training.* Eur J Sport Sci (cabeza larga en posición elongada).

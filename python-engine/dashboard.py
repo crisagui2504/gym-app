@@ -681,7 +681,7 @@ def _card_calorias(cfg: dict, dfp: pd.DataFrame, tc: float | None) -> html.Div:
     tendencia real del peso (nutricion.evaluar)."""
     enf = ENFOQUES.get(cfg.get("enfoque"), ENFOQUES["recomposicion"])
     m = nutricion.metas(cfg)
-    ev = nutricion.evaluar(cfg, dfp, tc)
+    ev = nutricion.evaluar(cfg, dfp, tc, pasos=nutricion.pasos_reloj(CSV_PATH.parent))
     lo, hi = ev["objetivo"]
     t = ev["tendencia"]
     rango = f"{lo:+.2f}% a {hi:+.2f}%"
@@ -704,6 +704,12 @@ def _card_calorias(cfg: dict, dfp: pd.DataFrame, tc: float | None) -> html.Div:
     elif estado == "en_rango":
         color = ACCENT
         msg = f"Tendencia {t:+.2f}%/semana, dentro del objetivo ({rango}). No cambies nada: así va bien."
+    elif estado == "pasos":
+        color = WARN
+        p = ev["pasos"]
+        msg = (f"Tendencia {t:+.2f}%/semana, por ENCIMA del objetivo ({rango}), pero tus pasos bajaron "
+               f"de {p['antes']:,} a {p['semana']:,} al día (reloj). Recupéralos antes de comer menos: "
+               "3-4 mil pasos valen lo mismo que el ajuste mínimo de calorías.")
     else:
         color = WARN
         d = ev["kcal_delta"]
@@ -987,12 +993,15 @@ def _tabla_plan(df: pd.DataFrame) -> dash_table.DataTable | html.Div:
         # plan distinto del que se subia al telefono
         # la encuesta (series por musculo + bienestar) igual que en el motor
         import feedback as _fbk
+        import reloj as _rlj
         _enc = _fbk.leer_csv(CSV_PATH.parent)
-        semana, reingreso, _avisos = decidir_semana(df, objetivo, inicio, _enc)
+        _rdias, _rentr = _rlj.leer_csv(CSV_PATH.parent)     # el reloj, como en el motor
+        semana, reingreso, _avisos = decidir_semana(df, objetivo, inicio, _enc, reloj=_rdias)
         ajustes, dolor = _fbk.ajustes_para(_enc, objetivo, inicio)
         filas = generar_filas(df, objetivo.isoformat(), semana, reingreso=reingreso,
                               ajustes=ajustes, dolor=dolor,
-                              preferencias=_fbk.leer_preferencias_csv(CSV_PATH.parent))
+                              preferencias=_fbk.leer_preferencias_csv(CSV_PATH.parent),
+                              ritmo=_rlj.ritmo_sesiones(_rentr, df, objetivo)[0])
     except Exception as exc:
         return html.Div([
             html.P(f"No se pudo calcular el plan: {exc}",

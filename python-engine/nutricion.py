@@ -165,12 +165,21 @@ def tendencia_pct_sem(dfp: pd.DataFrame, hoy: date | None = None, ventana: int =
     return pendiente * 7 / float(d["peso"].mean()) * 100
 
 
+# Pasos del reloj (reloj.pasos_semana): si la bascula se frena y te moviste 15 %+
+# menos que las 3 semanas previas, el gasto que bajo es el NEAT (la actividad
+# fuera del gym), que en deficit cae sin que te des cuenta (Rosenbaum & Leibel
+# 2010; Pontzer 2016). Primero se recuperan los pasos y no se bajan calorias:
+# 3-4 mil pasos son ~100-150 kcal, lo mismo que el ajuste minimo.
+PASOS_CAIDA_CHECKIN = 0.15
+
+
 def evaluar(cfg: dict, dfp: pd.DataFrame, cintura_sem: float | None = None,
-            hoy: date | None = None) -> dict:
+            hoy: date | None = None, pasos: dict | None = None) -> dict:
     """Que hacer con las calorias esta semana.
 
-    estado: 'pocos_datos' | 'esperando' | 'en_rango' | 'recomposicion' | 'subir' | 'bajar'
-    kcal_delta: ajuste sugerido (kcal/dia), 0 si no hay que cambiar nada."""
+    estado: 'pocos_datos' | 'esperando' | 'en_rango' | 'recomposicion' | 'subir' | 'bajar' | 'pasos'
+    kcal_delta: ajuste sugerido (kcal/dia), 0 si no hay que cambiar nada.
+    pasos: reloj.pasos_semana() ({'semana', 'antes', 'cambio'}) o None sin reloj."""
     hoy = hoy or date.today()
     enf = _enfoque(cfg)
     lo, hi = enf.tendencia_sem
@@ -202,6 +211,8 @@ def evaluar(cfg: dict, dfp: pd.DataFrame, cintura_sem: float | None = None,
     delta = max(-AJUSTE_MAX, min(AJUSTE_MAX, round(delta / 50) * 50))
     if abs(delta) < 100:        # menos de 100 kcal no se nota ni se puede medir
         delta = 100 if delta > 0 else -100
+    if delta < 0 and pasos and pasos.get("cambio", 0) <= -PASOS_CAIDA_CHECKIN:
+        return {**base, "estado": "pasos", "kcal_delta": 0, "pasos": pasos}
     return {**base, "estado": "subir" if delta > 0 else "bajar", "kcal_delta": int(delta)}
 
 
@@ -222,6 +233,10 @@ def adherencia(dfn: pd.DataFrame, meta_min: int, hoy: date | None = None, dias: 
 
 def consejo_calorias(ev: dict) -> str:
     """Que hacer con las calorias, en una frase (aviso del domingo y check-in de la app)."""
+    if ev["estado"] == "pasos":
+        p = ev["pasos"]
+        return (f"tus pasos bajaron de {p['antes']:,} a {p['semana']:,} al día: "
+                "recupéralos antes de bajar calorías")
     return {"subir": f"sugerencia: {ev['kcal_delta']:+d} kcal/día (aplícalo en el check-in de Nutri)",
             "bajar": f"sugerencia: {ev['kcal_delta']:+d} kcal/día (aplícalo en el check-in de Nutri)",
             "en_rango": "calorías bien: no cambies nada",
@@ -231,12 +246,12 @@ def consejo_calorias(ev: dict) -> str:
 
 
 def resumen_semanal(cfg: dict, dfp: pd.DataFrame, dfn: pd.DataFrame, cintura_sem: float | None = None,
-                    hoy: date | None = None) -> tuple[str, str]:
+                    hoy: date | None = None, pasos: dict | None = None) -> tuple[str, str]:
     """El aviso del domingo (como el check-in semanal de MacroFactor): proteina,
     tendencia del peso y que hacer con las calorias, en una notificacion."""
     m = metas(cfg)
     a = adherencia(dfn, m["proteina_min"], hoy)
-    ev = evaluar(cfg, dfp, cintura_sem, hoy)
+    ev = evaluar(cfg, dfp, cintura_sem, hoy, pasos)
     partes = []
     if a["dias_registrados"]:
         partes.append(f"Proteína {a['promedio']:.0f} g/día (meta {m['proteina_min']}) en {a['dias_registrados']} día(s)")
@@ -251,12 +266,12 @@ def resumen_semanal(cfg: dict, dfp: pd.DataFrame, dfn: pd.DataFrame, cintura_sem
 
 
 def checkin(cfg: dict, dfp: pd.DataFrame, dfn: pd.DataFrame, cintura_sem: float | None = None,
-            hoy: date | None = None) -> dict:
+            hoy: date | None = None, pasos: dict | None = None) -> dict:
     """El check-in semanal para la app (como MacroFactor): tendencia del peso contra
     el objetivo de tu enfoque, la sugerencia de kcal y tu adherencia de 7 dias."""
     hoy = hoy or date.today()
     m = metas(cfg)
-    ev = evaluar(cfg, dfp, cintura_sem, hoy)
+    ev = evaluar(cfg, dfp, cintura_sem, hoy, pasos)
     a = adherencia(dfn, m["proteina_min"], hoy)
     lo, hi = ev["objetivo"]
     return {
@@ -268,6 +283,7 @@ def checkin(cfg: dict, dfp: pd.DataFrame, dfn: pd.DataFrame, cintura_sem: float 
         "proteina": {"promedio": None if a["promedio"] is None else round(a["promedio"], 1),
                      "dias": a["dias_registrados"], "en_meta": a["dias_en_meta"], "meta": m["proteina_min"]},
         "creatina_dias": a["creatina_dias"],
+        "pasos": pasos,                      # del reloj (None sin reloj): la app los muestra
         "consejo": consejo_calorias(ev),
     }
 
@@ -279,6 +295,15 @@ def aplicar_ajuste_kcal(delta: int, hoy: date | None = None) -> int:
     total = max(-1000, min(1000, int(cargar_config().get("kcal_ajuste") or 0) + int(delta)))
     guardar_config({"kcal_ajuste": total, "kcal_ajuste_fecha": (hoy or date.today()).isoformat()})
     return total
+
+
+def pasos_reloj(carpeta=AQUI, hoy: date | None = None) -> dict | None:
+    """Pasos de la semana contra las 3 previas, del CSV local del reloj (reloj.py)."""
+    try:
+        import reloj
+        return reloj.pasos_semana(reloj.leer_csv(carpeta)[0], hoy or date.today())
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def sincronizar_checkin(sesion, base_url: str, token: str, carpeta=AQUI, hoy: date | None = None) -> dict | None:
@@ -299,7 +324,8 @@ def sincronizar_checkin(sesion, base_url: str, token: str, carpeta=AQUI, hoy: da
         return None
     carpeta = pathlib.Path(carpeta)
     dfp, dfn = leer_peso_csv(carpeta / CSV_PESO), leer_nutricion_csv(carpeta)
-    ev = checkin(cargar_config(), dfp, dfn, tendencia_cintura(dfp), hoy)
+    pasos = pasos_reloj(carpeta, hoy)
+    ev = checkin(cargar_config(), dfp, dfn, tendencia_cintura(dfp), hoy, pasos)
     pend = j.get("pendiente") or {}
     limpiar = bool(pend.get("delta"))
     if limpiar:
@@ -307,7 +333,7 @@ def sincronizar_checkin(sesion, base_url: str, token: str, carpeta=AQUI, hoy: da
         if ev["estado"] in ("subir", "bajar") and delta == ev["kcal_delta"]:
             aplicar_ajuste_kcal(delta, hoy)
             subir_meta()
-            ev = checkin(cargar_config(), dfp, dfn, tendencia_cintura(dfp), hoy)     # ahora "esperando"
+            ev = checkin(cargar_config(), dfp, dfn, tendencia_cintura(dfp), hoy, pasos)     # ahora "esperando"
             ev["aplicado"] = {"delta": delta, "fecha": hoy.isoformat()}
         else:
             ev["descartado"] = delta

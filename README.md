@@ -183,6 +183,7 @@ gym/
 │   ├── ejercicios_db.py      catálogo + estímulo por submúsculo
 │   ├── enfoques.py           enfoques y splits
 │   ├── feedback.py           encuesta, dolor, bienestar, preferencias
+│   ├── reloj.py              Amazfit vía Salud: recuperación, ritmo real, pasos
 │   ├── volumen.py            series efectivas por músculo
 │   ├── simulador.py          atleta virtual
 │   ├── demo_motor.py         escenarios de la demo
@@ -238,7 +239,7 @@ Las seis corren en el CI antes de cada despliegue. Si una falla, no se sube nada
 
 | Suite | Qué comprueba |
 |---|---|
-| `test_motor.py` | Las reglas del motor, una por una (60 secciones) |
+| `test_motor.py` | Las reglas del motor, una por una (61 secciones) |
 | `test_menu.py` | Menú de ~50 opciones por tiempo: dietas DASH y mediterránea, más proteína o carbohidratos, estrategias para músculo o pérdida de grasa |
 | `test_funcional.py` | Dashboard, helpers, aislamiento del modo demo y su API |
 | `test_plan_qa.py` | Calidad del plan generado (35 criterios) |

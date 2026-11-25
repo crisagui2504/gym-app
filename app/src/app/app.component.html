@@ -144,6 +144,29 @@
           <span class="hist-mejor">{{ it.mejor }}</span>
         </div>
       </div>
+
+      <!-- Reloj: la exportacion de Salud se lee en el telefono y suben los totales por dia -->
+      <div class="reloj">
+        <div class="week-head"><strong>⌚ Tu reloj</strong></div>
+        <p class="reloj-dato" *ngIf="relojUltima() as u; else relojNunca">
+          Importado el {{ u.fecha }}<ng-container *ngIf="u.hasta"> (datos hasta el {{ u.hasta }})</ng-container>:
+          {{ u.noches }} noches completas<ng-container *ngIf="u.sueno_prom_h !== null"> · sueño {{ u.sueno_prom_h }} h</ng-container><ng-container
+            *ngIf="u.pulso_noche !== null"> · pulso nocturno {{ u.pulso_noche }}</ng-container><ng-container
+            *ngIf="u.pasos_prom !== null"> · {{ u.pasos_prom | number: '1.0-0' }} pasos/día</ng-container> · {{ u.entrenos }} entrenos
+        </p>
+        <ng-template #relojNunca>
+          <p class="reloj-dato">Tu sueño, pulso, pasos y entrenos del Amazfit (vía Salud) ayudan al motor a decidir cuándo descansar y cuánto dura de verdad tu sesión.</p>
+        </ng-template>
+        <label class="reloj-btn" [class.ocupado]="reloj() === 'leyendo' || reloj() === 'subiendo'">
+          <input type="file" accept=".zip,.xml,application/zip,text/xml" (change)="importarReloj($event)"
+                 [disabled]="reloj() === 'leyendo' || reloj() === 'subiendo'" />
+          {{ reloj() === 'leyendo' ? 'Leyendo… ' + relojAvance() + ' %' : reloj() === 'subiendo' ? 'Subiendo…' : 'Importar de Salud (.zip)' }}
+        </label>
+        <p class="reloj-ok" *ngIf="reloj() === 'listo'">✓ Listo. El motor lo usa al armar tu próxima semana.</p>
+        <p class="reloj-error" *ngIf="reloj() === 'error'">{{ relojMsg() }}</p>
+        <p class="week-hint">En Salud: tu foto → Exportar todos los datos de salud → Guardar en Archivos, y luego tócalo aquí.
+          Solo suben los totales por día; el archivo no sale de tu teléfono. Cada 1-2 semanas.</p>
+      </div>
     </section>
 
     <!-- ===== CALENTAMIENTO ===== -->

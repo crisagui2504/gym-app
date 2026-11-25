@@ -8,6 +8,7 @@ import { AcentosPipe } from './acentos';
 import * as almacen from './almacen';
 import { DemoApiService, ES_DEMO, entrarDemo, salirDemo } from './demo';
 import { NutricionService } from './nutricion';
+import { UltimaImportacion, leerExportSalud, resumenCorto } from './salud';
 import { ProteinaComponent } from './proteina.component';
 import { Carga as CargaMuscular, acomodar, cargaDeSesion, nombresMusculos, sinRecuperar } from './semana-plan';
 import { environment } from '../environments/environment';
@@ -315,10 +316,18 @@ export class AppComponent implements OnInit, OnDestroy {
   // Regresion de WebKit: al cerrar el teclado (al escribir un peso) iOS deja el
   // viewport encogido / desplazado y los position:fixed de abajo (barra de
   // acciones, cronometro) quedan a media pantalla. Apple no lo ha arreglado
-  // (developer.apple.com/forums/thread/800125). Remedio documentado: forzar que
-  // WebKit vuelva a medir el viewport ocultando y mostrando la raiz de la app.
+  // (developer.apple.com/forums/thread/800125).
+  // Remedio 1 (el de fondo): con la app instalada el que se desplaza es el body y
+  // no la pagina (html.app-inicio en styles.css). La pagina nunca se mueve, asi
+  // que iOS no tiene un viewport "corrido" con el que descolocar la barra; en
+  // las capturas del 2026-11-25 la barra se iba con el contenido, anclada donde
+  // estaba el teclado.
+  // Remedio 2 (red de seguridad): forzar que WebKit vuelva a medir el viewport
+  // ocultando y mostrando la raiz de la app, tambien cuando la barra quedo fuera
+  // de su sitio aunque las medidas del viewport ya digan que todo esta bien.
   private alturaMax = window.innerHeight;
   private reparoProgramado: ReturnType<typeof setTimeout> | null = null;
+  private revisionScroll: ReturnType<typeof setTimeout> | null = null;
   private readonly onResizeVentana = () => {
     if (window.innerHeight > this.alturaMax) this.alturaMax = window.innerHeight;
   };
@@ -331,6 +340,8 @@ export class AppComponent implements OnInit, OnDestroy {
       if (this.esCampo(document.activeElement)) return; // paso a otro campo: el teclado sigue
       document.body.classList.remove('teclado');
       this.repararViewport();
+      // el teclado tarda ~300 ms en bajar: segunda pasada con el viewport ya quieto
+      setTimeout(() => this.repararViewport(), 450);
     }, 150);
   };
   /** El visual viewport quedo corrido sin un campo con foco: tambien se repara. */
@@ -339,25 +350,57 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.reparoProgramado) clearTimeout(this.reparoProgramado);
     this.reparoProgramado = setTimeout(() => this.repararViewport(), 250);
   };
+  /** Al terminar de desplazar se revisa que la barra siga pegada abajo
+   *  (como mucho un reparo cada 1.5 s, para no parpadear si no se deja). */
+  private readonly onScrollCuerpo = () => {
+    if (this.revisionScroll) clearTimeout(this.revisionScroll);
+    this.revisionScroll = setTimeout(() => {
+      if (Date.now() - this.ultimoReparo > 1500 && this.barraFuera()) this.repararViewport();
+    }, 200);
+  };
+  private ultimoReparo = 0;
 
+  /** Campo que abre el teclado (un selector de archivo o un slider no lo abren). */
   private esCampo(t: EventTarget | null): boolean {
-    return t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement;
+    return (t instanceof HTMLInputElement && !/^(file|checkbox|radio|range|button|submit|color)$/.test(t.type))
+      || t instanceof HTMLTextAreaElement;
+  }
+
+  /** Lo que se desplaza: el body en la app instalada, la pagina en el navegador. */
+  private desplazador(): Element {
+    return document.documentElement.classList.contains('app-inicio')
+      ? document.body
+      : (document.scrollingElement ?? document.documentElement);
+  }
+
+  /** ¿La barra de abajo quedo despegada del borde inferior de la pantalla? */
+  private barraFuera(): boolean {
+    const barra = document.querySelector('.actionbar');
+    if (!barra || document.body.classList.contains('teclado')) return false;
+    const r = barra.getBoundingClientRect();
+    return r.height > 0 && Math.abs(r.bottom - window.innerHeight) > 2;
   }
 
   private repararViewport(): void {
+    if (this.esCampo(document.activeElement)) return;
     const vv = window.visualViewport;
     const encogido = this.alturaMax - window.innerHeight > 4;
     const corrido = !!vv && vv.offsetTop > 1;
-    if (!encogido && !corrido) return;
+    const inicio = document.documentElement.classList.contains('app-inicio');
+    // con el body como desplazador la pagina debe quedarse en 0 siempre
+    const paginaMovida = inicio && (window.scrollY !== 0 || window.scrollX !== 0);
+    if (!encogido && !corrido && !paginaMovida && !this.barraFuera()) return;
+    this.ultimoReparo = Date.now();
+    const sc = this.desplazador();
+    const y = sc.scrollTop;
     const raiz = document.querySelector('app-root') as HTMLElement | null;
-    const x = window.scrollX;
-    const y = window.scrollY;
     if (raiz) {
       raiz.style.display = 'none';
       void raiz.offsetHeight; // reflujo sincrono: WebKit vuelve a medir el viewport
       raiz.style.display = '';
     }
-    window.scrollTo(x, y);
+    if (inicio) window.scrollTo(0, 0);
+    sc.scrollTop = y;
   }
 
   // ----- Actualizar la app (instalada en inicio no tiene boton de recargar) -----
@@ -376,7 +419,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private readonly onTouchStart = (e: TouchEvent) => {
     this.inicioJalon = null;
-    if (!this.instalada || this.actualizando() || e.touches.length !== 1 || window.scrollY > 0) return;
+    if (!this.instalada || this.actualizando() || e.touches.length !== 1 || this.desplazador().scrollTop > 0) return;
     const t = e.target instanceof Element ? e.target : null;
     // ni en campos, ni en sliders, ni dentro de una ventana (encuesta, resumen...)
     if (t?.closest('input, textarea, select, [contenteditable], .enc-modal, .res-modal, [role="dialog"]')) return;
@@ -387,7 +430,7 @@ export class AppComponent implements OnInit, OnDestroy {
     if (!this.inicioJalon) return;
     const dy = e.touches[0].clientY - this.inicioJalon.y;
     const dx = Math.abs(e.touches[0].clientX - this.inicioJalon.x);
-    if (dy <= 0 || dx > dy || window.scrollY > 0) {
+    if (dy <= 0 || dx > dy || this.desplazador().scrollTop > 0) {
       this.inicioJalon = null;
       this.jalando.set(0);
       return;
@@ -445,6 +488,8 @@ export class AppComponent implements OnInit, OnDestroy {
   };
 
   ngOnInit(): void {
+    // instalada en inicio: el body se desplaza, no la pagina (ver repararViewport)
+    if (this.instalada) document.documentElement.classList.add('app-inicio');
     const guardado = localStorage.getItem('tema');
     this.aplicarTema(guardado === 'light' ? 'light' : 'dark');
     this.cargarRacha();
@@ -478,6 +523,7 @@ export class AppComponent implements OnInit, OnDestroy {
     document.addEventListener('focusin', this.onFocoEntra);
     document.addEventListener('focusout', this.onFocoSale);
     window.visualViewport?.addEventListener('resize', this.onViewport);
+    document.body.addEventListener('scroll', this.onScrollCuerpo, { passive: true });
     this.cargarColas().then(() => {
       this.reenviarPendientes();
       this.reenviarFeedback();
@@ -824,6 +870,7 @@ export class AppComponent implements OnInit, OnDestroy {
     document.removeEventListener('focusin', this.onFocoEntra);
     document.removeEventListener('focusout', this.onFocoSale);
     window.visualViewport?.removeEventListener('resize', this.onViewport);
+    document.body.removeEventListener('scroll', this.onScrollCuerpo);
     this.soltarPantalla();
     if (this.relojSesion) clearInterval(this.relojSesion);
     if (this.intervalo) clearInterval(this.intervalo);
@@ -1196,6 +1243,66 @@ export class AppComponent implements OnInit, OnDestroy {
     this.mostrarProteina.update((v) => !v);
     if (this.mostrarProteina()) {
       setTimeout(() => document.querySelector('app-proteina')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    }
+  }
+
+  // ----- Reloj (Amazfit -> Zepp -> Salud): importar la exportacion de Salud -----
+  // El .zip se lee AQUI, en el telefono (salud.ts); al servidor solo suben los
+  // totales por dia. El motor los usa para la recuperacion, la duracion real de
+  // la sesion y los pasos del check-in (python-engine/reloj.py).
+  readonly reloj = signal<'' | 'leyendo' | 'subiendo' | 'listo' | 'error'>('');
+  readonly relojAvance = signal(0);
+  readonly relojMsg = signal('');
+  readonly relojUltima = signal<UltimaImportacion | null>(this.leerRelojUltima());
+
+  private leerRelojUltima(): UltimaImportacion | null {
+    try {
+      return JSON.parse(localStorage.getItem('reloj-ultima') ?? 'null');
+    } catch {
+      return null;
+    }
+  }
+
+  async importarReloj(ev: Event): Promise<void> {
+    const input = ev.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    input.value = '';
+    if (!archivo || this.reloj() === 'leyendo' || this.reloj() === 'subiendo') return;
+    if (typeof DecompressionStream === 'undefined') {
+      this.reloj.set('error');
+      this.relojMsg.set('Tu iPhone necesita iOS 16.4 o más nuevo para leer el .zip aquí.');
+      return;
+    }
+    this.reloj.set('leyendo');
+    this.relojAvance.set(0);
+    this.relojMsg.set('');
+    try {
+      const r = await leerExportSalud(archivo, { progreso: (f) => this.relojAvance.set(Math.round(f * 100)) });
+      if (!r.dias.length && !r.entrenos.length) {
+        this.reloj.set('error');
+        this.relojMsg.set('La exportación no trae datos de los últimos 4 meses. ¿Zepp está conectado a Salud?');
+        return;
+      }
+      this.reloj.set('subiendo');
+      this.api.guardarReloj({ dias: r.dias, entrenos: r.entrenos }).subscribe({
+        next: () => {
+          const c = resumenCorto(r);
+          try {
+            localStorage.setItem('reloj-ultima', JSON.stringify(c));
+          } catch {
+            /* sin almacenamiento: solo no se recuerda el resumen */
+          }
+          this.relojUltima.set(c);
+          this.reloj.set('listo');
+        },
+        error: () => {
+          this.reloj.set('error');
+          this.relojMsg.set('Se leyó bien, pero no se pudo subir. Revisa tu conexión e inténtalo de nuevo.');
+        }
+      });
+    } catch (e) {
+      this.reloj.set('error');
+      this.relojMsg.set(e instanceof Error ? e.message : 'No se pudo leer el archivo.');
     }
   }
 

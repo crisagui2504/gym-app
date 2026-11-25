@@ -48,6 +48,16 @@ import { NutricionService, PESAJES_TENDENCIA } from '../src/app/nutricion';
         </div>
       </section>
 
+      <section class="nu-card" *ngIf="e.pasos as p">
+        <div class="nu-card-top"><h2>👟 Tus pasos</h2><span>reloj</span></div>
+        <p class="nu-dato">
+          <b>{{ p.semana | number: '1.0-0' }}</b> al día esta semana, contra {{ p.antes | number: '1.0-0' }} las 3 anteriores
+          ({{ p.cambio > 0 ? '+' : p.cambio < 0 ? '−' : '±' }}{{ abs(p.cambio) * 100 | number: '1.0-0' }} %).
+          <ng-container *ngIf="e.estado === 'pasos'">Tu báscula se frenó porque te moviste menos: recupera tus pasos
+            antes de comer menos. 3-4 mil pasos valen lo mismo que el ajuste mínimo (100-150 kcal).</ng-container>
+        </p>
+      </section>
+
       <section class="nu-card ci-accion" *ngIf="e.estado === 'subir' || e.estado === 'bajar'">
         <div class="nu-card-top"><h2>🎯 Ajuste sugerido</h2></div>
         <b class="ci-delta">{{ e.kcal_delta > 0 ? '+' : '−' }}{{ abs(e.kcal_delta) }} kcal/día</b>
@@ -84,7 +94,8 @@ export class CheckinComponent implements OnInit {
   readonly error = signal('');
   readonly titulo: Record<string, string> = {
     subir: 'Te conviene comer un poco más', bajar: 'Te conviene comer un poco menos', en_rango: 'Vas justo donde quieres',
-    recomposicion: 'Recomposición en marcha', esperando: 'Dale tiempo a tu último ajuste', pocos_datos: 'Faltan pesajes'
+    recomposicion: 'Recomposición en marcha', esperando: 'Dale tiempo a tu último ajuste', pocos_datos: 'Faltan pesajes',
+    pasos: 'Muévete más antes de comer menos'
   };
 
   ngOnInit(): void {

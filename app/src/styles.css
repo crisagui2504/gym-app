@@ -84,6 +84,25 @@ html {
   background: var(--bg);
 }
 
+/* App instalada en inicio (iPhone): el que se desplaza es el body, no la pagina.
+   Asi la pagina nunca queda "corrida" por el teclado y iOS 26 no puede dejar la
+   barra de abajo a media pantalla (ver repararViewport en app.component.ts).
+   La clase la pone app.component solo en modo instalada: en Safari normal la
+   pagina sigue desplazandose sola para que la barra de direcciones se encoja. */
+html.app-inicio {
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+html.app-inicio body {
+  height: 100%;
+  height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -2006,6 +2025,61 @@ button:disabled {
   font-weight: 800;
   text-align: left;
   cursor: pointer;
+}
+
+/* ── Reloj: importar la exportacion de Salud (panel de Historial) ─────────────── */
+.reloj {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.reloj-dato {
+  margin: 6px 0 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.reloj-btn {
+  position: relative;
+  display: block;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--violet-tint);
+  color: var(--violet-ink);
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* el input queda encima del boton pero invisible: tocarlo abre Archivos */
+.reloj-btn input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.reloj-btn.ocupado {
+  opacity: 0.7;
+}
+
+.reloj-ok {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-ink);
+}
+
+.reloj-error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--danger);
 }
 
 /* Mientras el teclado esta abierto (escribiendo un peso) la barra de abajo y el

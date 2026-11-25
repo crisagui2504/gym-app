@@ -310,6 +310,7 @@ No se versionan:
 | `planificar.py` | Motor semanal: semana del mesociclo (por semanas entrenadas; tras una pausa vuelve a S1), recorte por tiempo según volumen y prioridades y relleno del tiempo que sobra, descargas (rendimiento, bienestar), reingreso tras pausas (todas las series, carga −10 % y −5 %), progresión por ejercicio, redondeo a pesos reales, preferencias y encuesta. Sube el plan, la meta de nutrición y el menú. Incluye helpers de API y antibot. |
 | `entrenador.py` | `ModeloFuerza`: e1RM por ejercicio con RPE, tendencia, desentrenamiento y calibración. |
 | `feedback.py` | Encuesta por músculo, dolor, días malos y preferencias "Usar siempre". |
+| `reloj.py` | El reloj (Amazfit → Zepp → Apple Salud): noches malas y pulso nocturno contra tu base para la recuperación, ritmo real de la sesión para el recorte y el relleno, entrenos de fuerza sin anotar, pasos para el check-in y peso de Zepp a Nutri. La app lee el .zip de Salud en el teléfono (`app/src/app/salud.ts`) y solo sube totales por día. |
 | `volumen.py` | Series efectivas por músculo (las indirectas cuentan la mitad) contra MEV/MAV/MRV. |
 | `simulador.py` | Atleta virtual: 9 perfiles para medir al motor como entrenador. |
 | `config_usuario.py` | `config_usuario.json` con sus valores por defecto. |
@@ -418,6 +419,8 @@ Valores de `guardar_feedback.php`:
 | `get_no_me_gusta.php` | GET | — | `{ok, recetas: [...], alimentos: [...]}` (lo baja `menu.py` antes de generar) |
 | `guardar_peso.php` | POST | `{fecha, peso (30–250), cintura? (40–200)}` | `{ok}`. Un pesaje por día (upsert); sin `cintura` conserva la que ya hubiera ese día. Lo usan la app y el dashboard. |
 | `get_peso.php` | GET | `dias` (1–3650, defecto 60) | `{ok, pesos: [{fecha, peso, cintura \| null}]}`, del más viejo al más nuevo (la app y `exportar_local.py`) |
+| `guardar_reloj.php` | POST | `{dias: [{fecha, sueno_min, pulso_noche, pulso_reposo, hrv, pasos, peso}], entrenos: [{inicio, fin, tipo, minutos, pulso_prom}]}` (≤ 400 de cada uno) | `{ok, dias, entrenos}`. Upsert por fecha y por (inicio, tipo); un dato que falte conserva el anterior. Lo manda la app al importar la exportación de Salud. |
+| `get_reloj.php` | GET | `dias` (1–400, defecto 90) | `{ok, dias: [...], entrenos: [...]}`, del más viejo al más nuevo (`reloj.py` y `exportar_local.py`) |
 
 Reglas de `porciones` en `guardar_proteina.php`:
 
@@ -456,7 +459,7 @@ Cada push a `main` que toque `app/`, `infinityfree/`, `python-engine/` o `instan
 
    | Suite | Qué comprueba |
    |---|---|
-   | `test_motor.py` | Reglas del motor, nutrición, menú, calorías por día, presupuesto, peso corporal, ciclo por semanas entrenadas, plan contra landmarks, reingreso y relleno de tiempo (60 secciones). |
+   | `test_motor.py` | Reglas del motor, nutrición, menú, calorías por día, presupuesto, peso corporal, ciclo por semanas entrenadas, plan contra landmarks, reingreso, relleno de tiempo y el reloj (61 secciones). |
    | `test_menu.py` | Menú de 50 opciones: reglas DASH (con la sal de cocinar) y mediterránea, énfasis, estrategias (músculo, saciedad), variedad, lista corta, "no me gusta", barrido de 108 perfiles. |
    | `test_funcional.py` | Dashboard y helpers, aislamiento del modo demo y su API, menú en demo, **selectores CSS duplicados** en `app/src/styles.css`. |
    | `test_plan_qa.py` | 35 criterios de calidad del plan. |

@@ -56,6 +56,13 @@ def main() -> None:
     fb = feedback.descargar_feedback(sesion, base_url, token, dias=120)
     fb.to_csv(destino.parent / feedback.CSV_FEEDBACK, index=False)
     print(f"{feedback.CSV_FEEDBACK} actualizado ({len(fb)} respuestas)")
+    # reloj (Amazfit via Salud): copia local para el dashboard y para los pasos
+    # del check-in; lo usa el motor (reloj.py). Sin datos o sin endpoint: nada
+    import reloj
+    rel = reloj.descargar(sesion, base_url, token)
+    if rel is not None:
+        reloj.guardar_csv(*rel, carpeta=destino.parent)
+        print(f"{reloj.CSV_DIAS} actualizado ({len(rel[0])} dias, {len(rel[1])} entrenos)")
     import pandas as pd
     prefs = feedback.descargar_preferencias(sesion, base_url, token)
     pd.DataFrame({"original": list(prefs), "reemplazo": list(prefs.values())}).to_csv(
@@ -69,6 +76,11 @@ def main() -> None:
     nut = nutricion.descargar_nutricion(sesion_n, base_n, token_n)
     nut.to_csv(destino.parent / nutricion.CSV_NUTRICION, index=False)
     print(f"{nutricion.CSV_NUTRICION} actualizado ({len(nut)} dias)")
+    # el peso del reloj (Zepp) pasa a Nutri solo en dias SIN pesaje tuyo
+    if rel is not None:
+        n = reloj.pasar_pesos(sesion_n, base_n, token_n, rel[0])
+        if n:
+            print(f"{n} pesaje(s) del reloj pasados a Nutri")
     exportar_peso(sesion_n, base_n, token_n)
     # check-in semanal de la app: aplica el "Aplicar" pendiente y sube la evaluacion
     ev = nutricion.sincronizar_checkin(sesion_n, base_n, token_n, destino.parent)

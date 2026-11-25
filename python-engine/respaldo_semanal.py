@@ -126,7 +126,8 @@ def main() -> int:
             # peso_corporal.csv: lo acaba de refrescar exportar_local desde MySQL (app + dashboard)
             dfp = nutricion.leer_peso_csv(AQUI / nutricion.CSV_PESO)
             titulo, cuerpo = nutricion.resumen_semanal(cargar_config(), dfp, nutricion.leer_nutricion_csv(AQUI),
-                                                       nutricion.tendencia_cintura(dfp))
+                                                       nutricion.tendencia_cintura(dfp),
+                                                       pasos=nutricion.pasos_reloj(AQUI))
             registrar(f"revision de nutricion: {avisos.enviar(titulo, cuerpo, etiqueta='nutricion-semana')} enviada(s)")
         except Exception as e:  # noqa: BLE001
             registrar(f"revision de nutricion no enviada: {e!r}")

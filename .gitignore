@@ -27,6 +27,9 @@ python-engine/peso_corporal.csv
 python-engine/feedback.csv
 python-engine/preferencias.csv
 python-engine/nutricion.csv
+# datos del reloj (salud): nunca al repo
+python-engine/reloj_dias.csv
+python-engine/reloj_entrenos.csv
 python-engine/menu_semana.json
 python-engine/precios_alimentos.json
 python-engine/no_me_gusta.json
@@ -54,6 +57,7 @@ instancias/*/
 # y en este PC. Ni git ni el CI las suben (servidor/armar_deploy.sh las excluye).
 infinityfree/api/config.php
 app/tests/.semana.js
+app/tests/.salud.js
 
 # Token de la app de nutricion (se copia a un secreto de GitHub; no se sube)
 NUTRI_TOKEN.txt

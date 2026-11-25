@@ -770,7 +770,8 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
                   dolor: dict[str, int] | None = None,
                   avisos: list[str] | None = None,
                   hoy: date | None = None,
-                  preferencias: dict[str, str] | None = None) -> list[dict]:
+                  preferencias: dict[str, str] | None = None,
+                  ritmo: float = 1.0) -> list[dict]:
     """reingreso: 0/False normal, 1 = primera semana de vuelta (todas las
     series, el peso que tocaria -10%, sin fallo), 2 = segunda (-5%, sin
     fallo). Ver fase_reingreso().
@@ -1029,14 +1030,16 @@ def generar_filas(df: pd.DataFrame, semana_inicio: str, semana: int,
         duracion_min = int(cargar_config().get("duracion_min", 90))
     if _asist:
         a_ayuda(filas, _asist, _pc)
-    filas = _recortar_duracion(filas, int(duracion_min))
+    # ritmo: cuanto duran tus sesiones REALES contra el estimado (reloj.py); 1.0
+    # sin reloj. 1.2 = tardas 20 % mas: se recorta como si tuvieras 80/1.2 min
+    filas = _recortar_duracion(filas, int(duracion_min), ritmo=ritmo)
     # ...y el tiempo que SOBRA va a los grupos cortos de volumen. No en la
     # descarga (bajar volumen es su objetivo) ni en la 1a semana de vuelta, ni
     # si tu RPE no informa (siempre el mismo numero): sin esa senal el motor no
     # sabe si te recuperas del volumen extra (simulador: con RPE fijo en 8 las
     # series imposibles subian de 6 % a 10 %).
     if semana != 5 and _fase != 1 and modelo.rpe_ok:
-        _rellenar_duracion(filas, int(duracion_min), ajustes=_ajustes, dolor=dolor)
+        _rellenar_duracion(filas, int(duracion_min), ajustes=_ajustes, dolor=dolor, ritmo=ritmo)
     return filas
 
 
@@ -1070,7 +1073,8 @@ def _minutos_dia(fdia: list[dict], quitar: set[str]) -> float:
 
 
 def _recortar_duracion(filas: list[dict], duracion_min: int,
-                       prioridades: list[str] | None = None) -> list[dict]:
+                       prioridades: list[str] | None = None,
+                       ritmo: float = 1.0) -> list[dict]:
     """Ajusta cada dia a la duracion objetivo quitando Bloque C (aislamiento).
 
     Antes se cortaba "desde el final de la lista" con un tope de ejercicios, sin
@@ -1136,7 +1140,7 @@ def _recortar_duracion(filas: list[dict], duracion_min: int,
 
     while True:
         largos = {d for d in por_dia
-                  if _minutos_dia(por_dia[d], quitar[d]) > duracion_min or movimientos(d) > cap}
+                  if _minutos_dia(por_dia[d], quitar[d]) * ritmo > duracion_min or movimientos(d) > cap}
         candidatas = [(d, u) for d, u in unidades if d in largos and not set(u) <= quitar[d]]
         if not candidatas:
             break
@@ -1167,7 +1171,8 @@ def _recortar_duracion(filas: list[dict], duracion_min: int,
 def _rellenar_duracion(filas: list[dict], duracion_min: int,
                        prioridades: list[str] | None = None,
                        ajustes: dict[str, int] | None = None,
-                       dolor: dict[str, int] | None = None) -> None:
+                       dolor: dict[str, int] | None = None,
+                       ritmo: float = 1.0) -> None:
     """El espejo de _recortar_duracion: si la sesion sale mas corta que tu
     duracion, el tiempo que sobra va a series de AISLAMIENTO (Bloque C) de los
     grupos que van cortos de volumen. Modifica `filas` en sitio.
@@ -1222,7 +1227,7 @@ def _rellenar_duracion(filas: list[dict], duracion_min: int,
             una = _minutos_serie({**f, "series_objetivo": 1})
             if (s >= RELLENO_TOPE_SERIES or s - base[id(f)] >= RELLENO_MAX_FILA
                     or extra_dia.get(d, 0) >= RELLENO_MAX_DIA
-                    or _minutos_dia(por_dia[d], set()) + una > duracion_min):
+                    or (_minutos_dia(por_dia[d], set()) + una) * ritmo > duracion_min):
                 continue
             v = valor(f)
             if v >= 2.0:      # solo lo que va CORTO (bajo el inicio de su MAV) o es tu prioridad
@@ -1258,7 +1263,8 @@ def sincronizar_plan(sesion: requests.Session, base_url: str, token: str, semana
 
 def decidir_semana(historial: pd.DataFrame, objetivo: date, inicio: date,
                    encuesta: pd.DataFrame | None = None,
-                   dias_gym: int | None = None) -> tuple[int, int, list[str]]:
+                   dias_gym: int | None = None,
+                   reloj: pd.DataFrame | None = None) -> tuple[int, int, list[str]]:
     """Semana del mesociclo que toca de verdad, tras aplicar las reglas de seguridad.
 
     Devuelve (semana, fase_reingreso, avisos). Es la UNICA fuente de esta decision:
@@ -1308,17 +1314,27 @@ def decidir_semana(historial: pd.DataFrame, objetivo: date, inicio: date,
                       "de su tendencia. Se adelanta la descarga para recuperar.")
         semana = 5
     # Deload por BIENESTAR: 3+ dias de la ultima semana sin energia o durmiendo
-    # mal (feedback.py, Saw et al. 2016). 2 dias: solo aviso.
-    if encuesta is not None and not encuesta.empty:
-        import feedback as _fbk
-        malos = _fbk.dias_malos(encuesta, objetivo)
-        if semana in (2, 3, 4) and not reingreso and malos >= _fbk.DIAS_MALOS_DELOAD:
-            avisos.append(f"DELOAD POR BIENESTAR: {malos} dias de la ultima semana sin energia o "
-                          "durmiendo mal. Se adelanta la descarga: el cuerpo pide recuperar.")
-            semana = 5
-        elif malos >= _fbk.DIAS_MALOS_AVISO:
-            avisos.append(f"BIENESTAR: {malos} dias malos esta semana (energia o sueno). "
-                          "Si sigue asi, la proxima se adelanta la descarga.")
+    # mal (feedback.py, Saw et al. 2016). 2 dias: solo aviso. El reloj (reloj.py)
+    # suma sus noches malas (completa de menos de 5 h, o pulso nocturno 5+ lpm
+    # sobre tu base); un dia que marcan la encuesta y el reloj cuenta una vez.
+    import feedback as _fbk
+    import reloj as _rlj
+    de_encuesta = _fbk.fechas_malas(encuesta, objetivo)
+    de_reloj = _rlj.dias_malos(reloj, objetivo)
+    malos = len(de_encuesta | set(de_reloj))
+    fuente = ""
+    if de_reloj:
+        fuente = " (reloj: " + "; ".join(de_reloj[f] for f in sorted(de_reloj)) + ")"
+    if semana in (2, 3, 4) and not reingreso and malos >= _fbk.DIAS_MALOS_DELOAD:
+        avisos.append(f"DELOAD POR BIENESTAR: {malos} dias de la ultima semana sin energia o "
+                      f"durmiendo mal{fuente}. Se adelanta la descarga: el cuerpo pide recuperar.")
+        semana = 5
+    elif malos >= _fbk.DIAS_MALOS_AVISO:
+        avisos.append(f"BIENESTAR: {malos} dias malos esta semana (energia o sueno){fuente}. "
+                      "Si sigue asi, la proxima se adelanta la descarga.")
+    _sueno = _rlj.aviso_sueno(reloj, objetivo)
+    if _sueno:
+        avisos.append(_sueno)
     # Avisos de entrenador (no cambian el plan)
     if not modelo.rpe_ok:
         avisos.append("RPE: casi todas tus series tienen el MISMO RPE. Si no lo cambias, el motor "
@@ -1344,8 +1360,19 @@ def main() -> None:
     import feedback as fbk
     encuesta = fbk.descargar_feedback(sesion, base_url, token)
 
+    # el reloj (Amazfit via Salud, reloj.py): noches malas para la recuperacion,
+    # duracion real de la sesion y entrenos sin anotar. Sin datos: plan igual
+    import reloj as rlj
+    _rel = rlj.descargar(sesion, base_url, token)
+    reloj_dias, reloj_entrenos = _rel if _rel is not None else (None, None)
+
     # reingreso, deloads reactivos y por bienestar: ver decidir_semana()
-    semana, reingreso, avisos = decidir_semana(historial, objetivo, inicio, encuesta)
+    semana, reingreso, avisos = decidir_semana(historial, objetivo, inicio, encuesta, reloj=reloj_dias)
+    from config_usuario import cargar_config as _cfg
+    duracion = int(_cfg().get("duracion_min", 90))
+    ritmo, n_ritmo = rlj.ritmo_sesiones(reloj_entrenos, historial, objetivo)
+    sin_anotar = rlj.entrenos_sin_anotar(reloj_entrenos, historial, objetivo)
+    avisos += [a for a in (rlj.aviso_ritmo(ritmo, n_ritmo, duracion), rlj.aviso_sin_anotar(sin_anotar)) if a]
     for a in avisos:
         print(a)
 
@@ -1357,7 +1384,7 @@ def main() -> None:
     filas = generar_filas(historial, semana_inicio, semana,
                           plan=obtener_plan(objetivo), reingreso=reingreso,
                           ajustes=ajustes, dolor=dolor, avisos=avisos_fb,
-                          preferencias=preferencias)
+                          preferencias=preferencias, ritmo=ritmo)
     for a in avisos_fb:
         print(f"ENCUESTA: {a}")
 
@@ -1372,6 +1399,14 @@ def main() -> None:
 
     sincronizar_plan(sesion, base_url, token, semana_inicio, filas)
     print(f"Plan de la semana {semana_inicio} ({tipo}) sincronizado.")
+    # lo que vio el reloj, al telefono (los avisos de arriba solo salen en consola)
+    texto = rlj.texto_telefono(reloj_dias, objetivo, ritmo, n_ritmo, sin_anotar)
+    if texto:
+        try:
+            import avisos as _push
+            _push.enviar("⌚ Lo que vio tu reloj", texto, etiqueta="reloj")
+        except Exception as e:  # noqa: BLE001
+            print(f"Aviso del reloj no enviado ({e.__class__.__name__}).")
     # meta de proteina/kcal para la app (con el peso y el enfoque de hoy); si
     # falla, la rutina ya esta subida igual
     import nutricion

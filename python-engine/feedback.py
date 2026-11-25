@@ -246,14 +246,21 @@ DIAS_MALOS_AVISO = 2
 DIAS_MALOS_DELOAD = 3
 
 
-def dias_malos(fb: pd.DataFrame, objetivo: date, dias: int = 7) -> int:
-    """Dias de la ultima semana con energia o sueno en 3 (sin energia / mal)."""
-    if fb.empty or "tipo" not in fb:
-        return 0
+def fechas_malas(fb: pd.DataFrame | None, objetivo: date, dias: int = 7) -> set[date]:
+    """Fechas de la ultima semana con energia o sueno en 3 (sin energia / mal).
+    planificar.decidir_semana las une con las noches malas del reloj (reloj.py):
+    un mismo dia cuenta una vez aunque lo digan los dos."""
+    if fb is None or fb.empty or "tipo" not in fb:
+        return set()
     d = fb[(fb["tipo"] == "dia") & (fb["carga"] == 3)
            & (fb["fecha"] >= pd.Timestamp(objetivo - timedelta(days=dias)))
            & (fb["fecha"] < pd.Timestamp(objetivo))]
-    return int(d["fecha"].nunique())
+    return {pd.Timestamp(f).date() for f in d["fecha"].unique()}
+
+
+def dias_malos(fb: pd.DataFrame, objetivo: date, dias: int = 7) -> int:
+    """Dias de la ultima semana con energia o sueno en 3 (sin energia / mal)."""
+    return len(fechas_malas(fb, objetivo, dias))
 
 
 # ── "Usar siempre": preferencias de ejercicio ────────────────────────────────

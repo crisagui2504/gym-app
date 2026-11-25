@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../environments/environment';
 import { fechaLocal } from './entreno-data';
+import type { DiaReloj, EntrenoReloj } from './salud';
 
 export interface EjercicioPlan {
   id: number;
@@ -75,8 +76,10 @@ export interface NutricionResponse {
 /** Check-in semanal que sube el motor (python-engine/nutricion.py checkin). */
 export interface Checkin {
   fecha: string;
-  estado: 'pocos_datos' | 'esperando' | 'en_rango' | 'recomposicion' | 'subir' | 'bajar';
+  estado: 'pocos_datos' | 'esperando' | 'en_rango' | 'recomposicion' | 'subir' | 'bajar' | 'pasos';
   kcal_delta: number;
+  /** Pasos del reloj: promedio de 7 dias contra las 3 semanas previas (null sin reloj). */
+  pasos?: { semana: number; antes: number; cambio: number } | null;
   tendencia: number | null;          // % del peso por semana
   objetivo: [number, number];        // % por semana que busca tu enfoque
   dias_restantes: number;
@@ -304,6 +307,12 @@ export class RutinaApiService {
 
   getPeso(dias = 60): Observable<{ ok: boolean; pesos: Pesaje[] }> {
     return this.http.get<{ ok: boolean; pesos: Pesaje[] }>(`${environment.apiBaseUrl}/get_peso.php?dias=${dias}`, { headers: this.headers });
+  }
+
+  /** Datos del reloj ya resumidos por dia en el telefono (salud.ts). Reimportar es seguro. */
+  guardarReloj(body: { dias: DiaReloj[]; entrenos: EntrenoReloj[] }): Observable<{ ok: boolean; dias: number; entrenos: number }> {
+    return this.http.post<{ ok: boolean; dias: number; entrenos: number }>(
+      `${environment.apiBaseUrl}/guardar_reloj.php`, body, { headers: this.headers });
   }
 
   /** Pesaje del dia (upsert por fecha; sin cintura, el servidor conserva la que tenga). */

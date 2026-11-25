@@ -3,6 +3,7 @@ import { Observable, from, of } from 'rxjs';
 import { delay, map } from 'rxjs/operators';
 import { environment } from '../environments/environment';
 import { fechaLocal } from './entreno-data';
+import type { DiaReloj, EntrenoReloj } from './salud';
 import type { CheckinResponse, EjercicioPlan, FeedbackItem, HistorialResponse, MenuSemana, NutricionResponse, Pesaje, RutinaHoyResponse, SeriePayload } from './rutina-api.service';
 
 /**
@@ -282,5 +283,10 @@ export class DemoApiService {
   guardarPeso(fecha: string, peso: number, cintura: number | null): Observable<{ ok: boolean }> {
     this.pesosDemo.set(fecha, { fecha, peso, cintura: cintura ?? this.pesosDemo.get(fecha)?.cintura ?? null });
     return of({ ok: true }).pipe(delay(this.espera));
+  }
+
+  /** En la demo el reloj se lee igual (en el telefono) pero no se sube nada. */
+  guardarReloj(body: { dias: DiaReloj[]; entrenos: EntrenoReloj[] }): Observable<{ ok: boolean; dias: number; entrenos: number }> {
+    return of({ ok: true, dias: body.dias.length, entrenos: body.entrenos.length }).pipe(delay(this.espera));
   }
 }

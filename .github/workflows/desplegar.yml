@@ -87,6 +87,11 @@ jobs:
         run: |
           npx esbuild tests/semana-plan.test.ts --bundle --platform=node --log-level=warning --outfile=tests/.semana.js
           node tests/.semana.js
+      - name: Lector del reloj (exportacion de Apple Salud, datos sinteticos)
+        working-directory: app
+        run: |
+          npx esbuild tests/salud.test.ts --bundle --platform=node --log-level=warning --outfile=tests/.salud.js
+          node tests/.salud.js
       - name: Armar deploy/ (igual que el .bat, sin config.php)
         run: bash servidor/armar_deploy.sh
       - name: Subir a InfinityFree (FTPS)
